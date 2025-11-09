@@ -8,6 +8,7 @@ import subprocess
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from LLM.interpreter import CommandInterpreter
+from cortex.coordinator import InstallationCoordinator, StepStatus
 
 
 class CortexCLI:
@@ -82,30 +83,39 @@ class CortexCLI:
                 return 0
             
             if execute:
-                print("\nExecuting commands...")
-                for i, cmd in enumerate(commands, 1):
-                    print(f"\n[{i}/{len(commands)}] Running: {cmd}")
-                    try:
-                        result = subprocess.run(
-                            cmd,
-                            shell=True,
-                            capture_output=True,
-                            text=True,
-                            timeout=300
-                        )
-                        if result.returncode != 0:
-                            self._print_error(f"Command failed: {result.stderr}")
-                            return 1
-                        if result.stdout:
-                            print(result.stdout)
-                    except subprocess.TimeoutExpired:
-                        self._print_error(f"Command timed out: {cmd}")
-                        return 1
-                    except Exception as e:
-                        self._print_error(f"Failed to execute command: {str(e)}")
-                        return 1
+                def progress_callback(current, total, step):
+                    status_emoji = "⏳"
+                    if step.status == StepStatus.SUCCESS:
+                        status_emoji = "✅"
+                    elif step.status == StepStatus.FAILED:
+                        status_emoji = "❌"
+                    print(f"\n[{current}/{total}] {status_emoji} {step.description}")
+                    print(f"  Command: {step.command}")
                 
-                self._print_success(f"{software} installed successfully!")
+                print("\nExecuting commands...")
+                
+                coordinator = InstallationCoordinator(
+                    commands=commands,
+                    descriptions=[f"Step {i+1}" for i in range(len(commands))],
+                    timeout=300,
+                    stop_on_error=True,
+                    progress_callback=progress_callback
+                )
+                
+                result = coordinator.execute()
+                
+                if result.success:
+                    self._print_success(f"{software} installed successfully!")
+                    print(f"\nCompleted in {result.total_duration:.2f} seconds")
+                    return 0
+                else:
+                    if result.failed_step is not None:
+                        self._print_error(f"Installation failed at step {result.failed_step + 1}")
+                    else:
+                        self._print_error("Installation failed")
+                    if result.error_message:
+                        print(f"  Error: {result.error_message}", file=sys.stderr)
+                    return 1
             else:
                 print("\nTo execute these commands, run with --execute flag")
                 print("Example: cortex install docker --execute")
