@@ -1,0 +1,16 @@
+# Python cache files (generated automatically)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Pytest cache
+.pytest_cache/
+
+# Generated configuration output (demo/examples)
+demo_output/
+examples_output/
+
+# Backup files created by ConfigGenerator
+*.backup
+

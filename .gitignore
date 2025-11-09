@@ -1,0 +1,14 @@
+# Generated configuration output (demo/examples)
+demo_output/
+examples_output/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Backup files
+*.backup
+
