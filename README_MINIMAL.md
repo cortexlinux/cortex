@@ -23,3 +23,9 @@ python src/requirements_checker.py oracle-23-ai --json
 
 Optional: `pip install psutil` for better system detection.
 
+
+
+
+
+
+
