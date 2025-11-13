@@ -38,8 +38,10 @@ class IntentDetector:
             intents.append(Intent(action="verify", target="installation"))
 
         # 3. GPU setup requests
-        if "gpu" in text:
+        # Avoid duplicate GPU intents
+        if "gpu" in text and not any(i.target == "gpu" for i in intents):
             intents.append(Intent(action="configure", target="gpu"))
+
 
         # 4. If nothing detected → return empty list (LLM will help later)
         return intents

@@ -26,7 +26,7 @@ class LLMIntentAgent:
     - session context
     """
 
-    def __init__(self, api_key: str = None,
+    def __init__(self, api_key: str | None = None,
                  model: str = "claude-3-5-sonnet-20240620"):
 
         # LLM is enabled ONLY if SDK + API key is available
@@ -58,12 +58,14 @@ class LLMIntentAgent:
 
         # 3. If LLM is unavailable → fallback mode
         if self.llm is None:
+            self.context.add_intents(intents)
             return {
-                "intents": intents,
-                "plan": self.planner.build_plan(intents),
-                "suggestions": [],
-                "gpu": self.context.get_gpu()
-            }
+        "intents": intents,
+        "plan": self.planner.build_plan(intents),
+        "suggestions": [],
+        "gpu": self.context.get_gpu()
+        }
+
 
         # 4. Improve intents using LLM
         improved_intents = self.enhance_intents_with_llm(text, intents)
