@@ -145,3 +145,4 @@ Return bullet list only.
         )
 
         return response.content[0].text.strip().split("\n")
+
