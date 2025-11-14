@@ -42,18 +42,17 @@ class TestCortexCLI(unittest.TestCase):
     @patch('sys.stdout')
     def test_print_status(self, mock_stdout):
         self.cli._print_status("[INFO]", "Test message")
-        self.assertTrue(mock_stdout.write.called or print)
+        mock_stdout.write.assert_called()
     
     @patch('sys.stderr')
     def test_print_error(self, mock_stderr):
         self.cli._print_error("Test error")
-        self.assertTrue(True)
+        mock_stderr.write.assert_called()
     
     @patch('sys.stdout')
     def test_print_success(self, mock_stdout):
         self.cli._print_success("Test success")
-        self.assertTrue(True)
-    
+        mock_stdout.write.assert_called()
     @patch.dict(os.environ, {}, clear=True)
     def test_install_no_api_key(self):
         result = self.cli.install("docker")
