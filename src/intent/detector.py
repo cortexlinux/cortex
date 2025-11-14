@@ -38,8 +38,9 @@ class IntentDetector:
         if "verify" in text or "check" in text:
             intents.append(Intent(action="verify", target="installation"))
 
-        # 3. GPU configure intent (only once)
-        if "gpu" in text and not any(
+        # 3. GPU configure intent (use all GPU synonyms)
+        gpu_keywords = self.COMMON_PACKAGES.get("gpu", ["gpu"])
+        if any(k in text for k in gpu_keywords) and not any(
             i.action == "configure" and i.target == "gpu"
             for i in intents
         ):
