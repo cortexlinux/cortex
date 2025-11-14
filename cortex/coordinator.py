@@ -1,13 +1,17 @@
+"""Execution coordinator for multi-step software installation plans."""
+
+import json
 import subprocess
 import time
-import json
-from typing import List, Dict, Any, Optional, Callable
-from dataclasses import dataclass, field
-from enum import Enum
+from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
 
 class StepStatus(Enum):
+    """Lifecycle states for a single installation step."""
+
     PENDING = "pending"
     RUNNING = "running"
     SUCCESS = "success"
@@ -17,6 +21,8 @@ class StepStatus(Enum):
 
 @dataclass
 class InstallationStep:
+    """Container describing an individual shell command execution."""
+
     command: str
     description: str
     status: StepStatus = StepStatus.PENDING
@@ -27,6 +33,7 @@ class InstallationStep:
     return_code: Optional[int] = None
     
     def duration(self) -> Optional[float]:
+        """Return the elapsed execution time for the step if available."""
         if self.start_time and self.end_time:
             return self.end_time - self.start_time
         return None
@@ -34,6 +41,8 @@ class InstallationStep:
 
 @dataclass
 class InstallationResult:
+    """Summary returned after executing all installation steps."""
+
     success: bool
     steps: List[InstallationStep]
     total_duration: float
@@ -42,6 +51,8 @@ class InstallationResult:
 
 
 class InstallationCoordinator:
+    """Coordinate execution of shell commands with optional rollback."""
+
     def __init__(
         self,
         commands: List[str],
@@ -52,6 +63,8 @@ class InstallationCoordinator:
         log_file: Optional[str] = None,
         progress_callback: Optional[Callable[[int, int, InstallationStep], None]] = None
     ):
+        """Build the coordinator and prepare execution metadata."""
+
         self.timeout = timeout
         self.stop_on_error = stop_on_error
         self.enable_rollback = enable_rollback
@@ -71,7 +84,8 @@ class InstallationCoordinator:
         
         self.rollback_commands: List[str] = []
     
-    def _log(self, message: str):
+    def _log(self, message: str) -> None:
+        """Append a timestamped line to the optional log file."""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_entry = f"[{timestamp}] {message}"
         
@@ -83,6 +97,7 @@ class InstallationCoordinator:
                 pass
     
     def _execute_command(self, step: InstallationStep) -> bool:
+        """Run a step command and update the step state in place."""
         step.status = StepStatus.RUNNING
         step.start_time = time.time()
         
@@ -125,7 +140,8 @@ class InstallationCoordinator:
             self._log(f"Error: {step.command} - {str(e)}")
             return False
     
-    def _rollback(self):
+    def _rollback(self) -> None:
+        """Execute registered rollback commands in reverse order."""
         if not self.enable_rollback or not self.rollback_commands:
             return
         
@@ -143,10 +159,12 @@ class InstallationCoordinator:
             except Exception as e:
                 self._log(f"Rollback failed: {cmd} - {str(e)}")
     
-    def add_rollback_command(self, command: str):
+    def add_rollback_command(self, command: str) -> None:
+        """Register a command that reverts a successful step."""
         self.rollback_commands.append(command)
     
     def execute(self) -> InstallationResult:
+        """Execute all commands and return a structured result object."""
         start_time = time.time()
         failed_step_index = None
         
@@ -195,6 +213,7 @@ class InstallationCoordinator:
         )
     
     def verify_installation(self, verify_commands: List[str]) -> Dict[str, bool]:
+        """Run verification commands and return a mapping of pass/fail results."""
         verification_results = {}
         
         self._log("Starting verification...")
@@ -218,6 +237,7 @@ class InstallationCoordinator:
         return verification_results
     
     def get_summary(self) -> Dict[str, Any]:
+        """Return a JSON-serialisable summary of the full installation run."""
         total_steps = len(self.steps)
         success_steps = sum(1 for s in self.steps if s.status == StepStatus.SUCCESS)
         failed_steps = sum(1 for s in self.steps if s.status == StepStatus.FAILED)
@@ -240,12 +260,15 @@ class InstallationCoordinator:
             ]
         }
     
-    def export_log(self, filepath: str):
+    def export_log(self, filepath: str) -> None:
+        """Persist the run summary to ``filepath`` in JSON format."""
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(self.get_summary(), f, indent=2)
 
 
 def install_docker() -> InstallationResult:
+    """Provision Docker using the coordinator's default behaviour."""
+
     commands = [
         "apt update",
         "apt install -y apt-transport-https ca-certificates curl software-properties-common",

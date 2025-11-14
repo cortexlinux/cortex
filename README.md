@@ -58,10 +58,28 @@ Cortex Linux embeds AI at the operating system level. Tell it what you need in p
 ## Tech Stack
 
 - **Base OS**: Ubuntu 24.04 LTS (Debian packaging)
-- **AI Layer**: Python 3.11+, LangChain, Claude API
+- **AI Layer**: Python 3.11+, OpenAI GPT-4, Anthropic Claude 3.5, Kimi K2
 - **Security**: Firejail sandboxing, AppArmor policies
 - **Package Management**: apt wrapper with semantic understanding
 - **Hardware Detection**: hwinfo, lspci, nvidia-smi integration
+
+### Supported LLM Providers
+
+Configure the CLI by exporting the relevant API key (or using the fake provider
+for offline development):
+
+| Provider | Environment Variable | Default Model |
+|----------|----------------------|---------------|
+| OpenAI   | `OPENAI_API_KEY`     | `gpt-4`       |
+| Claude   | `ANTHROPIC_API_KEY`  | `claude-3-5-sonnet-20241022` |
+| Kimi K2  | `KIMI_API_KEY`       | `kimi-k2`     |
+| Fake     | `CORTEX_PROVIDER=fake` + optional `CORTEX_FAKE_COMMANDS` | Offline stubs |
+
+To run the CLI with the fake provider:
+
+```bash
+CORTEX_PROVIDER=fake CORTEX_FAKE_COMMANDS='{"commands": ["echo Step 1"]}' cortex install docker --dry-run
+```
 
 ## Get Involved
 
@@ -72,7 +90,9 @@ Cortex Linux embeds AI at the operating system level. Tell it what you need in p
 - Technical Writers
 - Beta Testers
 
-Browse [Issues](../../issues) for contribution opportunities.
+Browse [Issues](../../issues) for contribution opportunities and review the
+[Contribution Guide](contribution.md) plus the [Testing Strategy](test.md)
+before opening a pull request.
 
 ### Join the Community
 
