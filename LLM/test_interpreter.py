@@ -30,6 +30,14 @@ class TestCommandInterpreter(unittest.TestCase):
         self.assertEqual(interpreter.model, "gpt-4")
         mock_openai.assert_called_once_with(api_key=self.api_key)
     
+    @patch.dict(os.environ, {'GROQ_BASE_URL': 'https://example.com/api'}, clear=True)
+    @patch('openai.OpenAI')
+    def test_initialization_groq(self, mock_openai):
+        interpreter = CommandInterpreter(api_key=self.api_key, provider="groq")
+        self.assertEqual(interpreter.provider, APIProvider.GROQ)
+        self.assertEqual(interpreter.model, "llama-3.3-70b-versatile")
+        mock_openai.assert_called_once_with(api_key=self.api_key, base_url='https://example.com/api')
+
     @patch('anthropic.Anthropic')
     def test_initialization_claude(self, mock_anthropic):
         interpreter = CommandInterpreter(api_key=self.api_key, provider="claude")
@@ -125,6 +133,31 @@ class TestCommandInterpreter(unittest.TestCase):
         
         with self.assertRaises(RuntimeError):
             interpreter._call_openai("install docker")
+
+    @patch('openai.OpenAI')
+    def test_call_groq_success(self, mock_openai):
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = '{"commands": ["apt update"]}'
+        mock_client.chat.completions.create.return_value = mock_response
+
+        interpreter = CommandInterpreter(api_key=self.api_key, provider="groq")
+        interpreter.client = mock_client
+
+        result = interpreter._call_groq("install docker")
+        self.assertEqual(result, ["apt update"])
+
+    @patch('openai.OpenAI')
+    def test_call_groq_failure(self, mock_openai):
+        mock_client = Mock()
+        mock_client.chat.completions.create.side_effect = Exception("API Error")
+
+        interpreter = CommandInterpreter(api_key=self.api_key, provider="groq")
+        interpreter.client = mock_client
+
+        with self.assertRaises(RuntimeError):
+            interpreter._call_groq("install docker")
     
     @patch('anthropic.Anthropic')
     def test_call_claude_success(self, mock_anthropic):

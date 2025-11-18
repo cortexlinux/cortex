@@ -12,27 +12,49 @@ class TestCortexCLI(unittest.TestCase):
     
     def setUp(self):
         self.cli = CortexCLI()
+        self.creds_patcher = patch.object(CortexCLI, '_load_creds', return_value={})
+        self.creds_patcher.start()
+        self.addCleanup(self.creds_patcher.stop)
     
     @patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'})
     def test_get_api_key_openai(self):
-        api_key = self.cli._get_api_key()
+        api_key = self.cli._get_api_key('openai')
         self.assertEqual(api_key, 'test-key')
     
     @patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-claude-key', 'OPENAI_API_KEY': ''}, clear=True)
     def test_get_api_key_claude(self):
-        api_key = self.cli._get_api_key()
+        api_key = self.cli._get_api_key('claude')
         self.assertEqual(api_key, 'test-claude-key')
     
     @patch.dict(os.environ, {}, clear=True)
     @patch('sys.stderr')
     def test_get_api_key_not_found(self, mock_stderr):
-        api_key = self.cli._get_api_key()
+        api_key = self.cli._get_api_key('openai')
         self.assertIsNone(api_key)
+
+    @patch.dict(os.environ, {'GROQ_API_KEY': 'groq-key'}, clear=True)
+    def test_get_provider_groq(self):
+        provider = self.cli._get_provider()
+        self.assertEqual(provider, 'groq')
     
     @patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'})
     def test_get_provider_openai(self):
         provider = self.cli._get_provider()
         self.assertEqual(provider, 'openai')
+
+    @patch.dict(os.environ, {'OPENAI_API_KEY': 'first', 'ANTHROPIC_API_KEY': 'second'}, clear=True)
+    @patch('cortex.cli.CommandInterpreter')
+    def test_install_fallback_to_second_provider(self, mock_interpreter_class):
+        first_instance = Mock()
+        first_instance.parse.side_effect = RuntimeError("OpenAI outage")
+        second_instance = Mock()
+        second_instance.parse.return_value = ["echo ok"]
+        mock_interpreter_class.side_effect = [first_instance, second_instance]
+
+        result = self.cli.install("docker", dry_run=True)
+
+        self.assertEqual(result, 0)
+        self.assertEqual(mock_interpreter_class.call_count, 2)
     
     @patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'}, clear=True)
     def test_get_provider_claude(self):

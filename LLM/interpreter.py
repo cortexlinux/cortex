@@ -12,6 +12,7 @@ class APIProvider(Enum):
     CLAUDE = "claude"
     OPENAI = "openai"
     KIMI = "kimi"
+    GROQ = "groq"
     FAKE = "fake"
 
 
@@ -40,6 +41,14 @@ class CommandInterpreter:
             try:
                 from openai import OpenAI
                 self.client = OpenAI(api_key=self.api_key)
+            except ImportError:
+                raise ImportError("OpenAI package not installed. Run: pip install openai")
+        elif self.provider == APIProvider.GROQ:
+            try:
+                from openai import OpenAI
+                base_url = os.environ.get("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
+                self.client = OpenAI(api_key=self.api_key, base_url=base_url)
+                self._groq_base_url = base_url
             except ImportError:
                 raise ImportError("OpenAI package not installed. Run: pip install openai")
         elif self.provider == APIProvider.CLAUDE:
@@ -133,7 +142,8 @@ Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.i
         }
 
         try:
-            response = self.client.post(
+            import requests
+            response = requests.post(
                 f"{self._kimi_base_url.rstrip('/')}/v1/chat/completions",
                 headers=headers,
                 json=payload,
@@ -148,6 +158,8 @@ Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.i
             if not content:
                 raise RuntimeError("Kimi API returned empty content")
             return self._parse_commands(content)
+        except ImportError as ie:
+            raise RuntimeError("Requests package not installed. Run: pip install requests") from ie
         except Exception as exc:
             raise RuntimeError(f"Kimi API call failed: {str(exc)}") from exc
 
@@ -232,6 +244,8 @@ Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.i
             commands = self._call_claude(user_input)
         elif self.provider == APIProvider.KIMI:
             commands = self._call_kimi(user_input)
+        elif self.provider == APIProvider.GROQ:
+            commands = self._call_groq(user_input)
         elif self.provider == APIProvider.FAKE:
             commands = self._call_fake(user_input)
         else:
@@ -260,9 +274,30 @@ Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.i
         """Return the default model identifier for the active provider."""
 
         if self.provider == APIProvider.OPENAI:
-            return "gpt-4"
+            return "gpt-4o"
+        if self.provider == APIProvider.GROQ:
+            return os.environ.get("GROQ_DEFAULT_MODEL", "llama-3.3-70b-versatile")
         if self.provider == APIProvider.CLAUDE:
             return "claude-3-5-sonnet-20241022"
         if self.provider == APIProvider.KIMI:
             return os.environ.get("KIMI_DEFAULT_MODEL", "kimi-k2")
         return "fake-local-model"
+
+    def _call_groq(self, user_input: str) -> List[str]:
+        """Call the Groq OpenAI-compatible endpoint and parse the response."""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": self._get_system_prompt()},
+                    {"role": "user", "content": user_input}
+                ],
+                temperature=0.3,
+                max_tokens=1000
+            )
+
+            content = response.choices[0].message.content.strip()
+            return self._parse_commands(content)
+        except Exception as exc:
+            raise RuntimeError(f"Groq API call failed: {str(exc)}") from exc
