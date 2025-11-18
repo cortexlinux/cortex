@@ -387,8 +387,8 @@ class TestPreferencesManager(unittest.TestCase):
         manager1 = PreferencesManager(config_path=self.config_path)
         manager2 = PreferencesManager(config_path=self.config_path)
         
-        prefs1 = manager1.load()
-        prefs2 = manager2.load()
+        manager1.load()
+        manager2.load()
         
         manager1.set("ai.model", "gpt-4")
         manager1.save()
@@ -409,7 +409,7 @@ class TestPreferencesManager(unittest.TestCase):
     def test_missing_directory_creation(self):
         """Test that missing directories are created"""
         nested_path = self.test_dir / "nested" / "dir" / "config.yaml"
-        manager = PreferencesManager(config_path=nested_path)
+        PreferencesManager(config_path=nested_path)
         
         self.assertTrue(nested_path.parent.exists())
 

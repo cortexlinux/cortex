@@ -147,8 +147,9 @@ class DependencyResolver:
                 if '|' in current_dep_name:
                     current_dep_name = current_dep_name.split('|')[0].strip()
                 
-                # Remove version constraints
-                current_dep_name = re.sub(r'\s*\(.*?\)', '', current_dep_name)
+                # Remove version constraints - use more secure regex to avoid ReDoS
+                # Match optional whitespace followed by parentheses with any content
+                current_dep_name = re.sub(r'\s*\([^)]*\)', '', current_dep_name)
                 
                 is_installed = self.is_package_installed(current_dep_name)
                 installed_ver = self.get_installed_version(current_dep_name) if is_installed else None
@@ -162,7 +163,8 @@ class DependencyResolver:
             
             elif line.startswith('Recommends:'):
                 dep_name = line.split(':', 1)[1].strip()
-                dep_name = re.sub(r'\s*\(.*?\)', '', dep_name)
+                # Remove version constraints - use more secure regex to avoid ReDoS
+                dep_name = re.sub(r'\s*\([^)]*\)', '', dep_name)
                 
                 dependencies.append(Dependency(
                     name=dep_name,

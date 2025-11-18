@@ -3,7 +3,7 @@ import os
 import argparse
 import time
 import json
-from typing import List, Optional, Any
+from typing import Optional, Any
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -17,7 +17,7 @@ from cortex.installation_history import (
     InstallationType,
     InstallationStatus
 )
-from cortex.user_preferences import PreferencesManager, VerbosityLevel
+from cortex.user_preferences import PreferencesManager
 
 
 class CortexCLI:
@@ -28,6 +28,7 @@ class CortexCLI:
         try:
             self.prefs_manager.load()
         except Exception:
+            # Silently ignore preference loading errors; defaults will be used
             pass
     
     def _cred_path(self) -> Path:
@@ -43,6 +44,7 @@ class CortexCLI:
             if p.exists():
                 return json.loads(p.read_text(encoding="utf-8"))
         except Exception:
+            # Return empty dict if credentials can't be loaded (file corrupted, etc.)
             pass
         return {}
     

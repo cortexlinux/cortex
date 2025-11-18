@@ -479,7 +479,7 @@ def main():
     manager = PreferencesManager()
     
     # Load preferences (creates default if not exists)
-    prefs = manager.load()
+    manager.load()
     
     print("Current Preferences:")
     print("-" * 60)
