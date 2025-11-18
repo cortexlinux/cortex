@@ -2,9 +2,11 @@ import sys
 import os
 import argparse
 import time
-from typing import List, Optional
+import json
+from typing import List, Optional, Any
 import subprocess
 from datetime import datetime
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
@@ -15,12 +17,34 @@ from installation_history import (
     InstallationType,
     InstallationStatus
 )
+from user_preferences import PreferencesManager, VerbosityLevel
 
 
 class CortexCLI:
     def __init__(self):
         self.spinner_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
         self.spinner_idx = 0
+        self.prefs_manager = PreferencesManager()
+        try:
+            self.prefs_manager.load()
+        except Exception:
+            pass
+    
+    def _cred_path(self) -> Path:
+        """Return path to credentials file"""
+        base = Path.home() / ".cortex"
+        base.mkdir(parents=True, exist_ok=True)
+        return base / "credentials.json"
+    
+    def _load_creds(self) -> dict:
+        """Load persisted credentials"""
+        try:
+            p = self._cred_path()
+            if p.exists():
+                return json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+        return {}
     
     def _get_api_key(self) -> Optional[str]:
         api_key = os.environ.get('OPENAI_API_KEY') or os.environ.get('ANTHROPIC_API_KEY')
@@ -36,14 +60,14 @@ class CortexCLI:
             return 'claude'
         return 'openai'
     
-    def _print_status(self, emoji: str, message: str):
-        print(f"{emoji} {message}")
+    def _print_status(self, label: str, message: str):
+        print(f"{label} {message}")
     
     def _print_error(self, message: str):
-        print(f"❌ Error: {message}", file=sys.stderr)
+        print(f"[ERROR] {message}", file=sys.stderr)
     
     def _print_success(self, message: str):
-        print(f"✅ {message}")
+        print(f"[SUCCESS] {message}")
     
     def _animate_spinner(self, message: str):
         sys.stdout.write(f"\r{self.spinner_chars[self.spinner_idx]} {message}")
@@ -68,11 +92,11 @@ class CortexCLI:
         start_time = datetime.now()
         
         try:
-            self._print_status("🧠", "Understanding request...")
+            self._print_status("[INFO]", "Understanding request...")
             
             interpreter = CommandInterpreter(api_key=api_key, provider=provider)
             
-            self._print_status("📦", "Planning installation...")
+            self._print_status("[INFO]", "Planning installation...")
             
             for _ in range(10):
                 self._animate_spinner("Analyzing system requirements...")
@@ -96,7 +120,7 @@ class CortexCLI:
                     start_time
                 )
             
-            self._print_status("⚙️", f"Installing {software}...")
+            self._print_status("[INFO]", f"Installing {software}...")
             print("\nGenerated commands:")
             for i, cmd in enumerate(commands, 1):
                 print(f"  {i}. {cmd}")
@@ -109,12 +133,12 @@ class CortexCLI:
             
             if execute:
                 def progress_callback(current, total, step):
-                    status_emoji = "⏳"
+                    status_label = "[PENDING]"
                     if step.status == StepStatus.SUCCESS:
-                        status_emoji = "✅"
+                        status_label = "[SUCCESS]"
                     elif step.status == StepStatus.FAILED:
-                        status_emoji = "❌"
-                    print(f"\n[{current}/{total}] {status_emoji} {step.description}")
+                        status_label = "[FAILED]"
+                    print(f"\n[{current}/{total}] {status_label} {step.description}")
                     print(f"  Command: {step.command}")
                 
                 print("\nExecuting commands...")
@@ -136,7 +160,7 @@ class CortexCLI:
                     # Record successful installation
                     if install_id:
                         history.update_installation(install_id, InstallationStatus.SUCCESS)
-                        print(f"\n📝 Installation recorded (ID: {install_id})")
+                        print(f"\n[INFO] Installation recorded (ID: {install_id})")
                         print(f"   To rollback: cortex rollback {install_id}")
                     
                     return 0
@@ -157,7 +181,7 @@ class CortexCLI:
                     if result.error_message:
                         print(f"  Error: {result.error_message}", file=sys.stderr)
                     if install_id:
-                        print(f"\n📝 Installation recorded (ID: {install_id})")
+                        print(f"\n[INFO] Installation recorded (ID: {install_id})")
                         print(f"   View details: cortex history show {install_id}")
                     return 1
             else:
@@ -262,6 +286,139 @@ class CortexCLI:
             self._print_error(f"Rollback failed: {str(e)}")
             return 1
 
+    def config(self, action: str, key: Optional[str] = None, value: Optional[str] = None):
+        """Manage user preferences and configuration"""
+        try:
+            if action == "list":
+                # List all preferences
+                prefs = self.prefs_manager.list_all()
+                
+                print("\n[INFO] Current Configuration:")
+                print("=" * 60)
+                import yaml
+                print(yaml.dump(prefs, default_flow_style=False, sort_keys=False))
+                
+                # Show config file location
+                info = self.prefs_manager.get_config_info()
+                print(f"\nConfig file: {info['config_path']}")
+                return 0
+            
+            elif action == "get":
+                if not key:
+                    self._print_error("Key required for 'get' action")
+                    return 1
+                
+                value = self.prefs_manager.get(key)
+                if value is None:
+                    self._print_error(f"Preference '{key}' not found")
+                    return 1
+                
+                print(f"{key}: {value}")
+                return 0
+            
+            elif action == "set":
+                if not key or value is None:
+                    self._print_error("Key and value required for 'set' action")
+                    return 1
+                
+                # Parse value type
+                parsed_value = self._parse_config_value(value)
+                
+                self.prefs_manager.set(key, parsed_value)
+                self.prefs_manager.save()
+                
+                self._print_success(f"Set {key} = {parsed_value}")
+                return 0
+            
+            elif action == "reset":
+                if key:
+                    # Reset specific key
+                    self.prefs_manager.reset(key)
+                    self._print_success(f"Reset {key} to default")
+                else:
+                    # Reset all preferences
+                    print("This will reset all preferences to defaults.")
+                    confirm = input("Continue? (y/n): ")
+                    if confirm.lower() == 'y':
+                        self.prefs_manager.reset()
+                        self._print_success("All preferences reset to defaults")
+                    else:
+                        print("Reset cancelled")
+                return 0
+            
+            elif action == "validate":
+                errors = self.prefs_manager.validate()
+                if errors:
+                    print("Configuration validation errors:")
+                    for error in errors:
+                        print(f"  - {error}")
+                    return 1
+                else:
+                    self._print_success("Configuration is valid")
+                    return 0
+            
+            elif action == "info":
+                info = self.prefs_manager.get_config_info()
+                print("\n[INFO] Configuration Info:")
+                print("=" * 60)
+                for k, v in info.items():
+                    print(f"{k}: {v}")
+                return 0
+            
+            elif action == "export":
+                if not key:
+                    self._print_error("Output path required for 'export' action")
+                    return 1
+                
+                from pathlib import Path
+                output_path = Path(key)
+                self.prefs_manager.export_json(output_path)
+                self._print_success(f"Configuration exported to {output_path}")
+                return 0
+            
+            elif action == "import":
+                if not key:
+                    self._print_error("Input path required for 'import' action")
+                    return 1
+                
+                from pathlib import Path
+                input_path = Path(key)
+                self.prefs_manager.import_json(input_path)
+                self._print_success(f"Configuration imported from {input_path}")
+                return 0
+            
+            else:
+                self._print_error(f"Unknown config action: {action}")
+                return 1
+        
+        except ValueError as e:
+            self._print_error(str(e))
+            return 1
+        except Exception as e:
+            self._print_error(f"Configuration error: {str(e)}")
+            return 1
+    
+    def _parse_config_value(self, value: str) -> Any:
+        """Parse configuration value from string"""
+        # Handle boolean values
+        if value.lower() in ('true', 'yes', 'on', '1'):
+            return True
+        if value.lower() in ('false', 'no', 'off', '0'):
+            return False
+        
+        # Handle integers
+        try:
+            return int(value)
+        except ValueError:
+            pass
+        
+        # Handle lists (comma-separated)
+        if ',' in value:
+            return [item.strip() for item in value.split(',')]
+        
+        # Return as string
+        return value
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -277,6 +434,11 @@ Examples:
   cortex history
   cortex history show <id>
   cortex rollback <id>
+  cortex config list
+  cortex config get ai.model
+  cortex config set ai.model gpt-4
+  cortex config reset
+  cortex config validate
 
 Environment Variables:
   OPENAI_API_KEY      OpenAI API key for GPT-4
@@ -304,6 +466,14 @@ Environment Variables:
     rollback_parser.add_argument('id', help='Installation ID to rollback')
     rollback_parser.add_argument('--dry-run', action='store_true', help='Show rollback actions without executing')
     
+    # Config command
+    config_parser = subparsers.add_parser('config', help='Manage user preferences and configuration')
+    config_parser.add_argument('action', 
+                              choices=['list', 'get', 'set', 'reset', 'validate', 'info', 'export', 'import'],
+                              help='Configuration action')
+    config_parser.add_argument('key', nargs='?', help='Preference key or file path')
+    config_parser.add_argument('value', nargs='?', help='Preference value (for set action)')
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -319,6 +489,8 @@ Environment Variables:
             return cli.history(limit=args.limit, status=args.status, show_id=args.show_id)
         elif args.command == 'rollback':
             return cli.rollback(args.id, dry_run=args.dry_run)
+        elif args.command == 'config':
+            return cli.config(args.action, args.key, args.value)
         else:
             parser.print_help()
             return 1
