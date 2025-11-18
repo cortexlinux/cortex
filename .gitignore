@@ -1,4 +1,14 @@
 # ==============================
+# Cortex Project Specific
+# ==============================
+# Generated configuration output (demo/examples)
+demo_output/
+examples_output/
+
+# Backup files created by ConfigGenerator
+*.backup
+
+# ==============================
 # Python
 # ==============================
 __pycache__/
@@ -20,10 +30,6 @@ venv.bak/
 # ==============================
 # Distribution / Packaging
 # ==============================
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
 .Python
 build/
 develop-eggs/
@@ -136,17 +142,9 @@ Thumbs.db
 # ==============================
 # Logs & Misc
 # ==============================
-*.log
 logs/
 *.tmp
 *.bak
 *.swp
 .env
 .venv
-env/
-venv/
-ENV/
-.mypy_cache/
-.pytest_cache/
-.coverage
-htmlcov/
