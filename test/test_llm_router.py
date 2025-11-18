@@ -15,7 +15,17 @@ import sys
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from llm_router import (
+import unittest
+import tempfile
+import os
+import sys
+from pathlib import Path
+from unittest.mock import patch, MagicMock
+from datetime import datetime
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from cortex.llm_router import (
     LLMRouter,
     TaskType,
     LLMProvider,

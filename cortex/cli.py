@@ -12,12 +12,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from LLM.interpreter import CommandInterpreter
 from cortex.coordinator import InstallationCoordinator, StepStatus
-from installation_history import (
+from cortex.installation_history import (
     InstallationHistory,
     InstallationType,
     InstallationStatus
 )
-from user_preferences import PreferencesManager, VerbosityLevel
+from cortex.user_preferences import PreferencesManager, VerbosityLevel
 
 
 class CortexCLI:

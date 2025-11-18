@@ -8,8 +8,8 @@ from datetime import datetime, timedelta
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from logging_system import CortexLogger, LogContext
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from cortex.logging_system import CortexLogger, LogContext
 
 class TestCortexLogger(unittest.TestCase):
     def setUp(self):
