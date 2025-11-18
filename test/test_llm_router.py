@@ -254,7 +254,7 @@ class TestCostTracking(unittest.TestCase):
 class TestClaudeIntegration(unittest.TestCase):
     """Test Claude API integration."""
     
-    @patch('llm_router.Anthropic')
+    @patch('cortex.llm_router.Anthropic')
     def test_claude_completion(self, mock_anthropic):
         """Test Claude completion with mocked API."""
         # Mock response
@@ -286,7 +286,7 @@ class TestClaudeIntegration(unittest.TestCase):
         self.assertEqual(result.tokens_used, 150)
         self.assertGreater(result.cost_usd, 0)
     
-    @patch('llm_router.Anthropic')
+    @patch('cortex.llm_router.Anthropic')
     def test_claude_with_system_message(self, mock_anthropic):
         """Test Claude handles system messages correctly."""
         mock_content = Mock()
@@ -323,7 +323,7 @@ class TestClaudeIntegration(unittest.TestCase):
 class TestKimiIntegration(unittest.TestCase):
     """Test Kimi K2 API integration."""
     
-    @patch('llm_router.OpenAI')
+    @patch('cortex.llm_router.OpenAI')
     def test_kimi_completion(self, mock_openai):
         """Test Kimi K2 completion with mocked API."""
         # Mock response
@@ -358,7 +358,7 @@ class TestKimiIntegration(unittest.TestCase):
         self.assertEqual(result.tokens_used, 150)
         self.assertGreater(result.cost_usd, 0)
     
-    @patch('llm_router.OpenAI')
+    @patch('cortex.llm_router.OpenAI')
     def test_kimi_temperature_mapping(self, mock_openai):
         """Test Kimi K2 temperature is scaled by 0.6."""
         mock_message = Mock()
@@ -390,7 +390,7 @@ class TestKimiIntegration(unittest.TestCase):
         call_args = mock_client.chat.completions.create.call_args
         self.assertAlmostEqual(call_args.kwargs["temperature"], 0.6, places=2)
     
-    @patch('llm_router.OpenAI')
+    @patch('cortex.llm_router.OpenAI')
     def test_kimi_with_tools(self, mock_openai):
         """Test Kimi K2 handles tool calling."""
         mock_message = Mock()
@@ -432,8 +432,8 @@ class TestKimiIntegration(unittest.TestCase):
 class TestEndToEnd(unittest.TestCase):
     """End-to-end integration tests."""
     
-    @patch('llm_router.Anthropic')
-    @patch('llm_router.OpenAI')
+    @patch('cortex.llm_router.Anthropic')
+    @patch('cortex.llm_router.OpenAI')
     def test_complete_with_routing(self, mock_openai, mock_anthropic):
         """Test complete() method with full routing."""
         # Mock Kimi K2 (should be used for system operations)
@@ -467,8 +467,8 @@ class TestEndToEnd(unittest.TestCase):
         self.assertEqual(response.provider, LLMProvider.KIMI_K2)
         self.assertIn("Installing", response.content)
     
-    @patch('llm_router.Anthropic')
-    @patch('llm_router.OpenAI')
+    @patch('cortex.llm_router.Anthropic')
+    @patch('cortex.llm_router.OpenAI')
     def test_fallback_on_error(self, mock_openai, mock_anthropic):
         """Test fallback when primary provider fails."""
         # Mock Kimi K2 to fail
@@ -509,7 +509,7 @@ class TestEndToEnd(unittest.TestCase):
 class TestConvenienceFunction(unittest.TestCase):
     """Test the complete_task convenience function."""
     
-    @patch('llm_router.LLMRouter')
+    @patch('cortex.llm_router.LLMRouter')
     def test_complete_task_simple(self, mock_router_class):
         """Test simple completion with complete_task()."""
         # Mock router
@@ -529,7 +529,7 @@ class TestConvenienceFunction(unittest.TestCase):
         self.assertEqual(result, "Test response")
         mock_router.complete.assert_called_once()
     
-    @patch('llm_router.LLMRouter')
+    @patch('cortex.llm_router.LLMRouter')
     def test_complete_task_with_system_prompt(self, mock_router_class):
         """Test complete_task() includes system prompt."""
         mock_response = Mock()
