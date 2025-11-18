@@ -74,6 +74,16 @@ Cortex Linux embeds AI at the operating system level. Tell it what you need in p
 
 Browse [Issues](../../issues) for contribution opportunities.
 
+## Keeping Cortex Up to Date
+
+- Cortex automatically checks for new releases (stable by default) when you run `cortex install ...`. Disable with `CORTEX_UPDATE_CHECK=0`.
+- See the current channel or switch tracks:
+  - `cortex channel show`
+  - `cortex channel set beta`
+- Upgrade in-place with release notes, checksum verification, and automatic rollback on failure:
+  - `cortex update` (use `--dry-run` to preview, `--channel beta` to override per run).
+- Update metadata lives in `~/.config/cortex/updater/`, including logs and last upgrade state.
+
 ### Join the Community
 
 - **Discord**: https://discord.gg/uCqHvxjU83
