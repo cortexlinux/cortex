@@ -511,11 +511,15 @@ class CortexCLI:
                 min_storage = input("  Minimum storage (MB, optional): ").strip()
                 
                 if min_ram or min_cores or min_storage:
-                    hw_req = HardwareRequirements(
-                        min_ram_mb=int(min_ram) if min_ram else None,
-                        min_cores=int(min_cores) if min_cores else None,
-                        min_storage_mb=int(min_storage) if min_storage else None
-                    )
+                    try:
+                        hw_req = HardwareRequirements(
+                            min_ram_mb=int(min_ram) if min_ram else None,
+                            min_cores=int(min_cores) if min_cores else None,
+                            min_storage_mb=int(min_storage) if min_storage else None
+                        )
+                    except ValueError:
+                        self._print_error("Hardware requirements must be numeric values")
+                        return 1
                     template.hardware_requirements = hw_req
                 
                 # Save template
@@ -595,8 +599,9 @@ Environment Variables:
     
     # Install command
     install_parser = subparsers.add_parser('install', help='Install software using natural language or template')
-    install_parser.add_argument('software', type=str, nargs='?', help='Software to install (natural language)')
-    install_parser.add_argument('--template', type=str, help='Install from template (e.g., lamp, mean, mern)')
+    install_group = install_parser.add_mutually_exclusive_group(required=True)
+    install_group.add_argument('software', type=str, nargs='?', help='Software to install (natural language)')
+    install_group.add_argument('--template', type=str, help='Install from template (e.g., lamp, mean, mern)')
     install_parser.add_argument('--execute', action='store_true', help='Execute the generated commands')
     install_parser.add_argument('--dry-run', action='store_true', help='Show commands without executing')
     
@@ -617,7 +622,7 @@ Environment Variables:
     template_subparsers = template_parser.add_subparsers(dest='template_action', help='Template actions')
     
     # Template list
-    template_list_parser = template_subparsers.add_parser('list', help='List all available templates')
+    template_subparsers.add_parser('list', help='List all available templates')
     
     # Template create
     template_create_parser = template_subparsers.add_parser('create', help='Create a new template')
@@ -646,11 +651,9 @@ Environment Variables:
         if args.command == 'install':
             if args.template:
                 return cli.install("", execute=args.execute, dry_run=args.dry_run, template=args.template)
-            elif args.software:
-                return cli.install(args.software, execute=args.execute, dry_run=args.dry_run)
             else:
-                install_parser.print_help()
-                return 1
+                # software is guaranteed to be set due to mutually_exclusive_group(required=True)
+                return cli.install(args.software, execute=args.execute, dry_run=args.dry_run)
         elif args.command == 'history':
             return cli.history(limit=args.limit, status=args.status, show_id=args.show_id)
         elif args.command == 'rollback':

@@ -154,6 +154,63 @@ class TemplateValidator:
     REQUIRED_FIELDS = ["name", "description", "version"]
     REQUIRED_STEP_FIELDS = ["command", "description"]
     
+    # Allowed post_install commands (whitelist for security)
+    ALLOWED_POST_INSTALL_COMMANDS = {
+        'echo',  # Safe echo commands
+    }
+    
+    # Dangerous shell metacharacters that should be rejected
+    DANGEROUS_SHELL_CHARS = [';', '|', '&', '>', '<', '`', '\\']
+    
+    @staticmethod
+    def _validate_post_install_commands(post_install: List[str]) -> List[str]:
+        """
+        Validate post_install commands for security.
+        
+        Returns:
+            List of validation errors
+        """
+        errors = []
+        
+        for i, cmd in enumerate(post_install):
+            if not cmd or not cmd.strip():
+                continue
+            
+            cmd_stripped = cmd.strip()
+            
+            # Check for dangerous shell metacharacters
+            for char in TemplateValidator.DANGEROUS_SHELL_CHARS:
+                if char in cmd_stripped:
+                    errors.append(
+                        f"post_install[{i}]: Contains dangerous shell character '{char}'. "
+                        "Only safe commands like 'echo' are allowed."
+                    )
+                    break
+            
+            # Check for command substitution patterns
+            if '$(' in cmd_stripped or '`' in cmd_stripped:
+                # Allow $(...) in echo commands for version checks (built-in templates use this)
+                if not cmd_stripped.startswith('echo '):
+                    errors.append(
+                        f"post_install[{i}]: Command substitution only allowed in 'echo' commands"
+                    )
+            
+            # Check for wildcards/globs
+            if '*' in cmd_stripped or '?' in cmd_stripped:
+                if not cmd_stripped.startswith('echo '):
+                    errors.append(
+                        f"post_install[{i}]: Wildcards only allowed in 'echo' commands"
+                    )
+            
+            # Whitelist check - only allow echo commands
+            if not cmd_stripped.startswith('echo '):
+                errors.append(
+                    f"post_install[{i}]: Only 'echo' commands are allowed in post_install. "
+                    f"Found: {cmd_stripped[:50]}"
+                )
+        
+        return errors
+    
     @staticmethod
     def validate(template: Template) -> Tuple[bool, List[str]]:
         """
@@ -194,6 +251,11 @@ class TemplateValidator:
                 errors.append("min_storage_mb must be non-negative")
             if hw.requires_cuda and not hw.requires_gpu:
                 errors.append("requires_cuda is true but requires_gpu is false")
+        
+        # Validate post_install commands for security
+        if template.post_install:
+            post_install_errors = TemplateValidator._validate_post_install_commands(template.post_install)
+            errors.extend(post_install_errors)
         
         return len(errors) == 0, errors
 
