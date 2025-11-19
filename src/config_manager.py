@@ -795,10 +795,9 @@ class ConfigManager:
             return self._install_direct(name, version or None, source)
 
 
-def main():
-    """CLI entry point for configuration manager."""
+def _setup_argument_parser():
+    """Create and configure argument parser for CLI."""
     import argparse
-    import sys
     
     parser = argparse.ArgumentParser(description='Cortex Configuration Manager')
     subparsers = parser.add_subparsers(dest='command', help='Command to execute')
@@ -829,6 +828,128 @@ def main():
     diff_parser = subparsers.add_parser('diff', help='Show configuration differences')
     diff_parser.add_argument('config_file', help='Configuration file to compare')
     
+    return parser
+
+
+def _print_package_list(packages: List[Dict[str, Any]], max_display: int = 5) -> None:
+    """Print a list of packages with optional truncation."""
+    for pkg in packages[:max_display]:
+        if 'current_version' in pkg:
+            print(f"   - {pkg['name']} ({pkg.get('current_version')} → {pkg['version']})")
+        else:
+            print(f"   - {pkg['name']} ({pkg['source']})")
+    
+    if len(packages) > max_display:
+        print(f"   ... and {len(packages) - max_display} more")
+
+
+def _print_dry_run_results(result: Dict[str, Any]) -> None:
+    """Print dry-run results in a formatted manner."""
+    print("\n🔍 Dry-run results:\n")
+    diff = result['diff']
+    
+    if diff['packages_to_install']:
+        print(f"📦 Packages to install: {len(diff['packages_to_install'])}")
+        _print_package_list(diff['packages_to_install'])
+    
+    if diff['packages_to_upgrade']:
+        print(f"\n⬆️  Packages to upgrade: {len(diff['packages_to_upgrade'])}")
+        _print_package_list(diff['packages_to_upgrade'])
+    
+    if diff['preferences_changed']:
+        print(f"\n⚙️  Preferences to change: {len(diff['preferences_changed'])}")
+        for key in diff['preferences_changed']:
+            print(f"   - {key}")
+    
+    if diff['warnings']:
+        print("\n⚠️  Warnings:")
+        for warning in diff['warnings']:
+            print(f"   {warning}")
+    
+    print(f"\n{result['message']}")
+
+
+def _print_import_results(result: Dict[str, Any]) -> None:
+    """Print import results in a formatted manner."""
+    print("\n✅ Import completed:\n")
+    
+    if result['installed']:
+        print(f"📦 Installed: {len(result['installed'])} packages")
+    if result['upgraded']:
+        print(f"⬆️  Upgraded: {len(result['upgraded'])} packages")
+    if result.get('downgraded'):
+        print(f"⬇️  Downgraded: {len(result['downgraded'])} packages")
+    if result['failed']:
+        print(f"❌ Failed: {len(result['failed'])} packages")
+        for pkg in result['failed']:
+            print(f"   - {pkg}")
+    if result['preferences_updated']:
+        print("⚙️  Preferences updated")
+
+
+def _handle_export_command(manager: 'ConfigManager', args) -> None:
+    """Handle the export command."""
+    include_hardware = args.include_hardware
+    include_preferences = not args.no_preferences
+    
+    if args.packages_only:
+        include_hardware = False
+        include_preferences = False
+    
+    message = manager.export_configuration(
+        output_path=args.output,
+        include_hardware=include_hardware,
+        include_preferences=include_preferences
+    )
+    print(message)
+
+
+def _handle_import_command(manager: 'ConfigManager', args) -> None:
+    """Handle the import command."""
+    selective = None
+    if args.packages_only:
+        selective = ['packages']
+    elif args.preferences_only:
+        selective = ['preferences']
+    
+    result = manager.import_configuration(
+        config_path=args.config_file,
+        dry_run=args.dry_run,
+        selective=selective,
+        force=args.force
+    )
+    
+    if args.dry_run:
+        _print_dry_run_results(result)
+    else:
+        _print_import_results(result)
+
+
+def _handle_diff_command(manager: 'ConfigManager', args) -> None:
+    """Handle the diff command."""
+    with open(args.config_file, 'r') as f:
+        config = yaml.safe_load(f)
+    
+    diff = manager.diff_configuration(config)
+    
+    print("\n📊 Configuration Differences:\n")
+    print(f"Packages to install: {len(diff['packages_to_install'])}")
+    print(f"Packages to upgrade: {len(diff['packages_to_upgrade'])}")
+    print(f"Packages to downgrade: {len(diff['packages_to_downgrade'])}")
+    print(f"Packages already installed: {len(diff['packages_already_installed'])}")
+    print(f"Preferences changed: {len(diff['preferences_changed'])}")
+    
+    if diff['warnings']:
+        print("\n⚠️  Warnings:")
+        for warning in diff['warnings']:
+            print(f"   {warning}")
+
+
+def main():
+    """CLI entry point for configuration manager."""
+    import sys
+    
+    parser = _setup_argument_parser()
     args = parser.parse_args()
     
     if not args.command:
@@ -839,96 +960,11 @@ def main():
     
     try:
         if args.command == 'export':
-            include_hardware = args.include_hardware
-            include_preferences = not args.no_preferences
-            
-            if args.packages_only:
-                include_hardware = False
-                include_preferences = False
-            
-            message = manager.export_configuration(
-                output_path=args.output,
-                include_hardware=include_hardware,
-                include_preferences=include_preferences
-            )
-            print(message)
-        
+            _handle_export_command(manager, args)
         elif args.command == 'import':
-            selective = None
-            if args.packages_only:
-                selective = ['packages']
-            elif args.preferences_only:
-                selective = ['preferences']
-            
-            result = manager.import_configuration(
-                config_path=args.config_file,
-                dry_run=args.dry_run,
-                selective=selective,
-                force=args.force
-            )
-            
-            if args.dry_run:
-                print("\n🔍 Dry-run results:\n")
-                diff = result['diff']
-                
-                if diff['packages_to_install']:
-                    print(f"📦 Packages to install: {len(diff['packages_to_install'])}")
-                    for pkg in diff['packages_to_install'][:5]:
-                        print(f"   - {pkg['name']} ({pkg['source']})")
-                    if len(diff['packages_to_install']) > 5:
-                        print(f"   ... and {len(diff['packages_to_install']) - 5} more")
-                
-                if diff['packages_to_upgrade']:
-                    print(f"\n⬆️  Packages to upgrade: {len(diff['packages_to_upgrade'])}")
-                    for pkg in diff['packages_to_upgrade'][:5]:
-                        print(f"   - {pkg['name']} ({pkg.get('current_version')} → {pkg['version']})")
-                    if len(diff['packages_to_upgrade']) > 5:
-                        print(f"   ... and {len(diff['packages_to_upgrade']) - 5} more")
-                
-                if diff['preferences_changed']:
-                    print(f"\n⚙️  Preferences to change: {len(diff['preferences_changed'])}")
-                    for key in diff['preferences_changed']:
-                        print(f"   - {key}")
-                
-                if diff['warnings']:
-                    print("\n⚠️  Warnings:")
-                    for warning in diff['warnings']:
-                        print(f"   {warning}")
-                
-                print(f"\n{result['message']}")
-            else:
-                print("\n✅ Import completed:\n")
-                if result['installed']:
-                    print(f"📦 Installed: {len(result['installed'])} packages")
-                if result['upgraded']:
-                    print(f"⬆️  Upgraded: {len(result['upgraded'])} packages")
-                if result.get('downgraded'):
-                    print(f"⬇️  Downgraded: {len(result['downgraded'])} packages")
-                if result['failed']:
-                    print(f"❌ Failed: {len(result['failed'])} packages")
-                    for pkg in result['failed']:
-                        print(f"   - {pkg}")
-                if result['preferences_updated']:
-                    print("⚙️  Preferences updated")
-        
+            _handle_import_command(manager, args)
         elif args.command == 'diff':
-            with open(args.config_file, 'r') as f:
-                config = yaml.safe_load(f)
-            
-            diff = manager.diff_configuration(config)
-            
-            print("\n📊 Configuration Differences:\n")
-            print(f"Packages to install: {len(diff['packages_to_install'])}")
-            print(f"Packages to upgrade: {len(diff['packages_to_upgrade'])}")
-            print(f"Packages to downgrade: {len(diff['packages_to_downgrade'])}")
-            print(f"Packages already installed: {len(diff['packages_already_installed'])}")
-            print(f"Preferences changed: {len(diff['preferences_changed'])}")
-            
-            if diff['warnings']:
-                print("\n⚠️  Warnings:")
-                for warning in diff['warnings']:
-                    print(f"   {warning}")
-    
+            _handle_diff_command(manager, args)
     except Exception as e:
         print(f"❌ Error: {e}", file=sys.stderr)
         sys.exit(1)
