@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Configuration Manager for Cortex Linux
 Handles export/import of system state for reproducibility.
