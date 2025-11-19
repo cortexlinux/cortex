@@ -4,6 +4,7 @@
 # Core Dependencies
 rich>=13.0.0        # Beautiful terminal progress bars and formatting
 plyer>=2.0.0        # Desktop notifications (optional but recommended)
+pyyaml>=6.0.0       # YAML parsing for template system
 
 # Testing Dependencies (dev)
 pytest>=7.0.0
