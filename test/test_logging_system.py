@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Unit tests for Cortex Logging System"""
 import unittest
 import tempfile
