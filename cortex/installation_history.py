@@ -173,8 +173,8 @@ class InstallationHistory:
             for line in dep_stdout.split('\n'):
                 if line.strip().startswith('Depends:'):
                     dep = line.split(':', 1)[1].strip()
-                    # Clean up dependency string
-                    dep = re.sub(r'\s*\(.*?\)', '', dep)  # Remove version constraints
+                    # Clean up dependency string - use secure regex to avoid ReDoS
+                    dep = re.sub(r'\s*\([^)]*\)', '', dep)  # Remove version constraints
                     dep = dep.split('|')[0].strip()  # Take first alternative
                     if dep:
                         dependencies.append(dep)
@@ -244,9 +244,15 @@ class InstallationHistory:
         return sorted(list(packages))
 
     def _generate_id(self, packages: List[str]) -> str:
-        """Generate unique ID for installation"""
+        """
+        Generate unique ID for installation
+        
+        Note: Uses MD5 for non-cryptographic ID generation only.
+        This is safe as it's not used for security purposes.
+        """
         timestamp = datetime.datetime.now().isoformat()
         data = f"{timestamp}:{':'.join(sorted(packages))}"
+        # MD5 is sufficient for generating unique installation IDs (non-security use)
         return hashlib.md5(data.encode()).hexdigest()[:16]
 
     def record_installation(

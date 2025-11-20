@@ -13,10 +13,10 @@ from datetime import datetime, timedelta
 import sys
 import os
 
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add project root to path (parent of this test directory)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from context_memory import (
+from cortex.context_memory import (
     ContextMemory,
     MemoryEntry,
     Pattern,
