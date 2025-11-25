@@ -6,8 +6,12 @@ Tests for Installation History and Rollback System
 import unittest
 import tempfile
 import os
+import sys
 from datetime import datetime
-from installation_history import (
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from cortex.installation_history import (
     InstallationHistory,
     InstallationType,
     InstallationStatus,

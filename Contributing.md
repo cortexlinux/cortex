@@ -10,8 +10,9 @@ We're building the AI-native operating system and need your help. Whether you're
 2. **Join Discord:** https://discord.gg/uCqHvxjU83
 3. **Browse issues:** https://github.com/cortexlinux/cortex/issues
 4. **Claim an issue** (comment "I'll work on this")
-5. **Submit your PR**
-6. **Get paid** (bounties on merge)
+5. **Check `develeoper-guide.md`** (in `docs` directory) for structure and guide
+6. **Submit your PR**
+7. **Get paid** (bounties on merge)
 
 ## What We Need
 
@@ -55,6 +56,7 @@ We're building the AI-native operating system and need your help. Whether you're
 - ✅ Documentation with examples
 - ✅ Integration with existing code
 - ✅ Passes all CI checks
+- ✅ Proper file managment and maintaing structure
 
 ### Template
 ```markdown
@@ -71,6 +73,7 @@ Show the feature working
 - [ ] Tests pass
 - [ ] Documentation updated
 - [ ] No merge conflicts
+- [ ] maintained file structure
 ```
 
 ## Code Style
