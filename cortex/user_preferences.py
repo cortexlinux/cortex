@@ -80,6 +80,22 @@ class PackageSettings:
 
 
 @dataclass
+class LLMSettings:
+    """LLM provider/model preferences (Issue #42 compatibility)."""
+
+    provider: str = "openai"
+    model: str = "gpt-4"
+
+
+@dataclass
+class ConflictSettings:
+    """Conflict resolution preferences"""
+
+    default_strategy: str = "interactive"
+    saved_resolutions: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
 class UserPreferences:
     """Complete user preferences"""
 
@@ -88,6 +104,8 @@ class UserPreferences:
     auto_update: AutoUpdateSettings = field(default_factory=AutoUpdateSettings)
     ai: AISettings = field(default_factory=AISettings)
     packages: PackageSettings = field(default_factory=PackageSettings)
+    llm: LLMSettings = field(default_factory=LLMSettings)
+    conflicts: ConflictSettings = field(default_factory=ConflictSettings)
     theme: str = "default"
     language: str = "en"
     timezone: str = "UTC"
@@ -135,6 +153,8 @@ class PreferencesManager:
                     **{k: v for k, v in data.get("ai", {}).items() if k != "creativity"},
                 ),
                 packages=PackageSettings(**data.get("packages", {})),
+                llm=LLMSettings(**data.get("llm", {})),
+                conflicts=ConflictSettings(**data.get("conflicts", {})),
                 theme=data.get("theme", "default"),
                 language=data.get("language", "en"),
                 timezone=data.get("timezone", "UTC"),
@@ -167,6 +187,8 @@ class PreferencesManager:
                 "creativity": self.preferences.ai.creativity.value,
             },
             "packages": asdict(self.preferences.packages),
+            "llm": asdict(self.preferences.llm),
+            "conflicts": asdict(self.preferences.conflicts),
             "theme": self.preferences.theme,
             "language": self.preferences.language,
             "timezone": self.preferences.timezone,
@@ -285,6 +307,8 @@ class PreferencesManager:
                 "creativity": self.preferences.ai.creativity.value,
             },
             "packages": asdict(self.preferences.packages),
+            "llm": asdict(self.preferences.llm),
+            "conflicts": asdict(self.preferences.conflicts),
             "theme": self.preferences.theme,
             "language": self.preferences.language,
             "timezone": self.preferences.timezone,
@@ -314,6 +338,8 @@ class PreferencesManager:
                 **{k: v for k, v in data.get("ai", {}).items() if k != "creativity"},
             ),
             packages=PackageSettings(**data.get("packages", {})),
+            llm=LLMSettings(**data.get("llm", {})),
+            conflicts=ConflictSettings(**data.get("conflicts", {})),
             theme=data.get("theme", "default"),
             language=data.get("language", "en"),
             timezone=data.get("timezone", "UTC"),
@@ -333,6 +359,8 @@ class PreferencesManager:
                 "creativity": self.preferences.ai.creativity.value,
             },
             "packages": asdict(self.preferences.packages),
+            "llm": asdict(self.preferences.llm),
+            "conflicts": asdict(self.preferences.conflicts),
             "theme": self.preferences.theme,
             "language": self.preferences.language,
             "timezone": self.preferences.timezone,
