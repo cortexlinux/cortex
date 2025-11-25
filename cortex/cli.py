@@ -36,6 +36,7 @@ from cortex.uninstall_impact import (
 )
 from cortex.update_checker import UpdateChannel, should_notify_update
 from cortex.updater import Updater, UpdateStatus
+from cortex.user_preferences import PreferencesManager, format_preference_value
 from cortex.validators import validate_api_key, validate_install_request
 from cortex.version_manager import get_version_string
 
@@ -453,6 +454,160 @@ class CortexCLI:
         """
         return run_demo()
 
+    def _get_prefs_manager(self) -> PreferencesManager:
+        """Get preferences manager instance."""
+        if not hasattr(self, "_prefs_manager"):
+            self._prefs_manager = PreferencesManager()
+        return self._prefs_manager
+
+    def _resolve_conflicts_interactive(
+        self, conflicts: list[tuple[str, str]]
+    ) -> dict[str, list[str]]:
+        """Interactively resolve package conflicts with optional saved preferences."""
+        manager = self._get_prefs_manager()
+        resolutions: dict[str, list[str]] = {"remove": []}
+        saved_resolutions = manager.get("conflicts.saved_resolutions") or {}
+
+        print("\n" + "=" * 60)
+        print("Package Conflicts Detected")
+        print("=" * 60)
+
+        for i, (pkg1, pkg2) in enumerate(conflicts, 1):
+            ordered_a, ordered_b = sorted([pkg1, pkg2])
+            key_colon = f"{ordered_a}:{ordered_b}"
+            key_pipe = f"{ordered_a}|{ordered_b}"
+
+            if key_colon in saved_resolutions or key_pipe in saved_resolutions:
+                preferred = saved_resolutions.get(key_colon) or saved_resolutions.get(
+                    key_pipe
+                )
+                # Validate that preferred matches one of the packages
+                if preferred not in (pkg1, pkg2):
+                    # Corrupted preference - fall through to interactive
+                    pass
+                else:
+                    to_remove = pkg2 if preferred == pkg1 else pkg1
+                    resolutions["remove"].append(to_remove)
+                    print(f"\nConflict {i}: {pkg1} vs {pkg2}")
+                    print(
+                        f"  Using saved preference: Keep {preferred}, remove {to_remove}"
+                    )
+                    continue
+
+            print(f"\nConflict {i}: {pkg1} vs {pkg2}")
+            print(f"  1. Keep/Install {pkg1} (removes {pkg2})")
+            print(f"  2. Keep/Install {pkg2} (removes {pkg1})")
+            print("  3. Cancel installation")
+
+            while True:
+                choice = input(f"\nSelect action for Conflict {i} [1-3]: ").strip()
+                if choice == "1":
+                    resolutions["remove"].append(pkg2)
+                    print(f"Selected: Keep {pkg1}, remove {pkg2}")
+                    self._ask_save_preference(pkg1, pkg2, pkg1)
+                    break
+                elif choice == "2":
+                    resolutions["remove"].append(pkg1)
+                    print(f"Selected: Keep {pkg2}, remove {pkg1}")
+                    self._ask_save_preference(pkg1, pkg2, pkg2)
+                    break
+                elif choice == "3":
+                    print("Installation cancelled.")
+                    sys.exit(1)
+                else:
+                    print("Invalid choice. Please enter 1, 2, or 3.")
+
+        return resolutions
+
+    def _ask_save_preference(self, pkg1: str, pkg2: str, preferred: str) -> None:
+        """Ask user whether to persist a conflict resolution preference."""
+        save = input("Save this preference for future conflicts? (y/N): ").strip().lower()
+        if save != "y":
+            return
+
+        manager = self._get_prefs_manager()
+        ordered_a, ordered_b = sorted([pkg1, pkg2])
+        conflict_key = f"{ordered_a}:{ordered_b}"  # min:max format (tests depend on this)
+        saved_resolutions = manager.get("conflicts.saved_resolutions") or {}
+        saved_resolutions[conflict_key] = preferred
+        manager.set("conflicts.saved_resolutions", saved_resolutions)
+        print("Preference saved.")
+
+    def config(self, action: str, key: str | None = None, value: str | None = None) -> int:
+        """Issue #42-friendly configuration helper (list/get/set/reset/export/import/validate)."""
+        manager = self._get_prefs_manager()
+
+        def flatten(prefix: str, obj: object) -> dict[str, object]:
+            items: dict[str, object] = {}
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    next_prefix = f"{prefix}.{k}" if prefix else str(k)
+                    items.update(flatten(next_prefix, v))
+            else:
+                items[prefix] = obj
+            return items
+
+        try:
+            if action == "list":
+                settings = manager.get_all_settings()
+                flat = flatten("", settings)
+                for k in sorted(flat.keys()):
+                    print(f"{k} = {format_preference_value(flat[k])}")
+                return 0
+
+            if action == "get":
+                if not key:
+                    self._print_error("Key required")
+                    return 1
+                v = manager.get(key)
+                if v is None:
+                    self._print_error(f"Preference key '{key}' not found")
+                    return 1
+                print(format_preference_value(v))
+                return 0
+
+            if action == "set":
+                if not key or value is None:
+                    self._print_error("Key and value required")
+                    return 1
+                manager.set(key, value)
+                print(f"Set {key} = {format_preference_value(manager.get(key))}")
+                return 0
+
+            if action == "reset":
+                manager.reset()
+                print("Configuration reset.")
+                return 0
+
+            if action == "export":
+                if not key:
+                    self._print_error("Export path required")
+                    return 1
+                manager.export_json(Path(key))
+                return 0
+
+            if action == "import":
+                if not key:
+                    self._print_error("Import path required")
+                    return 1
+                manager.import_json(Path(key))
+                return 0
+
+            if action == "validate":
+                errors = manager.validate()
+                if errors:
+                    for err in errors:
+                        print(err)
+                    return 1
+                print("Valid")
+                return 0
+
+            self._print_error(f"Unknown action: {action}")
+            return 1
+        except Exception as e:
+            self._print_error(str(e))
+            return 1
+
     def stack(self, args: argparse.Namespace) -> int:
         """Handle `cortex stack` commands (list/describe/install/dry-run)."""
         try:
@@ -868,6 +1023,25 @@ class CortexCLI:
                     "No commands generated. Please try again with a different request."
                 )
                 return 1
+
+            # Detect package conflicts and apply interactive resolutions when possible.
+            try:
+                from cortex.dependency_resolver import DependencyResolver
+
+                resolver = DependencyResolver()
+                target_package = software.split()[0]
+                graph = resolver.resolve_dependencies(target_package)
+                if graph.conflicts:
+                    resolutions = self._resolve_conflicts_interactive(graph.conflicts)
+                    for pkg_to_remove in resolutions.get("remove", []):
+                        remove_cmd = f"sudo apt-get remove -y {pkg_to_remove}"
+                        if not any(remove_cmd in cmd for cmd in commands):
+                            commands.insert(0, remove_cmd)
+            except SystemExit:
+                raise
+            except Exception:
+                # Best-effort; dependency resolver may not be available on non-Debian systems.
+                pass
 
             # Extract packages from commands for tracking
             packages = history._extract_packages_from_commands(commands)
