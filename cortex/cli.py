@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from LLM.interpreter import CommandInterpreter
 from cortex.coordinator import InstallationCoordinator, StepStatus
-from cortex.installation_history import (
+from installation_history import (
     InstallationHistory,
     InstallationType,
     InstallationStatus
