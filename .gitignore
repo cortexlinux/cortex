@@ -150,3 +150,15 @@ ENV/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# ==============================
+# Cortex-specific
+# ==============================
+# User preferences and configuration
+~/.config/cortex/preferences.yaml
+~/.config/cortex/*.backup.*
+
+# Data files (except contributors.json which is tracked)
+data/*.json
+data/*.csv
+!data/contributors.json
