@@ -1,7 +1,5 @@
 # llm_agent.py
 
-import os
-
 # -------------------------------
 # Safe import of anthropic SDK
 # -------------------------------
@@ -10,7 +8,7 @@ try:
 except ImportError:
     Anthropic = None
 
-from intent.detector import IntentDetector
+from intent.detector import IntentDetector, Intent
 from intent.planner import InstallationPlanner
 from intent.clarifier import Clarifier
 from intent.context import SessionContext
@@ -108,7 +106,7 @@ Return improvements or extra intents.
 Format: "install: package" or "configure: component"
 """
 
-        response = self.llm.messages.create(
+        response = self.llm.with_options(timeout=30.0).messages.create(
             model=self.model,
             max_tokens=300,
             messages=[{"role": "user", "content": prompt}]
@@ -120,7 +118,6 @@ Format: "install: package" or "configure: component"
 
         llm_output = response.content[0].text.lower().split("\n")
 
-        from intent.detector import Intent
         new_intents = intents[:]
 
         for line in llm_output:
