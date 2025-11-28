@@ -60,15 +60,17 @@ class LLMIntentAgent:
         if self.llm is None:
             self.context.add_intents(intents)
             return {
-        "intents": intents,
-        "plan": self.planner.build_plan(intents),
-        "suggestions": [],
-        "gpu": self.context.get_gpu()
-        }
+                "intents": intents,
+                "plan": self.planner.build_plan(intents),
+                "suggestions": [],
+                "gpu": self.context.get_gpu()
+            }
 
-
-        # 4. Improve intents using LLM
-        improved_intents = self.enhance_intents_with_llm(text, intents)
+        # 4. Improve intents using LLM (safe)
+        try:
+            improved_intents = self.enhance_intents_with_llm(text, intents)
+        except Exception:
+            improved_intents = intents
 
         # Save them to context
         self.context.add_intents(improved_intents)
@@ -76,8 +78,11 @@ class LLMIntentAgent:
         # 5. Build installation plan
         plan = self.planner.build_plan(improved_intents)
 
-        # 6. Optional suggestions from LLM
-        suggestions = self.suggest_optimizations(text)
+        # 6. Optional suggestions from LLM (safe)
+        try:
+            suggestions = self.suggest_optimizations(text)
+        except Exception:
+            suggestions = []
 
         return {
             "intents": improved_intents,
@@ -108,6 +113,10 @@ Format: "install: package" or "configure: component"
             max_tokens=300,
             messages=[{"role": "user", "content": prompt}]
         )
+
+        # ---- Safety check ----
+        if not response.content or not hasattr(response.content[0], "text"):
+            return intents
 
         llm_output = response.content[0].text.lower().split("\n")
 
@@ -146,5 +155,8 @@ Return bullet list only.
             messages=[{"role": "user", "content": prompt}]
         )
 
-        return response.content[0].text.strip().split("\n")
+        # ---- Safety check ----
+        if not response.content or not hasattr(response.content[0], "text"):
+            return []
 
+        return response.content[0].text.strip().split("\n")
