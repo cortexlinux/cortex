@@ -149,7 +149,7 @@ Examples: Conda, VSCode extensions, CUDA toolkit managers, Docker, Anaconda.
 Return bullet list only.
 """
 
-        response = self.llm.messages.create(
+        response = self.llm.with_options(timeout=30.0).messages.create(
             model=self.model,
             max_tokens=150,
             messages=[{"role": "user", "content": prompt}]
