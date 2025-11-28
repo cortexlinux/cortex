@@ -1,4 +1,4 @@
-# llm_agent.py
+# src/intent/llm_agent.py
 
 # -------------------------------
 # Safe import of anthropic SDK
@@ -44,7 +44,6 @@ class LLMIntentAgent:
     # Main request handler
     # ----------------------------------------------
     def process(self, text: str):
-
         # 1. Rule-based intent detection
         intents = self.detector.detect(text)
 
@@ -92,7 +91,7 @@ class LLMIntentAgent:
     # ----------------------------------------------
     # LLM enhancement of intents
     # ----------------------------------------------
-    def enhance_intents_with_llm(self, text: str, intents):
+    def enhance_intents_with_llm(self, text: str, intents: list[Intent]) -> list[Intent]:
 
         prompt = f"""
 You are an installation-intent expert. Convert the user request into structured intents.
@@ -106,6 +105,7 @@ Return improvements or extra intents.
 Format: "install: package" or "configure: component"
 """
 
+        # add explicit timeout to avoid long hangs
         response = self.llm.with_options(timeout=30.0).messages.create(
             model=self.model,
             max_tokens=300,
@@ -113,7 +113,7 @@ Format: "install: package" or "configure: component"
         )
 
         # ---- Safety check ----
-        if not response.content or not hasattr(response.content[0], "text"):
+        if not getattr(response, "content", None) or not hasattr(response.content[0], "text"):
             return intents
 
         llm_output = response.content[0].text.lower().split("\n")
@@ -123,20 +123,23 @@ Format: "install: package" or "configure: component"
         for line in llm_output:
             if "install:" in line:
                 pkg = line.replace("install:", "").strip()
-                new_intents.append(Intent("install", pkg))
+                if pkg:
+                    new_intents.append(Intent("install", pkg))
             elif "configure:" in line:
                 target = line.replace("configure:", "").strip()
-                new_intents.append(Intent("configure", target))
+                if target:
+                    new_intents.append(Intent("configure", target))
             elif "verify:" in line:
                 target = line.replace("verify:", "").strip()
-                new_intents.append(Intent("verify", target))
+                if target:
+                    new_intents.append(Intent("verify", target))
 
         return new_intents
 
     # ----------------------------------------------
     # LLM optimization suggestions
     # ----------------------------------------------
-    def suggest_optimizations(self, text: str):
+    def suggest_optimizations(self, text: str) -> list[str]:
 
         prompt = f"""
 User request: "{text}"
@@ -153,7 +156,7 @@ Return bullet list only.
         )
 
         # ---- Safety check ----
-        if not response.content or not hasattr(response.content[0], "text"):
+        if not getattr(response, "content", None) or not hasattr(response.content[0], "text"):
             return []
 
-        return response.content[0].text.strip().split("\n")
+        return [line.strip() for line in response.content[0].text.strip().split("\n") if line.strip()]
