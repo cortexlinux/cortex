@@ -170,7 +170,7 @@ class CortexCLI:
                 return 1
 
             # Check for package conflicts using DependencyResolver
-            from cortex.dependency_resolver import DependencyResolver
+            from dependency_resolver import DependencyResolver
             resolver = DependencyResolver()
             
             target_package = software.split()[0]
