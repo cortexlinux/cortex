@@ -313,9 +313,9 @@ class TestKimiK2Integration(unittest.TestCase):
         self.assertTrue(any("nginx" in cmd.lower() for cmd in result))
         print(f"\n✅ Kimi K2 API Complex Test - Generated {len(result)} commands: {result}")
     
+    @patch.dict(os.environ, {'KIMI_DEFAULT_MODEL': 'kimi-k2-0905-preview'})
     def test_kimi_real_api_with_custom_model(self):
         """Test Kimi K2 with different model"""
-        os.environ['KIMI_DEFAULT_MODEL'] = 'kimi-k2-0905-preview'
         interpreter = CommandInterpreter(api_key=self.api_key, provider="kimi")
         
         result = interpreter.parse("Install git")
@@ -324,9 +324,6 @@ class TestKimiK2Integration(unittest.TestCase):
         self.assertGreater(len(result), 0)
         self.assertTrue(any("git" in cmd.lower() for cmd in result))
         print(f"\n✅ Kimi K2 Custom Model Test - Generated {len(result)} commands: {result}")
-        
-        # Cleanup
-        os.environ.pop('KIMI_DEFAULT_MODEL', None)
     
     def test_kimi_real_api_validation(self):
         """Test Kimi K2 with command validation"""
