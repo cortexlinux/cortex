@@ -30,7 +30,7 @@ class CommandInterpreter:
         if model:
             self.model = model
         else:
-            self.model = self._default_model()
+            self.model = "gpt-4" if self.provider == APIProvider.OPENAI else "claude-sonnet-4-20250514"
         
         self._initialize_client()
     
@@ -261,7 +261,7 @@ Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.i
         """Return the default model identifier for the active provider."""
 
         if self.provider == APIProvider.OPENAI:
-            return "gpt-4o"
+            return "gpt-4"
         if self.provider == APIProvider.CLAUDE:
             return "claude-3-5-sonnet-20241022"
         if self.provider == APIProvider.KIMI:
