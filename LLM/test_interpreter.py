@@ -281,7 +281,7 @@ class TestKimiK2Integration(unittest.TestCase):
     To run these tests:
     - Set environment variable: RUN_KIMI_INTEGRATION_TESTS=1
     - Set environment variable: KIMI_API_KEY=your-api-key
-    - Run: pytest LLM/test_interpreter.py::TestKimiK2Integration -v
+    - Run: python -m unittest LLM.test_interpreter.TestKimiK2Integration -v
     """
     
     def setUp(self):

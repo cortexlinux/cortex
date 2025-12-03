@@ -149,8 +149,6 @@ Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.i
             if not content:
                 raise RuntimeError("Kimi API returned empty content")
             return self._parse_commands(content)
-        except ImportError as ie:
-            raise RuntimeError("Requests package not installed. Run: pip install requests") from ie
         except Exception as exc:
             raise RuntimeError(f"Kimi API call failed: {str(exc)}") from exc
 
@@ -163,9 +161,9 @@ Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.i
                 data = json.loads(payload)
             except json.JSONDecodeError as exc:
                 raise ValueError("CORTEX_FAKE_COMMANDS must contain valid JSON") from exc
-            if not isinstance(data, dict) or "commands" not in data:
-                raise ValueError("CORTEX_FAKE_COMMANDS must define a 'commands' list")
-            return self._parse_commands(payload)
+            if not isinstance(data["commands"], list):  
+                raise ValueError("'commands' must be a list in CORTEX_FAKE_COMMANDS")  
+            return data["commands"]
 
         safe_defaults = {
             "docker": [

@@ -11,6 +11,7 @@ and other system settings.
 import os
 import yaml
 import json
+import shutil
 from pathlib import Path
 from typing import Any, Dict, Optional, List
 from dataclasses import dataclass, asdict, field
@@ -221,7 +222,6 @@ class PreferencesManager:
         # Create a simple .<ext>.bak backup (e.g., preferences.yaml.bak)
         try:
             backup_path = self.config_path.with_suffix(self.config_path.suffix + self.BACKUP_SUFFIX)
-            import shutil
             shutil.copy2(self.config_path, backup_path)
             return backup_path
         except Exception as e:
@@ -493,7 +493,7 @@ class PreferencesManager:
             errors.append("At least one package source required")
 
         # Basic language validation
-        valid_langs = ["en", "es", "fr", "de"]
+        valid_langs = ["en", "es", "fr", "de", "ja", "zh", "pt", "ru"]
         if self._preferences.language not in valid_langs:
             errors.append("language must be a supported two-letter code")
         

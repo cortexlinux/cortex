@@ -18,7 +18,7 @@ Successfully integrated Moonshot AI's Kimi K2 model as a new LLM provider for Co
 - `KIMI` enum value to `APIProvider`
 - `_call_kimi()` method for Kimi K2 HTTP API integration
 - Kimi-specific initialization in `_initialize_client()`
-- Default model detection for Kimi K2 (`kimi-k2`)
+- Default model detection for Kimi K2 (`kimi-k2/kimi-k2-turbo-preview`)
 
 **Features:**
 - Full HTTP-based API integration using `requests` library
@@ -127,7 +127,7 @@ cortex install docker --dry-run
 The Kimi K2 integration uses the OpenAI-compatible chat completions endpoint:
 
 ```json
-POST https://api.moonshot.cn/v1/chat/completions
+POST https://api.moonshot.ai/v1/chat/completions
 
 Headers:
   Authorization: Bearer {KIMI_API_KEY}
@@ -231,7 +231,7 @@ For users upgrading:
 
 ## References
 
-- **Kimi K2 Documentation:** https://platform.moonshot.cn/docs
+- **Kimi K2 Documentation:** https://platform.moonshot.ai/docs
 - **Original PR:** https://github.com/cortexlinux/cortex/pull/192
 - **Issue Discussion:** https://github.com/cortexlinux/cortex/issues/40
 - **CVE Fixes:** CVE-2024-35195, CVE-2024-37891, CVE-2023-32681
