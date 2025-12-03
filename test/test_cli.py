@@ -15,21 +15,26 @@ class TestCortexCLI(unittest.TestCase):
     
     @patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'})
     def test_get_api_key_openai(self):
-        api_key = self.cli._get_api_key()
+        api_key = self.cli._get_api_key('openai')
         self.assertEqual(api_key, 'test-key')
     
-    @patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-claude-key', 'OPENAI_API_KEY': ''}, clear=True)
+    @patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-claude-key'}, clear=True)
     def test_get_api_key_claude(self):
-        api_key = self.cli._get_api_key()
+        api_key = self.cli._get_api_key('claude')
         self.assertEqual(api_key, 'test-claude-key')
+    
+    @patch.dict(os.environ, {'KIMI_API_KEY': 'test-kimi-key'}, clear=True)
+    def test_get_api_key_kimi(self):
+        api_key = self.cli._get_api_key('kimi')
+        self.assertEqual(api_key, 'test-kimi-key')
     
     @patch.dict(os.environ, {}, clear=True)
     @patch('sys.stderr')
     def test_get_api_key_not_found(self, mock_stderr):
-        api_key = self.cli._get_api_key()
+        api_key = self.cli._get_api_key('openai')
         self.assertIsNone(api_key)
     
-    @patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'})
+    @patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'}, clear=True)
     def test_get_provider_openai(self):
         provider = self.cli._get_provider()
         self.assertEqual(provider, 'openai')
@@ -38,6 +43,16 @@ class TestCortexCLI(unittest.TestCase):
     def test_get_provider_claude(self):
         provider = self.cli._get_provider()
         self.assertEqual(provider, 'claude')
+    
+    @patch.dict(os.environ, {'KIMI_API_KEY': 'test-key'}, clear=True)
+    def test_get_provider_kimi(self):
+        provider = self.cli._get_provider()
+        self.assertEqual(provider, 'kimi')
+    
+    @patch.dict(os.environ, {'CORTEX_PROVIDER': 'fake'}, clear=True)
+    def test_get_provider_override(self):
+        provider = self.cli._get_provider()
+        self.assertEqual(provider, 'fake')
     
     @patch('sys.stdout')
     def test_print_status(self, mock_stdout):
@@ -58,6 +73,19 @@ class TestCortexCLI(unittest.TestCase):
     def test_install_no_api_key(self):
         result = self.cli.install("docker")
         self.assertEqual(result, 1)
+    
+    @patch.dict(os.environ, {'CORTEX_PROVIDER': 'fake', 'CORTEX_FAKE_COMMANDS': ''}, clear=True)
+    @patch('cortex.cli.CommandInterpreter')
+    @patch('cortex.cli.InstallationHistory')
+    def test_install_fake_provider_skips_api_key(self, mock_history, mock_interpreter_class):
+        mock_interpreter = Mock()
+        mock_interpreter.parse.return_value = ['echo test']
+        mock_interpreter_class.return_value = mock_interpreter
+        
+        result = self.cli.install('docker')
+        
+        self.assertEqual(result, 0)
+        mock_interpreter.parse.assert_called_once_with('install docker')
     
     @patch.dict(os.environ, {'OPENAI_API_KEY': 'test-key'})
     @patch('cortex.cli.CommandInterpreter')

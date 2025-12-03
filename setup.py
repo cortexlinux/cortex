@@ -3,8 +3,7 @@ import os
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
-
-# Try to read requirements from root, fallback to LLM directory
+# # Try to read requirements from root, fallback to LLM directory
 requirements_path = "requirements.txt"
 if not os.path.exists(requirements_path):
     requirements_path = os.path.join("LLM", "requirements.txt")
@@ -13,7 +12,7 @@ if os.path.exists(requirements_path):
     with open(requirements_path, "r", encoding="utf-8") as fh:
         requirements = [line.strip() for line in fh if line.strip() and not line.startswith("#") and not line.startswith("-r")]
 else:
-    requirements = ["anthropic>=0.18.0", "openai>=1.0.0"]
+    requirements = ["anthropic>=0.18.0", "openai>=1.0.0", "requests>=2.32.4"]
 
 setup(
     name="cortex-linux",
@@ -31,14 +30,16 @@ setup(
         "Intended Audience :: System Administrators",
         "Topic :: System :: Installation/Setup",
         "Topic :: System :: Systems Administration",
-        "License :: OSI Approved :: Apache Software License",
+        "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
         "Operating System :: POSIX :: Linux",
     ],
-    python_requires=">=3.10",
+    python_requires=">=3.8",
     install_requires=requirements,
     entry_points={
         "console_scripts": [

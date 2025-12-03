@@ -28,19 +28,39 @@ class CortexCLI:
         self.spinner_idx = 0
         self.prefs_manager = None  # Lazy initialization
     
-    def _get_api_key(self) -> Optional[str]:
-        api_key = os.environ.get('OPENAI_API_KEY') or os.environ.get('ANTHROPIC_API_KEY')
-        if not api_key:
-            self._print_error("API key not found. Set OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable.")
-            return None
-        return api_key
-    
     def _get_provider(self) -> str:
+        """Detect which LLM provider to use based on configuration and credentials."""
+        provider_override = os.environ.get('CORTEX_PROVIDER')
+        if provider_override:
+            return provider_override.lower()
+
         if os.environ.get('OPENAI_API_KEY'):
             return 'openai'
-        elif os.environ.get('ANTHROPIC_API_KEY'):
+        if os.environ.get('ANTHROPIC_API_KEY'):
             return 'claude'
+        if os.environ.get('KIMI_API_KEY'):
+            return 'kimi'
+        if os.environ.get('CORTEX_FAKE_COMMANDS'):
+            return 'fake'
         return 'openai'
+
+    def _get_api_key(self, provider: str) -> Optional[str]:
+        """Return the API key for the specified provider or emit guidance if missing."""
+        env_map = {
+            'openai': 'OPENAI_API_KEY',
+            'claude': 'ANTHROPIC_API_KEY',
+            'kimi': 'KIMI_API_KEY',
+        }
+
+        env_var = env_map.get(provider)
+        if not env_var:
+            return None
+
+        api_key = os.environ.get(env_var)
+        if not api_key:
+            self._print_error(f"API key not found. Set {env_var} environment variable.")
+            return None
+        return api_key
     
     def _print_status(self, emoji: str, message: str):
         print(f"{emoji} {message}")
@@ -62,11 +82,14 @@ class CortexCLI:
         sys.stdout.flush()
     
     def install(self, software: str, execute: bool = False, dry_run: bool = False):
-        api_key = self._get_api_key()
-        if not api_key:
-            return 1
-        
         provider = self._get_provider()
+        
+        if provider == 'fake':
+            api_key = os.environ.get('CORTEX_FAKE_API_KEY', 'fake-api-key')
+        else:
+            api_key = self._get_api_key(provider)
+            if not api_key:
+                return 1
         
         # Initialize installation history
         history = InstallationHistory()
@@ -510,6 +533,8 @@ Examples:
 Environment Variables:
   OPENAI_API_KEY      OpenAI API key for GPT-4
   ANTHROPIC_API_KEY   Anthropic API key for Claude
+  KIMI_API_KEY        Moonshot Kimi K2 API key
+  CORTEX_PROVIDER     Optional provider override (openai|claude|kimi|fake)
         """
     )
     
