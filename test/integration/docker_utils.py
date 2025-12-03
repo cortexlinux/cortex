@@ -1,8 +1,6 @@
 """Helpers for running Cortex integration tests inside Docker containers."""
 
 from __future__ import annotations
-
-import os
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -72,8 +70,8 @@ def run_in_docker(
     env:
         Optional environment variables exported inside the container.
     mounts:
-        Iterable of host ``Path`` instances mounted read-only to the same
-        location within the container.
+        Iterable of (host_path, container_path) tuples for mounting directories.  
+
     workdir:
         Working directory set inside the container.
     timeout:

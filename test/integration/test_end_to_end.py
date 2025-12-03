@@ -7,7 +7,7 @@ import os
 import unittest
 from pathlib import Path
 
-from .docker_utils import docker_available, run_in_docker
+from .docker_utils import docker_available, run_in_docker, DockerRunResult
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_IMAGE = os.environ.get("CORTEX_INTEGRATION_IMAGE", "python:3.11-slim")
@@ -24,7 +24,7 @@ PIP_BOOTSTRAP = "python -m pip install --quiet requests"
 class TestEndToEndWorkflows(unittest.TestCase):
     """Run Cortex commands inside disposable Docker containers."""
 
-    def _run(self, command: str, env: dict | None = None):
+    def _run(self, command: str, env: dict | None = None) -> DockerRunResult:
         effective_env = dict(BASE_ENV)
         if env:
             effective_env.update(env)
