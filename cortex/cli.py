@@ -20,6 +20,7 @@ from cortex.user_preferences import (
     print_all_preferences,
     format_preference_value
 )
+from cortex.preflight_checker import PreflightChecker, format_report, export_report
 
 
 class CortexCLI:
@@ -61,7 +62,11 @@ class CortexCLI:
         sys.stdout.write('\r\033[K')
         sys.stdout.flush()
     
-    def install(self, software: str, execute: bool = False, dry_run: bool = False):
+    def install(self, software: str, execute: bool = False, dry_run: bool = False, simulate: bool = False):
+        # Handle simulation mode first - no API key needed
+        if simulate:
+            return self._run_simulation(software)
+        
         api_key = self._get_api_key()
         if not api_key:
             return 1
@@ -186,6 +191,30 @@ class CortexCLI:
             if install_id:
                 history.update_installation(install_id, InstallationStatus.FAILED, str(e))
             self._print_error(f"Unexpected error: {str(e)}")
+            return 1
+    
+    def _run_simulation(self, software: str) -> int:
+        """Run preflight simulation check for installation"""
+        try:
+            # Get API key for LLM-powered package info (optional)
+            api_key = self._get_api_key()
+            provider = self._get_provider() if api_key else 'openai'
+            
+            # Create checker with optional API key for enhanced accuracy
+            checker = PreflightChecker(api_key=api_key, provider=provider)
+            report = checker.run_all_checks(software)
+            
+            # Print formatted report
+            output = format_report(report, software)
+            print(output)
+            
+            # Return error code if blocking issues found
+            if report.errors:
+                return 1
+            return 0
+            
+        except Exception as e:
+            self._print_error(f"Simulation failed: {str(e)}")
             return 1
 
     def history(self, limit: int = 20, status: Optional[str] = None, show_id: Optional[str] = None):
@@ -496,6 +525,7 @@ def main():
 Examples:
   cortex install docker
   cortex install docker --execute
+  cortex install docker --simulate
   cortex install "python 3.11 with pip"
   cortex install nginx --dry-run
   cortex history
@@ -520,6 +550,7 @@ Environment Variables:
     install_parser.add_argument('software', type=str, help='Software to install (natural language)')
     install_parser.add_argument('--execute', action='store_true', help='Execute the generated commands')
     install_parser.add_argument('--dry-run', action='store_true', help='Show commands without executing')
+    install_parser.add_argument('--simulate', action='store_true', help='Simulate installation without making changes')
     
     # History command
     history_parser = subparsers.add_parser('history', help='View installation history')
@@ -556,7 +587,7 @@ Environment Variables:
     
     try:
         if args.command == 'install':
-            return cli.install(args.software, execute=args.execute, dry_run=args.dry_run)
+            return cli.install(args.software, execute=args.execute, dry_run=args.dry_run, simulate=args.simulate)
         elif args.command == 'history':
             return cli.history(limit=args.limit, status=args.status, show_id=args.show_id)
         elif args.command == 'rollback':
