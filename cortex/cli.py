@@ -27,6 +27,7 @@ from cortex.validators import (
     validate_api_key,
     validate_install_request,
 )
+from cortex.preflight_checker import PreflightChecker, format_report, export_report
 
 
 class CortexCLI:
@@ -171,12 +172,22 @@ class CortexCLI:
 
     # -------------------------------
 
-    def install(self, software: str, execute: bool = False, dry_run: bool = False):
+    def install(
+        self,
+        software: str,
+        execute: bool = False,
+        dry_run: bool = False,
+        simulate: bool = False,
+    ):
         # Validate input first
         is_valid, error = validate_install_request(software)
         if not is_valid:
             self._print_error(error)
             return 1
+
+        # Handle simulation mode early (no install execution)
+        if simulate:
+            return self._run_simulation(software)
 
         api_key = self._get_api_key()
         if not api_key:
@@ -304,6 +315,30 @@ class CortexCLI:
             if install_id:
                 history.update_installation(install_id, InstallationStatus.FAILED, str(e))
             self._print_error(f"Unexpected error: {str(e)}")
+            return 1
+    
+    def _run_simulation(self, software: str) -> int:
+        """Run preflight simulation check for installation"""
+        try:
+            # Get API key for LLM-powered package info (optional)
+            api_key = self._get_api_key()
+            provider = self._get_provider() if api_key else 'openai'
+            
+            # Create checker with optional API key for enhanced accuracy
+            checker = PreflightChecker(api_key=api_key, provider=provider)
+            report = checker.run_all_checks(software)
+            
+            # Print formatted report
+            output = format_report(report, software)
+            print(output)
+            
+            # Return error code if blocking issues found
+            if report.errors:
+                return 1
+            return 0
+            
+        except Exception as e:
+            self._print_error(f"Simulation failed: {str(e)}")
             return 1
 
     def cache_stats(self) -> int:
@@ -589,6 +624,26 @@ def main():
         prog="cortex",
         description="AI-powered Linux command interpreter",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+    epilog="""
+Examples:
+  cortex install docker
+  cortex install docker --execute
+  cortex install docker --simulate
+  cortex install "python 3.11 with pip"
+  cortex install nginx --dry-run
+  cortex history
+  cortex history show <id>
+  cortex rollback <id>
+  cortex check-pref
+  cortex check-pref ai.model
+  cortex edit-pref set ai.model gpt-4
+  cortex edit-pref delete theme
+  cortex edit-pref reset-all
+
+Environment Variables:
+  OPENAI_API_KEY      OpenAI API key for GPT-4
+  ANTHROPIC_API_KEY   Anthropic API key for Claude
+        """
     )
 
     # Global flags
@@ -614,7 +669,11 @@ def main():
     install_parser.add_argument("software", type=str, help="Software to install")
     install_parser.add_argument("--execute", action="store_true", help="Execute commands")
     install_parser.add_argument("--dry-run", action="store_true", help="Show commands only")
-
+    install_parser.add_argument(
+        "--simulate",
+        action="store_true",
+        help="Simulate installation without making changes",
+    )
     # History command
     history_parser = subparsers.add_parser("history", help="View history")
     history_parser.add_argument("--limit", type=int, default=20)
@@ -676,7 +735,12 @@ def main():
         elif args.command == "status":
             return cli.status()
         elif args.command == "install":
-            return cli.install(args.software, execute=args.execute, dry_run=args.dry_run)
+            return cli.install(
+                args.software,
+                execute=args.execute,
+                dry_run=args.dry_run,
+                simulate=bool(getattr(args, "simulate", False)),
+            )
         elif args.command == "history":
             return cli.history(limit=args.limit, status=args.status, show_id=args.show_id)
         elif args.command == "rollback":
