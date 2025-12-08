@@ -148,16 +148,28 @@ curl -fsSL https://cortexlinux.com/install.sh | bash
 <!-- USAGE EXAMPLES -->
 ## Usage
 
+### Quick Start
+```bash
+# See Cortex in action (no API key needed)
+cortex demo
+
+# Configure your API key interactively
+cortex wizard
+
+# Check system status
+cortex status
+```
+
 ### Basic Installation
 ```bash
-# Natural language
-cortex install "web development tools"
+# Preview what would be installed
+cortex install docker
 
-# Direct package
-cortex install nginx
+# Actually execute the installation
+cortex install docker --execute
 
-# Multiple packages
-cortex install "docker, nodejs, and postgresql"
+# Natural language works too
+cortex install "web development tools" --execute
 ```
 
 ### Dry Run (Preview Mode)
@@ -166,25 +178,22 @@ cortex install "docker, nodejs, and postgresql"
 cortex install tensorflow --dry-run
 ```
 
-### Search Packages
-```bash
-# Fuzzy search
-cortex search "video editor"
-```
-
 ### Transaction History
 ```bash
 # View what Cortex has done
 cortex history
 
-# Undo last operation
-cortex undo
+# Show details for specific installation
+cortex history <id>
+
+# Rollback an installation
+cortex rollback <id>
 ```
 
-### Hardware Detection
+### Debug Mode
 ```bash
-# See what Cortex knows about your system
-cortex hardware
+# Show verbose output
+cortex -v install nginx
 ```
 
 _For more examples, please refer to the [Documentation](https://cortexlinux.com/docs)_
@@ -207,16 +216,28 @@ _For more examples, please refer to the [Documentation](https://cortexlinux.com/
 <!-- ROADMAP -->
 ## Roadmap
 
+### Completed
 - [x] Natural language to apt translation
-- [x] Hardware detection (GPU, CPU, RAM)
-- [x] Dry-run mode
-- [x] Firejail sandboxing
+- [x] Dry-run mode (preview commands before execution)
+- [x] Firejail sandboxing with security controls
+- [x] Transaction history with rollback
+- [x] Rich terminal UI with CX branding
+- [x] Interactive setup wizard (`cortex wizard`)
+- [x] Local LLM fallback (Ollama support)
+- [x] Multi-provider support (Claude, GPT-4, Ollama)
+- [x] Input validation and security checks
+- [x] System status command (`cortex status`)
+
+### In Progress
+- [ ] Hardware detection (GPU, CPU, RAM)
 - [ ] Interactive fuzzy search (fzf integration)
 - [ ] One-liner install script
+
+### Planned
 - [ ] Offline mode with semantic caching
-- [ ] Local LLM fallback (Ollama)
-- [ ] System snapshot integration
+- [ ] System snapshot integration (Timeshift/Snapper)
 - [ ] Web dashboard
+- [ ] Package dependency visualization
 
 See the [open issues](https://github.com/cortexlinux/cortex/issues) for a full list of proposed features and known issues.
 
