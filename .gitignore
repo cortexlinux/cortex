@@ -161,3 +161,6 @@ data/*.csv
 *.yaml.bak
 /tmp/
 .env
+
+# Internal admin files (bounties, payments, etc.)
+internal/

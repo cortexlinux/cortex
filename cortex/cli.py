@@ -4,68 +4,112 @@ import argparse
 import time
 import json
 from typing import Any, Dict, List, Optional
+import logging
+from typing import List, Optional
 import subprocess
 from datetime import datetime
 from pathlib import Path
+
+# Suppress noisy log messages in normal operation
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("cortex.installation_history").setLevel(logging.ERROR)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from LLM.interpreter import CommandInterpreter
 from cortex.coordinator import InstallationCoordinator, StepStatus
-from installation_history import (
+from cortex.installation_history import (
     InstallationHistory,
     InstallationType,
     InstallationStatus
 )
-from cortex.user_preferences import PreferencesManager
+from cortex.user_preferences import (
+    PreferencesManager,
+    print_all_preferences,
+    format_preference_value
+)
+from cortex.branding import (
+    console,
+    cx_print,
+    cx_step,
+    cx_header,
+    show_banner,
+    VERSION
+)
+from cortex.validators import (
+    validate_api_key,
+    validate_install_request,
+    validate_installation_id,
+    ValidationError
+)
 
 
 class CortexCLI:
-    """
-    Cortex CLI - AI-powered Linux command interpreter.
-    
-    Provides interactive installation, configuration management,
-    and package conflict resolution capabilities.
-    """
-    
-    def __init__(self):
+    def __init__(self, verbose: bool = False):
         self.spinner_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
         self.spinner_idx = 0
-        self.prefs_manager = PreferencesManager()
-        try:
-            self.prefs_manager.load()
-        except Exception:
-            pass
-    
+        self.prefs_manager = None  # Lazy initialization
+        self.verbose = verbose
+
+    def _debug(self, message: str):
+        """Print debug info only in verbose mode"""
+        if self.verbose:
+            console.print(f"[dim][DEBUG] {message}[/dim]")
+
     def _get_api_key(self) -> Optional[str]:
-        api_key = os.environ.get('OPENAI_API_KEY') or os.environ.get('ANTHROPIC_API_KEY')
-        if not api_key:
-            self._print_error("API key not found. Set OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable.")
+        # Check if using Ollama (no API key needed)
+        provider = self._get_provider()
+        if provider == 'ollama':
+            self._debug("Using Ollama (no API key required)")
+            return "ollama-local"  # Placeholder for Ollama
+
+        is_valid, detected_provider, error = validate_api_key()
+        if not is_valid:
+            self._print_error(error)
+            cx_print("Run [bold]cortex wizard[/bold] to configure your API key.", "info")
+            cx_print("Or use [bold]CORTEX_PROVIDER=ollama[/bold] for offline mode.", "info")
             return None
+        api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('OPENAI_API_KEY')
         return api_key
-    
+
     def _get_provider(self) -> str:
-        if os.environ.get('OPENAI_API_KEY'):
-            return 'openai'
-        elif os.environ.get('ANTHROPIC_API_KEY'):
+        # Check environment variable for explicit provider choice
+        explicit_provider = os.environ.get('CORTEX_PROVIDER', '').lower()
+        if explicit_provider in ['ollama', 'openai', 'claude']:
+            return explicit_provider
+
+        # Auto-detect based on available API keys
+        if os.environ.get('ANTHROPIC_API_KEY'):
             return 'claude'
-        return 'openai'
-    
-    def _print_status(self, label: str, message: str):
-        print(f"{label} {message}")
-    
+        elif os.environ.get('OPENAI_API_KEY'):
+            return 'openai'
+
+        # Fallback to Ollama for offline mode
+        return 'ollama'
+
+    def _print_status(self, emoji: str, message: str):
+        """Legacy status print - maps to cx_print for Rich output"""
+        status_map = {
+            "🧠": "thinking",
+            "📦": "info",
+            "⚙️": "info",
+            "🔍": "info",
+        }
+        status = status_map.get(emoji, "info")
+        cx_print(message, status)
+
     def _print_error(self, message: str):
-        print(f"[ERROR] {message}", file=sys.stderr)
-    
+        cx_print(f"Error: {message}", "error")
+
     def _print_success(self, message: str):
-        print(f"[SUCCESS] {message}")
-    
+        cx_print(message, "success")
+
     def _animate_spinner(self, message: str):
         sys.stdout.write(f"\r{self.spinner_chars[self.spinner_idx]} {message}")
         sys.stdout.flush()
         self.spinner_idx = (self.spinner_idx + 1) % len(self.spinner_chars)
         time.sleep(0.1)
-    
+
     def _clear_line(self):
         sys.stdout.write('\r\033[K')
         sys.stdout.flush()
@@ -141,11 +185,19 @@ class CortexCLI:
             print("Preference saved.")
     
     def install(self, software: str, execute: bool = False, dry_run: bool = False):
+        # Validate input first
+        is_valid, error = validate_install_request(software)
+        if not is_valid:
+            self._print_error(error)
+            return 1
+
         api_key = self._get_api_key()
         if not api_key:
             return 1
-        
+
         provider = self._get_provider()
+        self._debug(f"Using provider: {provider}")
+        self._debug(f"API key: {api_key[:10]}...{api_key[-4:]}")
         
         # Initialize installation history
         history = InstallationHistory()
@@ -506,6 +558,253 @@ class CortexCLI:
         
         return value
 
+    def status(self):
+        """Show system status including security features"""
+        import shutil
+
+        show_banner(show_version=True)
+        console.print()
+
+        cx_header("System Status")
+
+        # Check API key
+        is_valid, provider, _ = validate_api_key()
+        if is_valid:
+            cx_print(f"API Provider: [bold]{provider}[/bold]", "success")
+        else:
+            # Check for Ollama
+            ollama_provider = os.environ.get('CORTEX_PROVIDER', '').lower()
+            if ollama_provider == 'ollama':
+                cx_print("API Provider: [bold]Ollama (local)[/bold]", "success")
+            else:
+                cx_print("API Provider: [bold]Not configured[/bold]", "warning")
+                cx_print("  Run: cortex wizard", "info")
+
+        # Check Firejail
+        firejail_path = shutil.which('firejail')
+        if firejail_path:
+            cx_print(f"Firejail: [bold]Available[/bold] ({firejail_path})", "success")
+        else:
+            cx_print("Firejail: [bold]Not installed[/bold]", "warning")
+            cx_print("  Install: sudo apt-get install firejail", "info")
+
+        # Check Ollama
+        ollama_host = os.environ.get('OLLAMA_HOST', 'http://localhost:11434')
+        try:
+            import urllib.request
+            req = urllib.request.Request(f"{ollama_host}/api/tags", method='GET')
+            with urllib.request.urlopen(req, timeout=2) as resp:
+                cx_print(f"Ollama: [bold]Running[/bold] ({ollama_host})", "success")
+        except Exception:
+            cx_print(f"Ollama: [bold]Not running[/bold]", "info")
+            cx_print("  Start: ollama serve", "info")
+
+        console.print()
+        cx_header("Configuration")
+
+        # Show config file location
+        config_path = os.path.expanduser('~/.cortex/config.json')
+        if os.path.exists(config_path):
+            cx_print(f"Config: {config_path}", "info")
+        else:
+            cx_print(f"Config: Not created yet", "info")
+
+        history_path = os.path.expanduser('~/.cortex/history.db')
+        if os.path.exists(history_path):
+            cx_print(f"History: {history_path}", "info")
+        else:
+            cx_print(f"History: Not created yet", "info")
+
+        console.print()
+        return 0
+
+    def wizard(self):
+        """Interactive setup wizard for API key configuration"""
+        from pathlib import Path
+
+        show_banner()
+        console.print()
+        cx_print("Welcome to Cortex Setup Wizard!", "success")
+        console.print()
+
+        # Check current API key status
+        is_valid, provider, _ = validate_api_key()
+        if is_valid:
+            cx_print(f"API key already configured ({provider})", "success")
+            console.print()
+            response = input("Do you want to reconfigure? (y/N): ").strip().lower()
+            if response != 'y':
+                cx_print("Configuration unchanged.", "info")
+                return 0
+
+        console.print("[bold]Choose your AI provider:[/bold]")
+        console.print("  1. Anthropic Claude [green](recommended)[/green]")
+        console.print("  2. OpenAI GPT-4")
+        console.print()
+
+        choice = input("Enter choice (1 or 2): ").strip()
+
+        if choice == '1':
+            provider_name = 'ANTHROPIC_API_KEY'
+            console.print()
+            console.print("[dim]Get your key at: https://console.anthropic.com[/dim]")
+        elif choice == '2':
+            provider_name = 'OPENAI_API_KEY'
+            console.print()
+            console.print("[dim]Get your key at: https://platform.openai.com/api-keys[/dim]")
+        else:
+            self._print_error("Invalid choice. Please enter 1 or 2.")
+            return 1
+
+        console.print()
+        api_key = input(f"Enter your {provider_name}: ").strip()
+
+        if not api_key:
+            self._print_error("API key cannot be empty.")
+            return 1
+
+        # Validate key format
+        if provider_name == 'ANTHROPIC_API_KEY' and not api_key.startswith('sk-ant-'):
+            cx_print("Warning: Key doesn't look like an Anthropic key (should start with 'sk-ant-')", "warning")
+        elif provider_name == 'OPENAI_API_KEY' and not api_key.startswith('sk-'):
+            cx_print("Warning: Key doesn't look like an OpenAI key (should start with 'sk-')", "warning")
+
+        # Save to shell profile
+        console.print()
+        console.print("[bold]Where should I save this?[/bold]")
+        console.print("  1. ~/.bashrc")
+        console.print("  2. ~/.zshrc")
+        console.print("  3. ~/.profile")
+        console.print("  4. Just show me the export command")
+        console.print()
+
+        save_choice = input("Enter choice (1-4): ").strip()
+
+        export_line = f'export {provider_name}="{api_key}"'
+
+        if save_choice in ['1', '2', '3']:
+            files = {
+                '1': Path.home() / '.bashrc',
+                '2': Path.home() / '.zshrc',
+                '3': Path.home() / '.profile',
+            }
+            target_file = files[save_choice]
+
+            try:
+                with open(target_file, 'a') as f:
+                    f.write(f'\n# Cortex Linux API key\n{export_line}\n')
+                cx_print(f"Added to {target_file}", "success")
+                console.print()
+                console.print(f"[yellow]Run this to activate now:[/yellow]")
+                console.print(f"  source {target_file}")
+            except Exception as e:
+                self._print_error(f"Could not write to {target_file}: {e}")
+                console.print()
+                console.print("[yellow]Add this line manually:[/yellow]")
+                console.print(f"  {export_line}")
+        else:
+            console.print()
+            console.print("[yellow]Add this to your shell profile:[/yellow]")
+            console.print(f"  {export_line}")
+
+        console.print()
+        cx_print("Setup complete! Try: cortex install docker", "success")
+        return 0
+
+    def demo(self):
+        """Run a demo showing Cortex capabilities without API key"""
+        import time
+
+        show_banner()
+        console.print()
+
+        # Simulated installation flow
+        cx_print("Understanding request: [bold]install docker[/bold]", "thinking")
+        time.sleep(0.5)
+
+        cx_print("Planning installation...", "info")
+        time.sleep(0.3)
+
+        cx_header("Installation Plan")
+
+        cx_print("[bold]docker.io[/bold] (24.0.5) — Container runtime", "info")
+        cx_print("[bold]docker-compose[/bold] (2.20.2) — Multi-container orchestration", "info")
+        cx_print("[bold]docker-buildx[/bold] (0.11.2) — Extended build capabilities", "info")
+
+        console.print()
+        console.print("[dim]Generated commands:[/dim]")
+        console.print("  1. sudo apt update")
+        console.print("  2. sudo apt install -y docker.io")
+        console.print("  3. sudo systemctl enable docker")
+        console.print("  4. sudo systemctl start docker")
+
+        console.print()
+        cx_step(1, 4, "Updating package lists...")
+        time.sleep(0.3)
+        cx_step(2, 4, "Installing docker.io...")
+        time.sleep(0.3)
+        cx_step(3, 4, "Enabling docker service...")
+        time.sleep(0.3)
+        cx_step(4, 4, "Starting docker service...")
+        time.sleep(0.3)
+
+        console.print()
+        cx_print("Installation complete!", "success")
+        cx_print("Docker is ready to use.", "info")
+
+        console.print()
+        console.print("[dim]━━━ This was a demo. No packages were installed. ━━━[/dim]")
+        console.print()
+        cx_print("To get started for real:", "info")
+        console.print("  1. Set your API key: [bold]export ANTHROPIC_API_KEY='your-key'[/bold]")
+        console.print("  2. Install something: [bold]cortex install docker --execute[/bold]")
+        console.print()
+
+        return 0
+
+
+def show_rich_help():
+    """Display beautifully formatted help using Rich"""
+    from rich.table import Table
+
+    show_banner(show_version=True)
+    console.print()
+
+    console.print("[bold]AI-powered package manager for Linux[/bold]")
+    console.print("[dim]Just tell Cortex what you want to install.[/dim]")
+    console.print()
+
+    # Commands table
+    table = Table(show_header=True, header_style="bold cyan", box=None)
+    table.add_column("Command", style="green")
+    table.add_column("Description")
+
+    table.add_row("demo", "See Cortex in action (no API key needed)")
+    table.add_row("wizard", "Configure API key interactively")
+    table.add_row("status", "Show system status and security features")
+    table.add_row("install <pkg>", "Install software using natural language")
+    table.add_row("history", "View installation history")
+    table.add_row("rollback <id>", "Undo an installation")
+
+    console.print(table)
+    console.print()
+
+    # Quick start
+    console.print("[bold cyan]Quick Start:[/bold cyan]")
+    console.print("  1. [dim]Set API key:[/dim]  export ANTHROPIC_API_KEY='sk-ant-...'")
+    console.print("  2. [dim]Install:[/dim]      cortex install docker --execute")
+    console.print()
+
+    # Flags
+    console.print("[bold cyan]Flags:[/bold cyan]")
+    console.print("  --execute    Actually run the commands (default: preview only)")
+    console.print("  --dry-run    Show what would happen without doing anything")
+    console.print("  --verbose    Show debug information")
+    console.print("  --version    Show version number")
+    console.print()
+
+    console.print("[dim]Learn more: https://cortexlinux.com/docs[/dim]")
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -527,15 +826,34 @@ Examples:
   cortex config reset
   cortex config export ~/cortex-config.json
   cortex config import ~/cortex-config.json
+  cortex demo                       # See Cortex in action (no API key needed)
+  cortex install docker             # Plan docker installation
+  cortex install docker --execute   # Actually install docker
+  cortex install "python 3.11"      # Natural language works too
+  cortex history                    # View installation history
+  cortex rollback <id>              # Undo an installation
 
 Environment Variables:
+  ANTHROPIC_API_KEY   Anthropic API key for Claude (recommended)
   OPENAI_API_KEY      OpenAI API key for GPT-4
-  ANTHROPIC_API_KEY   Anthropic API key for Claude
         """
     )
+
+    # Global flags
+    parser.add_argument('--version', '-V', action='version', version=f'cortex {VERSION}')
+    parser.add_argument('--verbose', '-v', action='store_true', help='Show detailed output')
     
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
-    
+
+    # Demo command (first - show this to new users)
+    demo_parser = subparsers.add_parser('demo', help='See Cortex in action (no API key needed)')
+
+    # Wizard command
+    wizard_parser = subparsers.add_parser('wizard', help='Configure API key interactively')
+
+    # Status command
+    status_parser = subparsers.add_parser('status', help='Show system status and security features')
+
     # Install command
     install_parser = subparsers.add_parser('install', help='Install software using natural language')
     install_parser.add_argument('software', type=str, help='Software to install (natural language)')
@@ -565,13 +883,19 @@ Environment Variables:
     args = parser.parse_args()
     
     if not args.command:
-        parser.print_help()
-        return 1
-    
-    cli = CortexCLI()
+        show_rich_help()
+        return 0
+
+    cli = CortexCLI(verbose=args.verbose)
     
     try:
-        if args.command == 'install':
+        if args.command == 'demo':
+            return cli.demo()
+        elif args.command == 'wizard':
+            return cli.wizard()
+        elif args.command == 'status':
+            return cli.status()
+        elif args.command == 'install':
             return cli.install(args.software, execute=args.execute, dry_run=args.dry_run)
         elif args.command == 'history':
             return cli.history(limit=args.limit, status=args.status, show_id=args.show_id)

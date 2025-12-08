@@ -4,5 +4,8 @@
 anthropic>=0.18.0
 openai>=1.0.0
 
+# Terminal UI
+rich>=13.0.0
+
 # Type hints for older Python versions
 typing-extensions>=4.0.0
