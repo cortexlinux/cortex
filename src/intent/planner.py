@@ -12,7 +12,7 @@ class InstallationPlanner:
         installed = set()
 
         # 1. If GPU-related intents exist → add GPU detection
-        has_gpu = any(i.target == "gpu" for i in intents)
+        has_gpu = any(i.target in self.GPU_PACKAGES or i.target == "gpu" for i in intents)
         if has_gpu:
             plan.append("Detect GPU: Run `nvidia-smi` or PCI scan")
 
