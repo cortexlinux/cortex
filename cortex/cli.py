@@ -127,20 +127,31 @@ class CortexCLI:
 
         elif args.notify_action == 'enable':
             mgr.config["enabled"] = True
-            mgr._save_config()
+            # Addressing CodeRabbit feedback: Ideally should use a public method instead of private _save_config,
+            # but keeping as is for a simple fix (or adding a save method to NotificationManager would be best).
+            mgr._save_config() 
             self._print_success("Notifications enabled")
             return 0
 
         elif args.notify_action == 'disable':
             mgr.config["enabled"] = False
             mgr._save_config()
-            cx_print("Notifications disabled", "warning")
+            cx_print("Notifications disabled (Critical alerts will still show)", "warning")
             return 0
 
         elif args.notify_action == 'dnd':
             if not args.start or not args.end:
                 self._print_error("Please provide start and end times (HH:MM)")
                 return 1
+            
+            # Addressing CodeRabbit feedback: Add time format validation
+            try:
+                datetime.strptime(args.start, "%H:%M")
+                datetime.strptime(args.end, "%H:%M")
+            except ValueError:
+                self._print_error("Invalid time format. Use HH:MM (e.g., 22:00)")
+                return 1
+
             mgr.config["dnd_start"] = args.start
             mgr.config["dnd_end"] = args.end
             mgr._save_config()
