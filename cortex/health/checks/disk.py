@@ -2,32 +2,38 @@ import shutil
 from ..monitor import HealthCheck, CheckResult
 
 class DiskCheck(HealthCheck):
+    """Check root filesystem disk usage."""
+
     def run(self) -> CheckResult:
-        total, used, free = shutil.disk_usage("/")
-        # Calculate usage percentage
+        """
+        Calculate disk usage percentage.
+        
+        Returns:
+            CheckResult based on usage thresholds.
+        """
+        # Use _ for unused variable (free space)
+        total, used, _ = shutil.disk_usage("/")
         usage_percent = (used / total) * 100
         
         score = 100
         status = "OK"
-        details = f"{usage_percent:.1f}% Used"
         rec = None
-
-        # Scoring logic (Spec compliant)
+        
         if usage_percent > 90:
             score = 0
             status = "CRITICAL"
-            rec = "Clean package cache (+50 pts)"
+            rec = "Clean up disk space immediately"
         elif usage_percent > 80:
             score = 50
             status = "WARNING"
-            rec = "Clean package cache (+10 pts)"
-        
+            rec = "Consider cleaning up disk space"
+            
         return CheckResult(
-            name="Disk Space",
+            name="Disk Usage",
             category="disk",
             score=score,
             status=status,
-            details=details,
+            details=f"{usage_percent:.1f}% used",
             recommendation=rec,
-            weight=0.15  # 15%
+            weight=0.20
         )

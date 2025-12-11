@@ -2,48 +2,51 @@ import subprocess
 from ..monitor import HealthCheck, CheckResult
 
 class UpdateCheck(HealthCheck):
+    """Check for pending system updates and security patches."""
+
     def run(self) -> CheckResult:
+        """
+        Check for available updates using apt.
+        
+        Returns:
+            CheckResult with score based on pending updates.
+        """
         score = 100
         pkg_count = 0
         sec_count = 0
-        rec = None
         
-        # Parse apt list --upgradable
         try:
-            # Execute safely without pipeline
+            # Add timeout to prevent hangs
             res = subprocess.run(
                 ["apt", "list", "--upgradable"], 
-                capture_output=True, text=True
+                capture_output=True, 
+                text=True,
+                timeout=30
             )
-            
             lines = res.stdout.splitlines()
-            # Skip first line "Listing..."
+            
+            # apt list output header usually takes first line
             for line in lines[1:]:
                 if line.strip():
-                    pkg_count += 1
                     if "security" in line.lower():
                         sec_count += 1
+                    else:
+                        pkg_count += 1
             
             # Scoring
-            score -= (pkg_count * 2) # -2 pts per normal package
-            score -= (sec_count * 10) # -10 pts per security package
-            
-            if pkg_count > 0:
-                rec = f"Install {pkg_count} updates (+{100-score} pts)"
+            score -= (pkg_count * 2) 
+            score -= (sec_count * 10) 
 
-        except FileNotFoundError:
-            # Skip on non-apt environments (100 pts)
-            return CheckResult("Updates", "updates", 100, "SKIP", "apt not found", weight=0.30)
         except Exception:
-            pass # Ignore errors
+             pass
 
         status = "OK"
-        if score < 60: status = "CRITICAL"
-        elif score < 100: status = "WARNING"
+        if score < 50: status = "CRITICAL"
+        elif score < 90: status = "WARNING"
         
-        details = f"{pkg_count} pending"
-        if sec_count > 0:
-            details += f" ({sec_count} security)"
+        details = f"{pkg_count} packages, {sec_count} security updates pending"
+        if pkg_count == 0 and sec_count == 0:
+            details = "System up to date"
 
         return CheckResult(
             name="System Updates",
@@ -51,6 +54,6 @@ class UpdateCheck(HealthCheck):
             score=max(0, score),
             status=status,
             details=details,
-            recommendation=rec,
-            weight=0.30 # 30%
+            recommendation="Run 'apt upgrade'" if score < 100 else None,
+            weight=0.25
         )
