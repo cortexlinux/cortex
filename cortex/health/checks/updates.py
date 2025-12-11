@@ -37,8 +37,17 @@ class UpdateCheck(HealthCheck):
             score -= (pkg_count * 2) 
             score -= (sec_count * 10) 
 
-        except Exception:
-             pass
+        except Exception as e:
+            # CodeRabbit Suggestion: Return failure state instead of ignoring errors
+            return CheckResult(
+                name="System Updates",
+                category="updates",
+                score=0,
+                status="CRITICAL",
+                details=f"Check failed: {e}",
+                recommendation="Verify package manager configuration",
+                weight=0.25
+            )
 
         status = "OK"
         if score < 50: status = "CRITICAL"

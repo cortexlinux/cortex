@@ -3,39 +3,53 @@ import os
 from ..monitor import HealthCheck, CheckResult
 
 class SecurityCheck(HealthCheck):
-    """
-    Checks system security posture including firewall status and SSH configuration.
-    
-    Evaluates UFW firewall activity and SSH root login permissions,
-    returning a weighted score and actionable recommendations.
-    """
-
     def run(self) -> CheckResult:
-        """
-        Execute security checks and return aggregated results.
-        
-        Returns:
-            CheckResult: Security assessment with score (0-100), status,
-                        detected issues, and recommendations.
-        """
         score = 100
         issues = []
         recommendations = []
         
         # 1. Firewall (UFW) Check
-        fw_score_delta, fw_issues, fw_recs = self._check_firewall()
-        
-        if fw_score_delta == -100:
-             score = 0
-        
-        issues.extend(fw_issues)
-        recommendations.extend(fw_recs)
+        ufw_active = False
+        try:
+            # Add timeout to prevent hanging (Fixes Reliability Issue)
+            res = subprocess.run(
+                ["systemctl", "is-active", "ufw"], 
+                capture_output=True, 
+                text=True,
+                timeout=5
+            )
+            # Fix: Use exact match to avoid matching "inactive" which contains "active"
+            if res.returncode == 0 and res.stdout.strip() == "active":
+                ufw_active = True
+        except subprocess.TimeoutExpired:
+            pass # Command timed out, treat as inactive or unavailable
+        except FileNotFoundError:
+            pass # Environment without systemctl (e.g., Docker or non-systemd)
+        except Exception:
+            pass # Generic error protection
+
+        if not ufw_active:
+            score = 0 # Spec: 0 points if Firewall is inactive
+            issues.append("Firewall Inactive")
+            recommendations.append("Enable UFW Firewall")
 
         # 2. SSH Root Login Check
-        ssh_score_delta, ssh_issues, ssh_recs = self._check_ssh_root_login()
-        score += ssh_score_delta
-        issues.extend(ssh_issues)
-        recommendations.extend(ssh_recs)
+        try:
+            ssh_config = "/etc/ssh/sshd_config"
+            if os.path.exists(ssh_config):
+                with open(ssh_config, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        # Check for uncommented PermitRootLogin yes
+                        if line.startswith("PermitRootLogin") and "yes" in line.split():
+                            score -= 50
+                            issues.append("Root SSH Allowed")
+                            recommendations.append("Disable SSH Root Login in sshd_config")
+                            break
+        except PermissionError:
+            pass # Cannot read config, skip check
+        except Exception:
+            pass # Generic error protection
 
         status = "OK"
         if score < 50: status = "CRITICAL"
@@ -50,46 +64,3 @@ class SecurityCheck(HealthCheck):
             recommendation=", ".join(recommendations) if recommendations else None,
             weight=0.35
         )
-
-    def _check_firewall(self) -> tuple[int, list[str], list[str]]:
-        """
-        Check if UFW is active.
-        
-        Returns:
-            tuple: (score_delta, issues_list, recommendations_list)
-        """
-        try:
-            res = subprocess.run(
-                ["systemctl", "is-active", "ufw"], 
-                capture_output=True, 
-                text=True,
-                timeout=10
-            )
-            if res.returncode == 0 and res.stdout.strip() == "active":
-                return 0, [], []
-        except Exception:
-            # Catch-all is intentional here for robustness against missing systemctl etc.
-            pass
-        
-        return -100, ["Firewall Inactive"], ["Enable UFW Firewall"]
-
-    def _check_ssh_root_login(self) -> tuple[int, list[str], list[str]]:
-        """
-        Check for PermitRootLogin yes in sshd_config.
-        
-        Returns:
-            tuple: (score_delta, issues_list, recommendations_list)
-        """
-        try:
-            ssh_config = "/etc/ssh/sshd_config"
-            if os.path.exists(ssh_config):
-                with open(ssh_config, 'r') as f:
-                    for line in f:
-                        parts = line.split()
-                        if len(parts) >= 2 and parts[0] == "PermitRootLogin" and parts[1] == "yes":
-                            return -50, ["Root SSH Allowed"], ["Disable SSH Root Login in sshd_config"]
-        except Exception:
-            # Catch-all is intentional here for file permission issues etc.
-            pass
-        
-        return 0, [], []
