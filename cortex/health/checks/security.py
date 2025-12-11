@@ -11,15 +11,22 @@ class SecurityCheck(HealthCheck):
         # 1. Firewall (UFW) Check
         ufw_active = False
         try:
+            # Add timeout to prevent hanging (Fixes Reliability Issue)
             res = subprocess.run(
                 ["systemctl", "is-active", "ufw"], 
-                capture_output=True, text=True
+                capture_output=True, 
+                text=True,
+                timeout=5
             )
             # Fix: Use exact match to avoid matching "inactive" which contains "active"
             if res.returncode == 0 and res.stdout.strip() == "active":
                 ufw_active = True
+        except subprocess.TimeoutExpired:
+            pass # Command timed out, treat as inactive or unavailable
         except FileNotFoundError:
             pass # Environment without systemctl (e.g., Docker or non-systemd)
+        except Exception:
+            pass # Generic error protection
 
         if not ufw_active:
             score = 0 # Spec: 0 points if Firewall is inactive
@@ -41,6 +48,8 @@ class SecurityCheck(HealthCheck):
                             break
         except PermissionError:
             pass # Cannot read config, skip check
+        except Exception:
+            pass # Generic error protection
 
         status = "OK"
         if score < 50: status = "CRITICAL"
