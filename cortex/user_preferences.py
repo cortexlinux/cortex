@@ -9,7 +9,6 @@ and other system settings.
 """
 
 import os
-import yaml
 import json
 import shutil
 from pathlib import Path
@@ -17,6 +16,14 @@ from typing import Any, Dict, Optional, List
 from dataclasses import dataclass, asdict, field
 from enum import Enum
 from datetime import datetime
+
+# Handle optional PyYAML dependency
+try:
+    import yaml
+    HAS_YAML = True
+except ImportError:
+    HAS_YAML = False
+    yaml = None
 
 
 class PreferencesError(Exception):
@@ -241,7 +248,11 @@ class PreferencesManager:
         
         try:
             with open(self.config_path, 'r', encoding='utf-8') as f:
-                data = yaml.safe_load(f)
+                if HAS_YAML:
+                    data = yaml.safe_load(f)
+                else:
+                    # Fallback to JSON if YAML not available
+                    data = json.load(f)
             
             if not data:
                 data = {}
@@ -249,9 +260,9 @@ class PreferencesManager:
             self._preferences = UserPreferences.from_dict(data)
             return self._preferences
         
-        except yaml.YAMLError as e:
-            raise ValueError(f"Invalid YAML in config file: {str(e)}")
         except Exception as e:
+            if HAS_YAML and isinstance(e, yaml.YAMLError):
+                raise ValueError(f"Invalid YAML in config file: {str(e)}")
             raise IOError(f"Failed to load config file: {str(e)}")
     
     def save(self, backup: bool = True) -> Path:
@@ -273,13 +284,17 @@ class PreferencesManager:
         
         try:
             with open(self.config_path, 'w', encoding='utf-8') as f:
-                yaml.dump(
-                    self._preferences.to_dict(),
-                    f,
-                    default_flow_style=False,
-                    sort_keys=False,
-                    indent=2
-                )
+                if HAS_YAML:
+                    yaml.dump(
+                        self._preferences.to_dict(),
+                        f,
+                        default_flow_style=False,
+                        sort_keys=False,
+                        indent=2
+                    )
+                else:
+                    # Fallback to JSON if YAML not available
+                    json.dump(self._preferences.to_dict(), f, indent=2)
             return self.config_path
         
         except Exception as e:

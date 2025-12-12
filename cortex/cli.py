@@ -74,8 +74,12 @@ class CortexCLI:
         # Fallback to Ollama for offline mode
         return 'ollama'
 
-    def _get_api_key(self, provider: str) -> Optional[str]:
+    def _get_api_key(self, provider: Optional[str] = None) -> Optional[str]:
         """Return the API key for the specified provider or emit guidance if missing."""
+        # If no provider specified, detect it
+        if provider is None:
+            provider = self._get_provider()
+        
         # Check if using Ollama (no API key needed)
         if provider == 'ollama':
             self._debug("Using Ollama (no API key required)")
