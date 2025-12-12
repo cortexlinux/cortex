@@ -17,7 +17,7 @@ BASE_ENV = {
     "PYTHONPATH": "/workspace",
     "PYTHONDONTWRITEBYTECODE": "1",
 }
-PIP_BOOTSTRAP = "python -m pip install --quiet requests"
+PIP_BOOTSTRAP = "python -m pip install --quiet -r /workspace/requirements.txt"
 
 
 @unittest.skipUnless(docker_available(), "Docker is required for integration tests")
