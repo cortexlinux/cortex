@@ -1,0 +1,77 @@
+name: LAMP Stack
+description: Linux, Apache, MySQL, PHP stack for web development
+version: 1.0.0
+author: Cortex Linux
+packages:
+  - apache2
+  - mysql-server
+  - mysql-client
+  - php
+  - php-mysql
+  - php-mbstring
+  - php-xml
+  - php-curl
+  - phpmyadmin
+  - libapache2-mod-php
+
+steps:
+  - command: apt update
+    description: Update package lists
+    requires_root: true
+  - command: echo "mysql-server mysql-server/root_password password temp_password" | debconf-set-selections && echo "mysql-server mysql-server/root_password_again password temp_password" | debconf-set-selections
+    description: Pre-configure MySQL root password
+    requires_root: true
+  - command: DEBIAN_FRONTEND=noninteractive apt install -y apache2 mysql-server mysql-client php php-mysql php-mbstring php-xml php-curl libapache2-mod-php
+    description: Install LAMP stack packages
+    requires_root: true
+  - command: echo "phpmyadmin phpmyadmin/dbconfig-install boolean true" | debconf-set-selections && echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect apache2" | debconf-set-selections && DEBIAN_FRONTEND=noninteractive apt install -y phpmyadmin
+    description: Install and configure phpMyAdmin for Apache
+    requires_root: true
+  - command: ln -sf /usr/share/phpmyadmin /var/www/html/phpmyadmin
+    description: Create phpMyAdmin symlink
+    requires_root: true
+  - command: systemctl start apache2
+    description: Start Apache web server
+    requires_root: true
+    rollback: systemctl stop apache2
+  - command: systemctl enable apache2
+    description: Enable Apache on boot
+    requires_root: true
+    rollback: systemctl disable apache2
+  - command: systemctl start mysql
+    description: Start MySQL service
+    requires_root: true
+    rollback: systemctl stop mysql
+  - command: systemctl enable mysql
+    description: Enable MySQL on boot
+    requires_root: true
+    rollback: systemctl disable mysql
+
+hardware_requirements:
+  min_ram_mb: 1024
+  min_cores: 2
+  min_storage_mb: 5120
+
+post_install:
+  - echo "LAMP stack installed successfully"
+  - echo "SECURITY: Run 'mysql_secure_installation' to secure MySQL"
+  - echo "SECURITY: Configure firewall rules for production use"
+  - echo "Apache: http://localhost"
+  - echo "phpMyAdmin: http://localhost/phpmyadmin"
+  - echo "SECURITY: Change default MySQL passwords before production use"
+
+verification_commands:
+  - apache2 -v
+  - mysql --version
+  - php -v
+  - systemctl is-active apache2
+  - systemctl is-active mysql
+
+metadata:
+  category: web-development
+  tags:
+    - web
+    - server
+    - database
+    - php
+
