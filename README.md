@@ -2,25 +2,8 @@
 
 An AI-powered package manager for Debian/Ubuntu that understands natural language.
 
-```
-$ cortex install nginx --dry-run
+![Cortex terminal demo](images/cortex_demo.gif)
 
-🧠 Understanding request: nginx
-📦 Mode: DRY RUN
-
-╭───────────────────────────── Installation Plan ──────────────────────────────╮
-│ Packages to install:                                                         │
-│   - nginx (1.24.0)                                                           │
-│   - nginx-common                                                             │
-│   - libnginx-mod-http-geoip                                                  │
-│                                                                              │
-│ Commands that will be executed:                                              │
-│   sudo apt update                                                            │
-│   sudo apt install -y nginx                                                  │
-╰──────────────────────────────────────────────────────────────────────────────╯
-
-Run with --execute to install, or edit the plan above.
-```
 
 ## Requirements
 
