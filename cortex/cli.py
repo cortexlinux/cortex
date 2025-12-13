@@ -550,6 +550,20 @@ def show_rich_help():
     console.print("[dim]Learn more: https://cortexlinux.com/docs[/dim]")
 
 
+def shell_suggest(text: str) -> int:
+        """
+        Internal helper used by shell hotkey integration.
+        Prints a single suggested command to stdout.
+        """
+        try:
+            from cortex.shell_integration import suggest_command
+            suggestion = suggest_command(text)
+            if suggestion:
+                print(suggestion)
+            return 0
+        except Exception:
+            return 1
+
 def main():
     parser = argparse.ArgumentParser(
         prog='cortex',
@@ -654,6 +668,8 @@ def main():
     except Exception as e:
         print(f"❌ Unexpected error: {e}", file=sys.stderr)
         return 1
+
+
 
 if __name__ == '__main__':
     sys.exit(main())
