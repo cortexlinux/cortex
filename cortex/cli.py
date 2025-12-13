@@ -24,6 +24,7 @@ from cortex.user_preferences import (
     print_all_preferences,
     format_preference_value
 )
+from cortex.preflight_checker import PreflightChecker, format_report, export_report
 from cortex.branding import (
     console,
     cx_print,
@@ -111,7 +112,12 @@ class CortexCLI:
     def _clear_line(self):
         sys.stdout.write('\r\033[K')
         sys.stdout.flush()
-
+    
+    def install(self, software: str, execute: bool = False, dry_run: bool = False, simulate: bool = False):
+        # Handle simulation mode first - no API key needed
+        if simulate:
+            return self._run_simulation(software)
+       
     # --- New Notification Method ---
     def notify(self, args):
         """Handle notification commands"""
@@ -309,6 +315,30 @@ class CortexCLI:
             if install_id:
                 history.update_installation(install_id, InstallationStatus.FAILED, str(e))
             self._print_error(f"Unexpected error: {str(e)}")
+            return 1
+    
+    def _run_simulation(self, software: str) -> int:
+        """Run preflight simulation check for installation"""
+        try:
+            # Get API key for LLM-powered package info (optional).
+            api_key = os.environ.get('OPENAI_API_KEY') or os.environ.get('ANTHROPIC_API_KEY')
+            provider = self._get_provider() if api_key else 'openai'
+            
+            # Create checker with optional API key for enhanced accuracy
+            checker = PreflightChecker(api_key=api_key, provider=provider)
+            report = checker.run_all_checks(software)
+            
+            # Print formatted report
+            output = format_report(report, software)
+            print(output)
+            
+            # Return error code if blocking issues found
+            if report.errors:
+                return 1
+            return 0
+            
+        except Exception as e:
+            self._print_error(f"Simulation failed: {str(e)}")
             return 1
 
     def history(self, limit: int = 20, status: Optional[str] = None, show_id: Optional[str] = None):
@@ -577,6 +607,7 @@ def main():
     install_parser.add_argument('software', type=str, help='Software to install')
     install_parser.add_argument('--execute', action='store_true', help='Execute commands')
     install_parser.add_argument('--dry-run', action='store_true', help='Show commands only')
+    install_parser.add_argument('--simulate', action='store_true', help='Simulate installation without making changes')
 
     # History command
     history_parser = subparsers.add_parser('history', help='View history')
@@ -626,6 +657,8 @@ def main():
     cli = CortexCLI(verbose=args.verbose)
 
     try:
+        if args.command == 'install':
+            return cli.install(args.software, execute=args.execute, dry_run=args.dry_run, simulate=args.simulate)
         if args.command == 'demo':
             return cli.demo()
         elif args.command == 'wizard':
