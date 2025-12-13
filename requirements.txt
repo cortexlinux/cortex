@@ -12,3 +12,8 @@ pyyaml>=6.0.0
 
 # Type hints for older Python versions
 typing-extensions>=4.0.0
+PyYaml>=6.0.0
+
+# System monitoring (for dashboard)
+psutil>=5.0.0
+pynvml>=11.0.0
