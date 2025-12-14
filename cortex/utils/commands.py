@@ -184,11 +184,17 @@ def validate_command(command: str, strict: bool = True) -> tuple[bool, str | Non
     # Strict mode: command must start with allowed prefix
     if strict:
         first_word = command.split()[0]
-        # Handle sudo prefix
-        if first_word == "sudo":
+        # Handle sudo prefix and its options
+        if first_word == 'sudo':
             parts = command.split()
-            if len(parts) > 1:
-                first_word = parts[1]
+            # Skip sudo and any flags (starting with -)
+            actual_command_index = 1
+            while actual_command_index < len(parts) and parts[actual_command_index].startswith('-'):
+                actual_command_index += 1
+            if actual_command_index < len(parts):
+                first_word = parts[actual_command_index]
+            else:
+                return False, "No command found after sudo"
 
         if first_word not in ALLOWED_COMMAND_PREFIXES:
             return False, f"Command '{first_word}' is not in the allowlist"
