@@ -15,10 +15,23 @@ class CommandInterpreter:
         self,
         api_key: str,
         provider: str = "openai",
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        offline: bool = False,
+        cache=None,
     ):
         self.api_key = api_key
         self.provider = APIProvider(provider.lower())
+        self.offline = offline
+
+        if cache is None:
+            try:
+                from cortex.semantic_cache import SemanticCache
+
+                self.cache = SemanticCache()
+            except Exception:
+                self.cache = None
+        else:
+            self.cache = cache
         
         if model:
             self.model = model
@@ -175,6 +188,21 @@ Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.i
     def parse(self, user_input: str, validate: bool = True) -> List[str]:
         if not user_input or not user_input.strip():
             raise ValueError("User input cannot be empty")
+
+        cache_system_prompt = self._get_system_prompt() + f"\n\n[cortex-cache-validate={bool(validate)}]"
+
+        if self.cache is not None:
+            cached = self.cache.get_commands(
+                prompt=user_input,
+                provider=self.provider.value,
+                model=self.model,
+                system_prompt=cache_system_prompt,
+            )
+            if cached is not None:
+                return cached
+
+        if self.offline:
+            raise RuntimeError("Offline mode: no cached response available for this request")
         
         if self.provider == APIProvider.OPENAI:
             commands = self._call_openai(user_input)
@@ -187,6 +215,18 @@ Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.i
         
         if validate:
             commands = self._validate_commands(commands)
+
+        if self.cache is not None and commands:
+            try:
+                self.cache.put_commands(
+                    prompt=user_input,
+                    provider=self.provider.value,
+                    model=self.model,
+                    system_prompt=cache_system_prompt,
+                    commands=commands,
+                )
+            except Exception:
+                pass
         
         return commands
     

@@ -48,6 +48,7 @@ class CortexCLI:
         self.spinner_idx = 0
         self.prefs_manager = None  # Lazy initialization
         self.verbose = verbose
+        self.offline = False
 
     def _debug(self, message: str):
         """Print debug info only in verbose mode"""
@@ -199,7 +200,7 @@ class CortexCLI:
         try:
             self._print_status("🧠", "Understanding request...")
 
-            interpreter = CommandInterpreter(api_key=api_key, provider=provider)
+            interpreter = CommandInterpreter(api_key=api_key, provider=provider, offline=self.offline)
 
             self._print_status("📦", "Planning installation...")
 
@@ -309,6 +310,24 @@ class CortexCLI:
             if install_id:
                 history.update_installation(install_id, InstallationStatus.FAILED, str(e))
             self._print_error(f"Unexpected error: {str(e)}")
+            return 1
+
+    def cache_stats(self) -> int:
+        try:
+            from cortex.semantic_cache import SemanticCache
+
+            cache = SemanticCache()
+            stats = cache.stats()
+            hit_rate = f"{stats.hit_rate * 100:.1f}%" if stats.total else "0.0%"
+
+            cx_header("Cache Stats")
+            cx_print(f"Hits: {stats.hits}", "info")
+            cx_print(f"Misses: {stats.misses}", "info")
+            cx_print(f"Hit rate: {hit_rate}", "info")
+            cx_print(f"Saved calls (approx): {stats.hits}", "info")
+            return 0
+        except Exception as e:
+            self._print_error(f"Unable to read cache stats: {e}")
             return 1
 
     def history(self, limit: int = 20, status: Optional[str] = None, show_id: Optional[str] = None):
@@ -544,6 +563,7 @@ def show_rich_help():
     table.add_row("history", "View history")
     table.add_row("rollback <id>", "Undo installation")
     table.add_row("notify", "Manage desktop notifications")  # Added this line
+    table.add_row("cache stats", "Show LLM cache statistics")
 
     console.print(table)
     console.print()
@@ -560,6 +580,7 @@ def main():
     # Global flags
     parser.add_argument('--version', '-V', action='version', version=f'cortex {VERSION}')
     parser.add_argument('--verbose', '-v', action='store_true', help='Show detailed output')
+    parser.add_argument('--offline', action='store_true', help='Use cached responses only (no network calls)')
 
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
@@ -617,6 +638,11 @@ def main():
     send_parser.add_argument('--actions', nargs='*', help='Action buttons')
     # --------------------------
 
+    # Cache commands
+    cache_parser = subparsers.add_parser('cache', help='Cache operations')
+    cache_subs = cache_parser.add_subparsers(dest='cache_action', help='Cache actions')
+    cache_subs.add_parser('stats', help='Show cache statistics')
+
     args = parser.parse_args()
 
     if not args.command:
@@ -624,6 +650,7 @@ def main():
         return 0
 
     cli = CortexCLI(verbose=args.verbose)
+    cli.offline = bool(getattr(args, 'offline', False))
 
     try:
         if args.command == 'demo':
@@ -645,6 +672,11 @@ def main():
         # Handle the new notify command
         elif args.command == 'notify':
             return cli.notify(args)
+        elif args.command == 'cache':
+            if getattr(args, 'cache_action', None) == 'stats':
+                return cli.cache_stats()
+            parser.print_help()
+            return 1
         else:
             parser.print_help()
             return 1
