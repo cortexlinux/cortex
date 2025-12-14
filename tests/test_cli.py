@@ -25,7 +25,6 @@ class TestCortexCLI(unittest.TestCase):
     def test_get_api_key_claude(self):
         api_key = self.cli._get_api_key()
         self.assertEqual(api_key, "sk-ant-test-claude-key-123")
-
     @patch.dict(os.environ, {}, clear=True)
     @patch("sys.stderr")
     def test_get_api_key_not_found(self, mock_stderr):
