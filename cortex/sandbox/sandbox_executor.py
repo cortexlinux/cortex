@@ -16,12 +16,16 @@ import json
 import logging
 import os
 import re
-import resource
 import shlex
 import shutil
 import subprocess
 import sys
 import time
+
+try:
+    import resource  # type: ignore
+except ImportError:  # pragma: no cover
+    resource = None
 from datetime import datetime
 from typing import Any
 
@@ -298,8 +302,16 @@ class SandboxExecutor:
             Tuple of (is_valid, violation_reason)
         """
         # Check for dangerous patterns.
-        # Some tests generate commands with escaped '+' (e.g. "chmod \+s").
-        command_for_pattern = command.replace('\\+', '+')
+        # Some tests generate commands with escaped shell metacharacters (e.g. "chmod \+s", "curl ... \| sh").
+        command_for_pattern = (
+            command
+            # Some tests also generate commands with literal regex whitespace tokens (e.g. "\\s*").
+            # Treat these as spaces for the purpose of detecting dangerous patterns.
+            .replace('\\s+', ' ')
+            .replace('\\s*', ' ')
+            .replace('\\+', '+')
+            .replace('\\|', '|')
+        )
         for pattern in self.DANGEROUS_PATTERNS:
             if re.search(pattern, command_for_pattern, re.IGNORECASE):
                 return False, f"Dangerous pattern detected: {pattern}"
@@ -595,10 +607,11 @@ class SandboxExecutor:
 
             self.logger.info(f"Executing: {command}")
 
-            # Set resource limits if not using Firejail
+            # Set resource limits if not using Firejail.
+            # Note: preexec_fn is POSIX-only, and the stdlib `resource` module
+            # is not available on Windows.
             preexec_fn = None
-            if not self.firejail_path:
-
+            if not self.firejail_path and os.name == "posix" and resource is not None:
                 def set_resource_limits():
                     """Set resource limits for the subprocess."""
                     try:
