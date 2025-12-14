@@ -663,6 +663,166 @@ class CortexCLI:
         # (Keep existing demo logic)
         return 0
 
+    # --- Cleanup Command ---
+    def cleanup(self, args):
+        """Handle cleanup commands"""
+        from cortex.cleanup.scanner import CleanupScanner
+        from cortex.cleanup.cleaner import DiskCleaner
+        from cortex.cleanup.manager import CleanupManager
+        from rich.table import Table
+        from rich.prompt import Confirm
+        from datetime import datetime
+
+        if args.cleanup_action == 'scan':
+            scanner = CleanupScanner()
+            self._print_status("🔍", "Scanning for cleanup opportunities...")
+            
+            # Configure scanner based on args if needed (e.g. days_old)
+            # For now using defaults
+            results = scanner.scan_all()
+            
+            console.print("\n[bold cyan]💾 Cleanup Opportunities:[/bold cyan]")
+            
+            table = Table(show_header=True, header_style="bold green", box=None)
+            table.add_column("Category")
+            table.add_column("Items")
+            table.add_column("Size")
+            
+            total_size = 0
+            for res in results:
+                size_str = self._format_size(res.size_bytes)
+                table.add_row(res.category, str(res.count), size_str)
+                total_size += res.size_bytes
+                
+            console.print(table)
+            console.print(f"\n[bold]Total reclaimable: {self._format_size(total_size)}[/bold]")
+            return 0
+
+        elif args.cleanup_action == 'run':
+            scanner = CleanupScanner()
+            
+            # Check for force/safe flags
+            is_safe = not args.force
+            
+            # Re-scan to get current state
+            self._print_status("🔍", "Scanning...")
+            results = scanner.scan_all()
+            
+            total_reclaimable = sum(r.size_bytes for r in results)
+            if total_reclaimable == 0:
+                self._print_success("Nothing to clean!")
+                return 0
+                
+            console.print(f"Found {self._format_size(total_reclaimable)} to clean.")
+            
+            if not args.yes:
+                if not Confirm.ask("Are you sure you want to proceed?"):
+                    return 0
+            
+            self._print_status("🧹", "Cleaning...")
+            
+            cleaner = DiskCleaner(dry_run=False)
+            summary = cleaner.run_cleanup(results, safe=is_safe)
+            
+            console.print("\n[bold green]Cleanup Complete![/bold green]")
+            total_freed = 0
+            for category, freed in summary.items():
+                if freed > 0:
+                    console.print(f"✓ {category}: {self._format_size(freed)}")
+                    total_freed += freed
+                    
+            console.print(f"\n[bold]Total freed: {self._format_size(total_freed)}[/bold]")
+            return 0
+
+        elif args.cleanup_action == 'undo':
+            manager = CleanupManager()
+            if not args.id:
+                # List undoable items
+                items = manager.list_items()
+                if not items:
+                    console.print("No undoable items found.")
+                    return 0
+                    
+                table = Table(show_header=True, header_style="bold yellow", box=None)
+                table.add_column("ID")
+                table.add_column("File")
+                table.add_column("Size")
+                table.add_column("Date")
+                
+                for item in items:
+                    date_str = datetime.fromtimestamp(item.timestamp).strftime('%Y-%m-%d %H:%M')
+                    table.add_row(item.id, os.path.basename(item.original_path), self._format_size(item.size_bytes), date_str)
+                    
+                console.print(table)
+                console.print("\nRun [bold]cortex cleanup undo <id>[/bold] to restore.")
+                return 0
+            else:
+                # Restore specific item
+                if manager.restore_item(args.id):
+                    self._print_success(f"Restored item {args.id}")
+                    return 0
+                else:
+                    self._print_error(f"Failed to restore item {args.id}")
+                    return 1
+        
+        elif args.cleanup_action == 'schedule':
+            from cortex.cleanup.scheduler import CleanupScheduler, ScheduleInterval
+            
+            scheduler = CleanupScheduler()
+            
+            if args.show:
+                # Show current schedule status
+                status = scheduler.get_status()
+                console.print("\n[bold cyan]🕐 Cleanup Schedule Status:[/bold cyan]")
+                if status['enabled']:
+                    console.print(f"Status: [green]Enabled[/green]")
+                    console.print(f"Interval: [yellow]{status['interval']}[/yellow]")
+                    console.print(f"Safe mode: {'Yes' if status['safe_mode'] else 'No'}")
+                    if status['systemd_active']:
+                        console.print("Method: systemd timer")
+                    elif status['cron_active']:
+                        console.print("Method: cron")
+                else:
+                    console.print("Status: [dim]Disabled[/dim]")
+                return 0
+            
+            if args.disable:
+                result = scheduler.disable_schedule()
+                if result['success']:
+                    self._print_success(result['message'])
+                else:
+                    self._print_error(result.get('message', 'Failed to disable schedule'))
+                return 0 if result['success'] else 1
+            
+            if args.enable:
+                interval = ScheduleInterval(args.interval) if args.interval else ScheduleInterval.WEEKLY
+                result = scheduler.enable_schedule(interval=interval, safe_mode=True)
+                if result['success']:
+                    self._print_success(result['message'])
+                else:
+                    self._print_error(result.get('message', 'Failed to enable schedule'))
+                return 0 if result['success'] else 1
+            
+            # Default: show status
+            status = scheduler.get_status()
+            console.print("\n[bold cyan]🕐 Cleanup Schedule Status:[/bold cyan]")
+            if status['enabled']:
+                console.print(f"Status: [green]Enabled[/green]")
+                console.print(f"Interval: [yellow]{status['interval']}[/yellow]")
+            else:
+                console.print("Status: [dim]Disabled[/dim]")
+                console.print("\nUse [bold]cortex cleanup schedule --enable[/bold] to enable.")
+            return 0
+        
+        return 0
+
+    def _format_size(self, size_bytes: int) -> str:
+        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+            if size_bytes < 1024.0:
+                return f"{size_bytes:.2f} {unit}"
+            size_bytes /= 1024.0
+        return f"{size_bytes:.2f} PB"
+
 
 def show_rich_help():
     """Display beautifully formatted help using Rich"""
@@ -796,10 +956,35 @@ def main():
     stack_parser.add_argument(
         "--dry-run", action="store_true", help="Show what would be installed (requires stack name)"
     )
+
     # Cache commands
     cache_parser = subparsers.add_parser("cache", help="Cache operations")
     cache_subs = cache_parser.add_subparsers(dest="cache_action", help="Cache actions")
     cache_subs.add_parser("stats", help="Show cache statistics")
+
+    # --- Cleanup Command ---
+    cleanup_parser = subparsers.add_parser('cleanup', help='Optimize disk usage')
+    cleanup_subs = cleanup_parser.add_subparsers(dest='cleanup_action', help='Cleanup actions')
+    
+    # Scan
+    cleanup_subs.add_parser('scan', help='Scan for reclaimable space')
+    
+    # Run
+    run_parser = cleanup_subs.add_parser('run', help='Execute cleanup')
+    run_parser.add_argument('--safe', action='store_true', default=True, help='Safe cleanup (default)')
+    run_parser.add_argument('--force', '--all', action='store_true', help='Clean all found items')
+    run_parser.add_argument('-y', '--yes', action='store_true', help='Skip confirmation')
+    
+    # Undo
+    undo_parser = cleanup_subs.add_parser('undo', help='Restore cleaned files')
+    undo_parser.add_argument('id', nargs='?', help='ID of item to restore')
+    
+    # Schedule
+    schedule_parser = cleanup_subs.add_parser('schedule', help='Configure automatic cleanup')
+    schedule_parser.add_argument('--enable', action='store_true', help='Enable scheduled cleanup')
+    schedule_parser.add_argument('--disable', action='store_true', help='Disable scheduled cleanup')
+    schedule_parser.add_argument('--interval', choices=['daily', 'weekly', 'monthly'], help='Cleanup interval')
+    schedule_parser.add_argument('--show', action='store_true', help='Show current schedule')
 
     args = parser.parse_args()
 
@@ -839,6 +1024,8 @@ def main():
                 return cli.cache_stats()
             parser.print_help()
             return 1
+        elif args.command == 'cleanup':
+            return cli.cleanup(args)
         else:
             parser.print_help()
             return 1
