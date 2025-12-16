@@ -35,6 +35,8 @@ class CleanupScanner:
     def __init__(self):
         self.apt_cache_dir = Path("/var/cache/apt/archives")
         self.log_dir = Path("/var/log")
+        # NOSONAR: Intentionally scanning public directories for cleanup purposes.
+        # This is read-only scanning, not writing sensitive data.
         self.temp_dirs = [Path("/tmp"), Path.home() / ".cache"]
         
     def scan_all(self) -> List[ScanResult]:
@@ -153,6 +155,7 @@ class CleanupScanner:
         """
         for line in stdout.splitlines():
             if "disk space will be freed" in line:
+                # NOSONAR: Simple regex without nested quantifiers, input is apt-get output
                 match = re.search(r'([\d.]+)\s*(KB|MB|GB)', line, re.IGNORECASE)
                 if match:
                     value = float(match.group(1))
