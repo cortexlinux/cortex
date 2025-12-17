@@ -31,10 +31,7 @@ class UpdateCheck(HealthCheck):
         try:
             # Add timeout to prevent hangs
             res = subprocess.run(
-                [APT_CMD, "list", "--upgradable"],
-                capture_output=True,
-                text=True,
-                timeout=30
+                [APT_CMD, "list", "--upgradable"], capture_output=True, text=True, timeout=30
             )
             lines = res.stdout.splitlines()
 
@@ -47,8 +44,8 @@ class UpdateCheck(HealthCheck):
                         pkg_count += 1
 
             # Scoring
-            score -= (pkg_count * 2)
-            score -= (sec_count * 10)
+            score -= pkg_count * 2
+            score -= sec_count * 10
 
         except subprocess.TimeoutExpired as e:
             return CheckResult(
@@ -58,7 +55,7 @@ class UpdateCheck(HealthCheck):
                 status="CRITICAL",
                 details=f"Check timed out: {e}",
                 recommendation="Verify package manager configuration",
-                weight=0.25
+                weight=0.25,
             )
         except FileNotFoundError:
             return CheckResult(
@@ -68,7 +65,7 @@ class UpdateCheck(HealthCheck):
                 status="CRITICAL",
                 details="apt command not found",
                 recommendation="This check requires apt package manager",
-                weight=0.25
+                weight=0.25,
             )
         except OSError as e:
             return CheckResult(
@@ -78,7 +75,7 @@ class UpdateCheck(HealthCheck):
                 status="CRITICAL",
                 details=f"Check failed: {e}",
                 recommendation="Verify package manager configuration",
-                weight=0.25
+                weight=0.25,
             )
 
         status = "OK"
@@ -98,5 +95,5 @@ class UpdateCheck(HealthCheck):
             status=status,
             details=details,
             recommendation="Run 'apt upgrade'" if score < 100 else None,
-            weight=0.25
+            weight=0.25,
         )

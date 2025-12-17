@@ -24,7 +24,7 @@ class DiskCheck(HealthCheck):
                 status="CRITICAL",
                 details=f"Check failed: {e}",
                 recommendation="Check disk mounts and permissions",
-                weight=0.20
+                weight=0.20,
             )
 
         # Explicit early returns to avoid static analysis confusion
@@ -36,7 +36,7 @@ class DiskCheck(HealthCheck):
                 status="CRITICAL",
                 details=f"{usage_percent:.1f}% used",
                 recommendation="Clean up disk space immediately",
-                weight=0.20
+                weight=0.20,
             )
 
         if usage_percent > 80:
@@ -47,7 +47,7 @@ class DiskCheck(HealthCheck):
                 status="WARNING",
                 details=f"{usage_percent:.1f}% used",
                 recommendation="Consider cleaning up disk space",
-                weight=0.20
+                weight=0.20,
             )
 
         return CheckResult(
@@ -57,5 +57,5 @@ class DiskCheck(HealthCheck):
             status="OK",
             details=f"{usage_percent:.1f}% used",
             recommendation=None,
-            weight=0.20
+            weight=0.20,
         )

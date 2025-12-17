@@ -33,16 +33,16 @@ class PerformanceCheck(HealthCheck):
 
         # 2. Memory Usage (Linux /proc/meminfo)
         try:
-            with open('/proc/meminfo') as f:
+            with open("/proc/meminfo") as f:
                 meminfo = {}
                 for line in f:
-                    parts = line.split(':')
+                    parts = line.split(":")
                     if len(parts) == 2:
                         meminfo[parts[0].strip()] = int(parts[1].strip().split()[0])
 
-                if 'MemTotal' in meminfo and 'MemAvailable' in meminfo:
-                    total = meminfo['MemTotal']
-                    avail = meminfo['MemAvailable']
+                if "MemTotal" in meminfo and "MemAvailable" in meminfo:
+                    total = meminfo["MemTotal"]
+                    avail = meminfo["MemAvailable"]
                     used_percent = ((total - avail) / total) * 100
 
                     if used_percent > 80:
@@ -68,5 +68,5 @@ class PerformanceCheck(HealthCheck):
             status=status,
             details=details,
             recommendation=rec,
-            weight=0.20  # 20%
+            weight=0.20,  # 20%
         )

@@ -36,12 +36,12 @@ def save_history(score, status, details):
         "timestamp": datetime.datetime.now().isoformat(),
         "score": score,
         "status": status,
-        "details": details
+        "details": details,
     }
     history.append(record)
     history = history[-10:]
 
-    with open(HISTORY_FILE, 'w') as f:
+    with open(HISTORY_FILE, "w") as f:
         json.dump(history, f, indent=4)
 
     return history
@@ -90,7 +90,7 @@ def fix_firewall():
             check=True,
             timeout=30,
             capture_output=True,
-            text=True
+            text=True,
         )
         print("    -> ✅ Success: Firewall enabled.")
         return True
@@ -145,7 +145,7 @@ def fix_ssh_config(config_path):
             # Atomic write using temporary file
             dir_path = os.path.dirname(config_path)
             with tempfile.NamedTemporaryFile(
-                mode='w', dir=dir_path, delete=False, suffix='.tmp'
+                mode="w", dir=dir_path, delete=False, suffix=".tmp"
             ) as tmp_file:
                 tmp_file.writelines(new_lines)
                 tmp_path = tmp_file.name
@@ -159,7 +159,7 @@ def fix_ssh_config(config_path):
                 [SUDO_CMD, "-n", SYSTEMCTL_CMD, "restart", SSH_SERVICE],
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=30,
             )
             if res.returncode != 0:
                 print(f"    -> ⚠️ SSH restart failed: {res.stderr}")
@@ -183,10 +183,7 @@ def _check_firewall_status():
     try:
         print(f"    Running: {SYSTEMCTL_CMD} is-active ufw")
         res = subprocess.run(
-            [SYSTEMCTL_CMD, "is-active", "ufw"],
-            capture_output=True,
-            text=True,
-            timeout=10
+            [SYSTEMCTL_CMD, "is-active", "ufw"], capture_output=True, text=True, timeout=10
         )
         output = res.stdout.strip()
         print(f"    Output: '{output}'")
@@ -278,7 +275,7 @@ def verify_security_logic():
         print("Issues detected that can be automatically fixed.")
         user_input = input("Do you want to apply fixes now? (y/n): ").strip().lower()
 
-        if user_input == 'y':
+        if user_input == "y":
             if ufw_needs_fix:
                 fix_firewall()
             if ssh_needs_fix:

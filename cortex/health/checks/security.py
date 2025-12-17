@@ -41,10 +41,7 @@ class SecurityCheck(HealthCheck):
         try:
             # Add timeout to prevent hanging (Fixes Reliability Issue)
             res = subprocess.run(
-                [SYSTEMCTL_CMD, "is-active", UFW_SERVICE],
-                capture_output=True,
-                text=True,
-                timeout=5
+                [SYSTEMCTL_CMD, "is-active", UFW_SERVICE], capture_output=True, text=True, timeout=5
             )
             # Fix: Use exact match to avoid matching "inactive" which contains "active"
             if res.returncode == 0 and res.stdout.strip() == "active":
@@ -79,12 +76,10 @@ class SecurityCheck(HealthCheck):
             status=status,
             details=", ".join(issues) if issues else "Secure",
             recommendation=", ".join(recommendations) if recommendations else None,
-            weight=0.35
+            weight=0.35,
         )
 
-    def _check_ssh_root_login(
-        self, issues: list[str], recommendations: list[str]
-    ) -> None:
+    def _check_ssh_root_login(self, issues: list[str], recommendations: list[str]) -> None:
         """Check if SSH root login is enabled.
 
         Args:
@@ -103,9 +98,7 @@ class SecurityCheck(HealthCheck):
                         parts = stripped.split()
                         if len(parts) >= 2 and parts[1] == "yes":
                             issues.append("Root SSH Allowed")
-                            recommendations.append(
-                                "Disable SSH Root Login in sshd_config"
-                            )
+                            recommendations.append("Disable SSH Root Login in sshd_config")
                             return
         except PermissionError:
             pass  # Cannot read config, skip check

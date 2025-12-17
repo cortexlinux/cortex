@@ -13,13 +13,13 @@ console = Console()
 class CheckResult:
     """Data class to hold the result of each check."""
 
-    name: str               # Item name (e.g. "Disk Space")
-    category: str           # Category (security, updates, performance, disk)
-    score: int              # Score 0-100
-    status: str             # "OK", "WARNING", "CRITICAL"
-    details: str            # Detailed message
+    name: str  # Item name (e.g. "Disk Space")
+    category: str  # Category (security, updates, performance, disk)
+    score: int  # Score 0-100
+    status: str  # "OK", "WARNING", "CRITICAL"
+    details: str  # Detailed message
     recommendation: str | None = None  # Recommended action (if any)
-    weight: float = 1.0     # Weight for weighted average
+    weight: float = 1.0  # Weight for weighted average
 
 
 class HealthCheck(ABC):
@@ -82,9 +82,7 @@ class HealthMonitor:
                 total_weighted_score += result.score * result.weight
                 total_weight += result.weight
             except Exception as e:
-                console.print(
-                    f"[red]Error running check {check.__class__.__name__}: {e}[/red]"
-                )
+                console.print(f"[red]Error running check {check.__class__.__name__}: {e}[/red]")
 
         final_score = 0
         if total_weight > 0:
@@ -100,10 +98,10 @@ class HealthMonitor:
                     "score": r.score,
                     "status": r.status,
                     "details": r.details,
-                    "recommendation": r.recommendation
+                    "recommendation": r.recommendation,
                 }
                 for r in results
-            ]
+            ],
         }
 
         self._save_history(report)
@@ -128,7 +126,7 @@ class HealthMonitor:
         history = history[-100:]
 
         try:
-            with open(self.history_file, 'w') as f:
+            with open(self.history_file, "w") as f:
                 json.dump(history, f, indent=4)
         except Exception as e:
             console.print(f"[yellow]Warning: Could not save health history: {e}[/yellow]")
