@@ -293,7 +293,7 @@ class PreflightChecker:
         # Try to initialize with primary provider
         try:
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-            from LLM.interpreter import CommandInterpreter
+            from cortex.llm.interpreter import CommandInterpreter
 
             self._llm_client = CommandInterpreter(api_key=self.api_key, provider=self.provider)
             return self._llm_client
