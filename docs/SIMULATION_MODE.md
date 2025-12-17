@@ -34,7 +34,7 @@ cortex install docker --simulate
 
 ### Example Output (With API Key)
 
-```
+```text
 🔍 Simulation mode: No changes will be made
 
 System Information:
@@ -54,7 +54,7 @@ Potential issues: None detected
 
 ### Example Output (Without API Key)
 
-```
+```text
 🔍 Simulation mode: No changes will be made
 
 System Information:
@@ -113,7 +113,7 @@ cortex install nginx --simulate
 
 ### Errors
 Critical issues detected during simulation:
-```
+```text
 ❌ Errors:
   - Insufficient disk space: 200 MB available, 500 MB required
   - Unable to detect OS information
@@ -121,7 +121,7 @@ Critical issues detected during simulation:
 
 ### Warnings
 Issues to be aware of (non-blocking):
-```
+```text
 ⚠️ Warnings:
   - API key not found, using estimates for package sizes
   - Package version could not be determined
@@ -210,8 +210,8 @@ print(output)
 - `disk_usage`: List of DiskInfo objects
 - `package_status`: List of PackageInfo objects
 - `packages_to_install`: List of packages to be installed
-- `total_download_mb`: Total download size (float)
-- `total_disk_required_mb`: Total disk space needed (float)
+- `total_download_mb`: Total download size (int)
+- `total_disk_required_mb`: Total disk space needed (int)
 - `errors`: List of error messages
 - `warnings`: List of warning messages
 

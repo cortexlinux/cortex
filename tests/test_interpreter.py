@@ -171,6 +171,7 @@ class TestCommandInterpreter(unittest.TestCase):
 
         interpreter = CommandInterpreter(api_key=self.api_key, provider="openai")
         interpreter.client = mock_client
+        interpreter.cache = None
 
         system_info = {"os": "ubuntu", "version": "22.04"}
         result = interpreter.parse_with_context("install docker", system_info=system_info)

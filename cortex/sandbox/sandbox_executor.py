@@ -602,6 +602,7 @@ class SandboxExecutor:
             # is not available on Windows.
             preexec_fn = None
             if not self.firejail_path and os.name == "posix" and resource is not None:
+
                 def set_resource_limits():
                     """Set resource limits for the subprocess."""
                     try:

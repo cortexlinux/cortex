@@ -17,7 +17,8 @@ import os
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
+
 from anthropic import Anthropic
 from openai import OpenAI
 
@@ -118,8 +119,8 @@ class LLMRouter:
 
     def __init__(
         self,
-        claude_api_key: Union[str, None, _UnsetType] = _UNSET,
-        kimi_api_key: Union[str, None, _UnsetType] = _UNSET,
+        claude_api_key: str | None | _UnsetType = _UNSET,
+        kimi_api_key: str | None | _UnsetType = _UNSET,
         default_provider: LLMProvider = LLMProvider.CLAUDE,
         enable_fallback: bool = True,
         track_costs: bool = True,
@@ -204,7 +205,7 @@ class LLMRouter:
 
         # Use routing rules
         provider = self.ROUTING_RULES.get(task_type, self.default_provider)
- 
+
         # Check if preferred provider is available.
         # Fallback is not supported yet, so we raise instead of switching providers.
         if provider == LLMProvider.CLAUDE and not self.claude_client:
@@ -274,8 +275,8 @@ class LLMRouter:
     ) -> LLMResponse:
         """Generate completion using Claude API."""
         # Anthropic supports a single system prompt separate from messages.
-        system_messages: List[str] = []
-        user_messages: List[Dict[str, str]] = []
+        system_messages: list[str] = []
+        user_messages: list[dict[str, str]] = []
 
         for message in messages:
             role = message.get("role")
@@ -295,7 +296,7 @@ class LLMRouter:
         if not user_messages:
             raise ValueError("Claude requires at least one non-system message")
 
-        kwargs: Dict[str, Any] = {
+        kwargs: dict[str, Any] = {
             "model": "claude-sonnet-4-20250514",
             "max_tokens": max_tokens,
             "temperature": temperature,
@@ -311,11 +312,11 @@ class LLMRouter:
         response = self.claude_client.messages.create(**kwargs)
 
         # Extract content
-        content_parts: List[str] = []
+        content_parts: list[str] = []
         for block in response.content:
             text = getattr(block, "text", None)
             if text:
-            content_parts.append(text)
+                content_parts.append(text)
 
         content_text = "".join(content_parts)
         input_tokens = response.usage.input_tokens

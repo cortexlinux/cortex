@@ -18,6 +18,7 @@ from cortex.llm.interpreter import CommandInterpreter
 
 # Import the new Notification Manager
 from cortex.notification_manager import NotificationManager
+from cortex.preflight_checker import PreflightChecker, export_report, format_report
 from cortex.user_preferences import (
     PreferencesManager,
     format_preference_value,
@@ -27,7 +28,6 @@ from cortex.validators import (
     validate_api_key,
     validate_install_request,
 )
-from cortex.preflight_checker import PreflightChecker, format_report, export_report
 
 
 class CortexCLI:
@@ -80,7 +80,6 @@ class CortexCLI:
         explicit_provider = os.environ.get("CORTEX_PROVIDER", "").lower()
         if explicit_provider in ["ollama", "openai", "claude"]:
             return explicit_provider
-
 
         # Auto-detect based on available API keys.
         # Prefer OpenAI when both are present (keeps tests stable in CI).
@@ -334,34 +333,34 @@ class CortexCLI:
                 history.update_installation(install_id, InstallationStatus.FAILED, str(e))
             self._print_error(f"Unexpected error: {str(e)}")
             return 1
-    
+
     def _run_simulation(self, software: str) -> int:
         """Run preflight simulation check for installation"""
         try:
             # Get API key for LLM-powered package info (optional).
             # Keep provider selection consistent with the rest of the CLI.
             provider = self._get_provider()
-            provider_for_preflight = provider if provider in {'openai', 'claude'} else 'openai'
-            if provider == 'openai':
-                api_key = os.environ.get('OPENAI_API_KEY')
-            elif provider == 'claude':
-                api_key = os.environ.get('ANTHROPIC_API_KEY')
+            provider_for_preflight = provider if provider in {"openai", "claude"} else "openai"
+            if provider == "openai":
+                api_key = os.environ.get("OPENAI_API_KEY")
+            elif provider == "claude":
+                api_key = os.environ.get("ANTHROPIC_API_KEY")
             else:
                 api_key = None
-            
+
             # Create checker with optional API key for enhanced accuracy
             checker = PreflightChecker(api_key=api_key, provider=provider_for_preflight)
             report = checker.run_all_checks(software)
-            
+
             # Print formatted report
             output = format_report(report, software)
             print(output)
-            
+
             # Return error code if blocking issues found
             if report.errors:
                 return 1
             return 0
-            
+
         except Exception as e:
             self._print_error(f"Simulation failed: {str(e)}")
             return 1
@@ -649,7 +648,7 @@ def main():
         prog="cortex",
         description="AI-powered Linux command interpreter",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-    epilog="""
+        epilog="""
 Examples:
   cortex install docker
   cortex install docker --execute
@@ -668,7 +667,7 @@ Examples:
 Environment Variables:
   OPENAI_API_KEY      OpenAI API key for GPT-4
   ANTHROPIC_API_KEY   Anthropic API key for Claude
-        """
+        """,
     )
 
     # Global flags
