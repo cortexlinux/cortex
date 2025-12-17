@@ -5,19 +5,11 @@ import sys
 import time
 from datetime import datetime
 
-# Suppress noisy log messages in normal operation
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("cortex.installation_history").setLevel(logging.ERROR)
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
 from cortex.branding import VERSION, console, cx_header, cx_print, show_banner
-from cortex.demo import run_demo
 from cortex.coordinator import InstallationCoordinator, StepStatus
+from cortex.demo import run_demo
 from cortex.installation_history import InstallationHistory, InstallationStatus, InstallationType
 from cortex.llm.interpreter import CommandInterpreter
-
-# Import the new Notification Manager
 from cortex.notification_manager import NotificationManager
 from cortex.user_preferences import (
     PreferencesManager,
@@ -28,6 +20,12 @@ from cortex.validators import (
     validate_api_key,
     validate_install_request,
 )
+
+# Suppress noisy log messages in normal operation
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("cortex.installation_history").setLevel(logging.ERROR)
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 class CortexCLI:
@@ -173,14 +171,11 @@ class CortexCLI:
     # -------------------------------
     def demo(self):
         """
-        Docstring for demo
         Run the one-command investor demo
-        
-        :param self: Description
         """
         return run_demo()
-        
 
+    # -------------------------------
     def install(self, software: str, execute: bool = False, dry_run: bool = False):
         # Validate input first
         is_valid, error = validate_install_request(software)
@@ -537,14 +532,6 @@ class CortexCLI:
         console.print()
         # (Simplified for brevity - keeps existing logic)
         cx_print("Please export your API key in your shell profile.", "info")
-        return 0
-
-    def demo(self):
-        """Run a demo showing Cortex capabilities without API key"""
-        show_banner()
-        console.print()
-        cx_print("Running Demo...", "info")
-        # (Keep existing demo logic)
         return 0
 
 

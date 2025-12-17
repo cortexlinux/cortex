@@ -1,10 +1,10 @@
 import time
-from cortex.hardware_detection import detect_hardware
+
 from cortex.branding import show_banner
+from cortex.hardware_detection import detect_hardware
 
 
-
-def run_demo():
+def run_demo() -> int:
     show_banner()
     print("\n🚀 Cortex One-Command Investor Demo\n")
 
@@ -46,3 +46,5 @@ def run_demo():
     # 5️⃣ Summary
     print("\n✅ Demo Complete")
     print("🎉 Your system is READY for AI workloads\n")
+
+    return 0
