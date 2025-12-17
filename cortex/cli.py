@@ -176,6 +176,12 @@ class CortexCLI:
             return 1
     # -------------------------------
 
+    # Run system health checks
+    def doctor(self):
+        from cortex.doctor import SystemDoctor
+        doctor = SystemDoctor()
+        return doctor.run_checks()
+    
     def install(self, software: str, execute: bool = False, dry_run: bool = False):
         # Validate input first
         is_valid, error = validate_install_request(software)
@@ -544,6 +550,7 @@ def show_rich_help():
     table.add_row("history", "View history")
     table.add_row("rollback <id>", "Undo installation")
     table.add_row("notify", "Manage desktop notifications")  # Added this line
+    table.add_row("doctor", "System health check")
 
     console.print(table)
     console.print()
@@ -616,6 +623,9 @@ def main():
     send_parser.add_argument('--level', choices=['low', 'normal', 'critical'], default='normal')
     send_parser.add_argument('--actions', nargs='*', help='Action buttons')
     # --------------------------
+    
+    
+    doctor_parser = subparsers.add_parser('doctor', help='Run system health check')
 
     args = parser.parse_args()
 
@@ -645,6 +655,8 @@ def main():
         # Handle the new notify command
         elif args.command == 'notify':
             return cli.notify(args)
+        elif args.command == 'doctor':
+            return cli.doctor()
         else:
             parser.print_help()
             return 1
