@@ -205,6 +205,9 @@ class CortexCLI:
         return doctor.run_checks()
     
     def _resolve_conflicts_interactive(self, conflicts: list[tuple[str, str]]) -> dict[str, list[str]]:
+    def _resolve_conflicts_interactive(
+        self, conflicts: list[tuple[str, str]]
+    ) -> dict[str, list[str]]:
         """Interactively resolve package conflicts with optional saved preferences."""
 
         manager = self._get_prefs_manager()
