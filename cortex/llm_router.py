@@ -29,6 +29,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+_UNSET = object()
+
+
 class TaskType(Enum):
     """Types of tasks that determine LLM routing."""
 
@@ -116,8 +119,8 @@ class LLMRouter:
 
     def __init__(
         self,
-        claude_api_key: str | None = None,
-        kimi_api_key: str | None = None,
+        claude_api_key: str | None | object = _UNSET,
+        kimi_api_key: str | None | object = _UNSET,
         ollama_base_url: str | None = None,
         ollama_model: str | None = None,
         default_provider: LLMProvider = LLMProvider.CLAUDE,
@@ -136,13 +139,13 @@ class LLMRouter:
             enable_fallback: Try alternate LLM if primary fails
             track_costs: Track token usage and costs
         """
-        # Important for tests: passing `None` explicitly should NOT fall back to env vars.
-        # Only use env vars when the caller didn't provide a value.
+        # IMPORTANT: In this project, passing `None` explicitly means "disable this provider".
+        # Env vars are consulted only when the caller omits the argument entirely.
         self.claude_api_key = (
-            claude_api_key if claude_api_key is not None else os.getenv("ANTHROPIC_API_KEY")
+            os.getenv("ANTHROPIC_API_KEY") if claude_api_key is _UNSET else claude_api_key
         )
         self.kimi_api_key = (
-            kimi_api_key if kimi_api_key is not None else os.getenv("MOONSHOT_API_KEY")
+            os.getenv("MOONSHOT_API_KEY") if kimi_api_key is _UNSET else kimi_api_key
         )
         self.default_provider = default_provider
         self.enable_fallback = enable_fallback
