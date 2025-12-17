@@ -45,23 +45,47 @@ class CortexCLI:
             console.print(f"[dim][DEBUG] {message}[/dim]")
 
     def _get_api_key(self) -> str | None:
-        # Check if using Ollama or Fake provider (no API key needed)
+        """Return the API key for the selected provider.
+
+        Important: this validates only the key for the provider returned by `_get_provider()`.
+        This avoids unrelated env vars (e.g. a stray ANTHROPIC_API_KEY) breaking OpenAI flows
+        and keeps unit tests deterministic.
+        """
         provider = self._get_provider()
+
+        # Ollama/offline mode does not require an API key.
         if provider == "ollama":
             self._debug("Using Ollama (no API key required)")
             return "ollama-local"  # Placeholder for Ollama
+
         if provider == "fake":
             self._debug("Using Fake provider for testing")
             return "fake-key"  # Placeholder for Fake provider
 
-        is_valid, detected_provider, error = validate_api_key()
-        if not is_valid:
-            self._print_error(error)
+        if provider == "openai":
+            openai_key = os.environ.get("OPENAI_API_KEY")
+            if openai_key and openai_key.startswith("sk-"):
+                return openai_key
+            self._print_error("No valid OPENAI_API_KEY found (should start with 'sk-')")
             cx_print("Run [bold]cortex wizard[/bold] to configure your API key.", "info")
             cx_print("Or use [bold]CORTEX_PROVIDER=ollama[/bold] for offline mode.", "info")
             return None
-        api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY")
-        return api_key
+
+        if provider == "claude":
+            anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+            if anthropic_key and anthropic_key.startswith("sk-ant-"):
+                return anthropic_key
+            self._print_error("No valid ANTHROPIC_API_KEY found (should start with 'sk-ant-')")
+            cx_print("Run [bold]cortex wizard[/bold] to configure your API key.", "info")
+            cx_print("Or use [bold]CORTEX_PROVIDER=ollama[/bold] for offline mode.", "info")
+            return None
+
+        # Unknown provider: fall back to legacy validation.
+        is_valid, _detected_provider, error = validate_api_key()
+        if not is_valid:
+            self._print_error(error)
+            return None
+        return os.environ.get("OPENAI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
 
     def _get_provider(self) -> str:
         # Check environment variable for explicit provider choice
@@ -70,10 +94,11 @@ class CortexCLI:
             return explicit_provider
 
         # Auto-detect based on available API keys
+        # Prefer OpenAI when both are present (tests rely on this precedence).
+        if os.environ.get("OPENAI_API_KEY"):
+            return "openai"
         if os.environ.get("ANTHROPIC_API_KEY"):
             return "claude"
-        elif os.environ.get("OPENAI_API_KEY"):
-            return "openai"
 
         # Fallback to Ollama for offline mode
         return "ollama"
@@ -276,10 +301,9 @@ class CortexCLI:
 
         try:
             if action == "list":
-                settings = manager.get_all_settings()
-                flat = flatten("", settings)
-                for k in sorted(flat.keys()):
-                    print(f"{k} = {format_preference_value(flat[k])}")
+                # Tests (and docs) expect YAML-like output containing nested keys such as `model:`.
+                # Reuse the shared helper to ensure consistent formatting.
+                print_all_preferences(manager)
                 return 0
 
             if action == "get":
