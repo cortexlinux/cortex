@@ -1,7 +1,5 @@
-<<<<<<< HEAD
+
 # Cortex Linux
-<<<<<<< HEAD
-=======
 <!-- Improved compatibility of back to top link: See: https://github.com/othneildrew/Best-README-Template/pull/73 -->
 <a name="readme-top"></a>
 
@@ -70,7 +68,7 @@
 [![Cortex Screen Shot][product-screenshot]](https://cortexlinux.com)
 
 Stop memorizing package names. Just tell Cortex what you want.
->>>>>>> 17831ac (feat: Add branding with CX badge + README overhaul (Alex template))
+(feat: Add branding with CX badge + README overhaul (Alex template))
 
 ```bash
 $ cortex install "full ML stack for my RTX 4090"
@@ -83,14 +81,12 @@ $ cortex install "full ML stack for my RTX 4090"
 
 Here's why Cortex exists:
 
-<<<<<<< HEAD
 Cortex wraps `apt` with AI to:
 - Parse natural language requests ("install something for web serving")
 - Detect hardware and optimize installations for your GPU/CPU
 - Resolve dependency conflicts interactively
 - Track installation history with rollback support
 - Run in dry-run mode by default (no surprises)
-=======
 
 > **The AI-Native Operating System** - Linux that understands you. No documentation required.
 
@@ -137,13 +133,12 @@ Installing complex software on Linux is broken:
 -  **Dependency hell** that wastes days
 -  **Configuration files** written in ancient runes
 -  **"Works on my machine"** syndrome
->>>>>>> 1c5eeca (Code review: Security fixes, documentation overhaul, CI/CD repair (#208))
-=======
+(Code review: Security fixes, documentation overhaul, CI/CD repair (#208))
 * **Natural language** — Say "install docker" not `apt install docker.io docker-compose docker-buildx`
 * **Hardware-aware** — Automatically detects your GPU, CPU, and RAM to optimize installations
 * **Safe by default** — Every command shows a preview before execution. Nothing runs without your approval.
 * **Undo mistakes** — Full transaction history with rollback capability
->>>>>>> 17831ac (feat: Add branding with CX badge + README overhaul (Alex template))
+(feat: Add branding with CX badge + README overhaul (Alex template))
 
 Cortex wraps apt/dpkg with an AI layer that translates intent into action, while keeping you in control.
 
@@ -173,7 +168,6 @@ Get Cortex running on your Debian/Ubuntu system in under 2 minutes.
 
 **One-liner install (coming soon):**
 ```bash
-<<<<<<< HEAD
 # Clone the repo
 git clone https://github.com/cortexlinux/cortex.git
 cd cortex
@@ -182,13 +176,11 @@ cd cortex
 python3 -m venv venv
 source venv/bin/activate
 
-<<<<<<< HEAD
 # Install
 pip install -e .
 
 # Set your API key
 echo 'ANTHROPIC_API_KEY=your-key-here' > .env
-=======
 Cortex Linux embeds AI at the operating system level. Tell it what you need in plain English - it handles everything:
 
 | Feature | Description |
@@ -198,13 +190,12 @@ Cortex Linux embeds AI at the operating system level. Tell it what you need in p
 | **Self-Healing Configuration** | Fixes broken dependencies automatically |
 | **Enterprise-Grade Security** | AI actions are sandboxed and validated |
 | **Installation History** | Track and rollback any installation |
->>>>>>> 1c5eeca (Code review: Security fixes, documentation overhaul, CI/CD repair (#208))
+(Code review: Security fixes, documentation overhaul, CI/CD repair (#208))
 
 # Test it
 cortex install nginx --dry-run
-=======
 curl -fsSL https://cortexlinux.com/install.sh | bash
->>>>>>> 17831ac (feat: Add branding with CX badge + README overhaul (Alex template))
+(feat: Add branding with CX badge + README overhaul (Alex template))
 ```
 
 **Manual install:**
@@ -249,11 +240,8 @@ cortex install "web development tools"
 # Direct package
 cortex install nginx
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 # Natural language works
 cortex install "something to edit PDFs" --dry-run
-=======
 ### Phase 1: Foundation (Weeks 1-2)
 - ✅ LLM integration layer (PR #5 by @Sahilbhatane)
 - ✅ Safe command execution sandbox (PR #6 by @dhvil)
@@ -261,12 +249,11 @@ cortex install "something to edit PDFs" --dry-run
 - ✅ Package manager AI wrapper
 - ✅ Installation history & rollback
 - [ ] Basic multi-step orchestration
->>>>>>> 1c5eeca (Code review: Security fixes, documentation overhaul, CI/CD repair (#208))
-=======
+(Code review: Security fixes, documentation overhaul, CI/CD repair (#208))
 # Multiple packages
 cortex install "docker, nodejs, and postgresql"
 ```
->>>>>>> 17831ac (feat: Add branding with CX badge + README overhaul (Alex template))
+(feat: Add branding with CX badge + README overhaul (Alex template))
 
 ### Dry Run (Preview Mode)
 ```bash
@@ -328,7 +315,6 @@ _For more examples, please refer to the [Documentation](https://cortexlinux.com/
 
 See the [open issues](https://github.com/cortexlinux/cortex/issues) for a full list of proposed features and known issues.
 
-<<<<<<< HEAD
 ## Tech Stack
 
 - **Base OS**: Ubuntu 24.04 LTS (Debian packaging)
@@ -655,14 +641,12 @@ cortex/
 ```
 
 ---
-=======
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
->>>>>>> 17831ac (feat: Add branding with CX badge + README overhaul (Alex template))
+(feat: Add branding with CX badge + README overhaul (Alex template))
 
 <!-- CONTRIBUTING -->
 ## Contributing
 
-<<<<<<< HEAD
 We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ### Quick Contribution Guide
@@ -753,7 +737,6 @@ Every installation is tracked and can be rolled back with `cortex rollback <id>`
 See [FAQ.md](FAQ.md) for more questions.
 
 ---
-=======
 Contributions make the open source community amazing. Any contributions you make are **greatly appreciated**.
 
 1. Fork the Project
@@ -761,11 +744,10 @@ Contributions make the open source community amazing. Any contributions you make
 3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
 4. Push to the Branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
->>>>>>> 17831ac (feat: Add branding with CX badge + README overhaul (Alex template))
+(feat: Add branding with CX badge + README overhaul (Alex template))
 
 See `CONTRIBUTING.md` for detailed guidelines.
 
-<<<<<<< HEAD
 ### Get Help
 
 -  **Discord:** [Join our server](https://discord.gg/uCqHvxjU83)
@@ -779,9 +761,8 @@ See `CONTRIBUTING.md` for detailed guidelines.
 -  Subscribe to our [newsletter](https://cortexlinux.com)
 
 ---
-=======
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
->>>>>>> 17831ac (feat: Add branding with CX badge + README overhaul (Alex template))
+(feat: Add branding with CX badge + README overhaul (Alex template))
 
 <!-- BOUNTIES -->
 ## Bounties
@@ -804,7 +785,6 @@ See issues labeled [`bounty`](https://github.com/cortexlinux/cortex/labels/bount
 <!-- LICENSE -->
 ## License
 
-<<<<<<< HEAD
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
 ---
@@ -822,7 +802,6 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
   <br><br>
   Built with  by the Cortex Linux community
 </p>
-=======
 Distributed under the MIT License. See `LICENSE` for more information.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -871,4 +850,4 @@ Discord: [https://discord.gg/cortexlinux](https://discord.gg/uCqHvxjU83)
 [Claude-url]: https://anthropic.com
 [LangChain-badge]: https://img.shields.io/badge/LangChain-121212?style=for-the-badge&logo=chainlink&logoColor=white
 [LangChain-url]: https://langchain.com
->>>>>>> 17831ac (feat: Add branding with CX badge + README overhaul (Alex template))
+(feat: Add branding with CX badge + README overhaul (Alex template))

@@ -12,8 +12,6 @@ from LLM.interpreter import CommandInterpreter
 from cortex.coordinator import InstallationCoordinator, StepStatus
 from cortex.update_manifest import UpdateChannel
 from cortex.updater import ChecksumMismatch, InstallError, UpdateError, UpdateService
-<<<<<<< HEAD
-=======
 from installation_history import (
     InstallationHistory,
     InstallationType,
@@ -24,18 +22,14 @@ from cortex.user_preferences import (
     print_all_preferences,
     format_preference_value
 )
->>>>>>> 1be5ced (User Preferences & Settings System (#26))
 
 
 class CortexCLI:
     def __init__(self):
         self.spinner_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
         self.spinner_idx = 0
-<<<<<<< HEAD
-=======
         self.update_service = UpdateService()
         self.prefs_manager = None  # Lazy initialization
->>>>>>> 1be5ced (User Preferences & Settings System (#26))
     
     def _get_api_key(self) -> Optional[str]:
         api_key = os.environ.get('OPENAI_API_KEY') or os.environ.get('ANTHROPIC_API_KEY')
@@ -277,8 +271,6 @@ class CortexCLI:
         self._print_success(f"Update channel set to '{channel_enum.value}'")
         return 0
 
-<<<<<<< HEAD
-=======
     def history(self, limit: int = 20, status: Optional[str] = None, show_id: Optional[str] = None):
         """Show installation history"""
         history = InstallationHistory()
@@ -577,7 +569,6 @@ class CortexCLI:
             traceback.print_exc()
             return 1
 
->>>>>>> 1be5ced (User Preferences & Settings System (#26))
 
 def main():
     parser = argparse.ArgumentParser(
@@ -590,8 +581,6 @@ Examples:
   cortex install docker --execute
   cortex install "python 3.11 with pip"
   cortex install nginx --dry-run
-<<<<<<< HEAD
-=======
   cortex history
   cortex history show <id>
   cortex rollback <id>
@@ -600,7 +589,6 @@ Examples:
   cortex edit-pref set ai.model gpt-4
   cortex edit-pref delete theme
   cortex edit-pref reset-all
->>>>>>> 1be5ced (User Preferences & Settings System (#26))
 
 Environment Variables:
   OPENAI_API_KEY      OpenAI API key for GPT-4
@@ -627,8 +615,6 @@ Environment Variables:
     channel_set_parser = channel_sub.add_parser('set', help='Set update channel')
     channel_set_parser.add_argument('channel', choices=[c.value for c in UpdateChannel], help='Channel to use')
 
-<<<<<<< HEAD
-=======
     # History command
     history_parser = subparsers.add_parser('history', help='View installation history')
     history_parser.add_argument('--limit', type=int, default=20, help='Number of records to show')
@@ -654,7 +640,6 @@ Environment Variables:
     edit_pref_parser.add_argument('key', nargs='?', help='Preference key or filepath (for export/import)')
     edit_pref_parser.add_argument('value', nargs='?', help='Preference value (for set/add/update)')
     
->>>>>>> 1be5ced (User Preferences & Settings System (#26))
     args = parser.parse_args()
     
     if not args.command:
@@ -663,7 +648,6 @@ Environment Variables:
     
     cli = CortexCLI()
     
-<<<<<<< HEAD
     if args.command == 'install':
         return cli.install(args.software, execute=args.execute, dry_run=args.dry_run)
     if args.command == 'update':
@@ -675,7 +659,6 @@ Environment Variables:
             return cli.set_channel(args.channel)
     
     return 0
-=======
     try:
         if args.command == 'install':
             return cli.install(args.software, execute=args.execute, dry_run=args.dry_run)
@@ -703,7 +686,6 @@ Environment Variables:
     except Exception as e:
         print(f"❌ Unexpected error: {e}", file=sys.stderr)
         return 1
->>>>>>> 1be5ced (User Preferences & Settings System (#26))
 
 
 if __name__ == '__main__':
