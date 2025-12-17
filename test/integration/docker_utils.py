@@ -1,11 +1,12 @@
 """Helpers for running Cortex integration tests inside Docker containers."""
 
 from __future__ import annotations
+
 import shutil
 import subprocess
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
 
 
 @dataclass
@@ -32,16 +33,14 @@ def docker_available() -> bool:
         subprocess.run(
             [docker_path, "--version"],
             check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             timeout=5,
         )
         subprocess.run(
             [docker_path, "info"],
             check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             timeout=5,
         )
@@ -54,8 +53,8 @@ def run_in_docker(
     image: str,
     command: str,
     *,
-    env: Optional[Dict[str, str]] = None,
-    mounts: Optional[Iterable[Tuple[Path, str]]] = None,
+    env: dict[str, str] | None = None,
+    mounts: Iterable[tuple[Path, str]] | None = None,
     workdir: str = "/workspace",
     timeout: int = 300,
 ) -> DockerRunResult:
@@ -70,7 +69,7 @@ def run_in_docker(
     env:
         Optional environment variables exported inside the container.
     mounts:
-        Iterable of (host_path, container_path) tuples for mounting directories.  
+        Iterable of (host_path, container_path) tuples for mounting directories.
 
     workdir:
         Working directory set inside the container.
@@ -78,16 +77,18 @@ def run_in_docker(
         Maximum run time in seconds before raising ``TimeoutExpired``.
     """
 
-    docker_cmd: List[str] = ["docker", "run", "--rm"]
+    docker_cmd: list[str] = ["docker", "run", "--rm"]
 
     for key, value in (env or {}).items():
         docker_cmd.extend(["-e", f"{key}={value}"])
 
     for host_path, container_path in mounts or []:
-        docker_cmd.extend([
-            "-v",
-            f"{str(host_path.resolve())}:{container_path}",
-        ])
+        docker_cmd.extend(
+            [
+                "-v",
+                f"{str(host_path.resolve())}:{container_path}",
+            ]
+        )
 
     docker_cmd.extend(["-w", workdir])
 
@@ -97,8 +98,7 @@ def run_in_docker(
     result = subprocess.run(
         docker_cmd,
         check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         text=True,
         timeout=timeout,
     )

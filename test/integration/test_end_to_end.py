@@ -7,7 +7,7 @@ import os
 import unittest
 from pathlib import Path
 
-from .docker_utils import docker_available, run_in_docker, DockerRunResult
+from .docker_utils import DockerRunResult, docker_available, run_in_docker
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_IMAGE = os.environ.get("CORTEX_INTEGRATION_IMAGE", "python:3.11-slim")
@@ -46,12 +46,14 @@ class TestEndToEndWorkflows(unittest.TestCase):
     def test_cli_dry_run_with_fake_provider(self):
         """Dry-run installations rely on the fake provider and skip API calls."""
 
-        fake_commands = json.dumps({
-            "commands": [
-                "echo Step 1",
-                "echo Step 2",
-            ]
-        })
+        fake_commands = json.dumps(
+            {
+                "commands": [
+                    "echo Step 1",
+                    "echo Step 2",
+                ]
+            }
+        )
         env = {
             "CORTEX_PROVIDER": "fake",
             "CORTEX_FAKE_COMMANDS": fake_commands,
@@ -65,12 +67,14 @@ class TestEndToEndWorkflows(unittest.TestCase):
     def test_cli_execute_with_fake_provider(self):
         """Execution mode should run fake commands without touching the host."""
 
-        fake_commands = json.dumps({
-            "commands": [
-                "echo Exec Step 1",
-                "echo Exec Step 2",
-            ]
-        })
+        fake_commands = json.dumps(
+            {
+                "commands": [
+                    "echo Exec Step 1",
+                    "echo Exec Step 2",
+                ]
+            }
+        )
         env = {
             "CORTEX_PROVIDER": "fake",
             "CORTEX_FAKE_COMMANDS": fake_commands,
