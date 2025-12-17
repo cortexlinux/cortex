@@ -2,9 +2,9 @@ import json
 
 from packaging.version import Version
 
-from cortex.update_manifest import UpdateChannel, UpdateManifest, SystemInfo
-from cortex.versioning import CortexVersion
+from cortex.update_manifest import SystemInfo, UpdateChannel, UpdateManifest
 from cortex.updater import UpdateService
+from cortex.versioning import CortexVersion
 
 
 def make_manifest(version: str = "0.2.0", channel: str = "stable"):

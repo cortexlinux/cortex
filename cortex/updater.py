@@ -14,9 +14,10 @@ import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 
 import requests
+
 from cortex.update_manifest import (
     ReleaseEntry,
     SystemInfo,
@@ -35,7 +36,7 @@ CACHE_TTL = timedelta(hours=6)
 @dataclass
 class UpdateCheckResult:
     update_available: bool
-    release: Optional[ReleaseEntry]
+    release: ReleaseEntry | None
     channel: UpdateChannel
     last_checked: datetime
     from_cache: bool = False
@@ -45,11 +46,11 @@ class UpdateCheckResult:
 class UpdatePerformResult:
     success: bool
     updated: bool
-    release: Optional[ReleaseEntry]
+    release: ReleaseEntry | None
     previous_version: CortexVersion
     current_version: CortexVersion
     log_path: Path
-    message: Optional[str] = None
+    message: str | None = None
 
 
 class UpdateError(Exception):
@@ -68,10 +69,10 @@ class UpdateService:
     def __init__(
         self,
         *,
-        manifest_url: Optional[str] = None,
-        state_file: Optional[Path] = None,
-        system_info: Optional[SystemInfo] = None,
-        log_file: Optional[Path] = None,
+        manifest_url: str | None = None,
+        state_file: Path | None = None,
+        system_info: SystemInfo | None = None,
+        log_file: Path | None = None,
     ) -> None:
         self.manifest_url = manifest_url or os.environ.get("CORTEX_UPDATE_MANIFEST_URL", DEFAULT_MANIFEST_URL)
         self.state_file = state_file or STATE_FILE
@@ -81,7 +82,7 @@ class UpdateService:
         self.log_file.parent.mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------ State
-    def _load_state(self) -> Dict[str, Any]:
+    def _load_state(self) -> dict[str, Any]:
         if not self.state_file.exists():
             return {}
         try:
@@ -90,7 +91,7 @@ class UpdateService:
         except Exception:
             return {}
 
-    def _save_state(self, state: Dict[str, Any]) -> None:
+    def _save_state(self, state: dict[str, Any]) -> None:
         tmp_path = self.state_file.with_suffix(".tmp")
         with tmp_path.open("w", encoding="utf-8") as fh:
             json.dump(state, fh, indent=2)
@@ -117,7 +118,7 @@ class UpdateService:
         payload = response.json()
         return UpdateManifest.from_dict(payload)
 
-    def _should_use_cache(self, last_checked: Optional[str]) -> bool:
+    def _should_use_cache(self, last_checked: str | None) -> bool:
         if not last_checked:
             return False
         try:
@@ -131,8 +132,8 @@ class UpdateService:
         self,
         *,
         force: bool = False,
-        channel: Optional[UpdateChannel] = None,
-        current_version: Optional[CortexVersion] = None,
+        channel: UpdateChannel | None = None,
+        current_version: CortexVersion | None = None,
     ) -> UpdateCheckResult:
         state = self._load_state()
         resolved_channel = channel or self.get_channel()
@@ -176,7 +177,7 @@ class UpdateService:
         self,
         *,
         force: bool = False,
-        channel: Optional[UpdateChannel] = None,
+        channel: UpdateChannel | None = None,
         dry_run: bool = False,
     ) -> UpdatePerformResult:
         current_version = get_installed_version()
@@ -206,7 +207,7 @@ class UpdateService:
                 message=f"Update available (dry run): {release.version.raw}",
             )
 
-        temp_dir: Optional[Path] = None
+        temp_dir: Path | None = None
         try:
             artifact_path, temp_dir = self._download_release(release)
             self._log(f"Installing Cortex {release.version.raw} from {artifact_path}")
@@ -231,7 +232,7 @@ class UpdateService:
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
     # ----------------------------------------------------------- Implementation
-    def _download_release(self, release: ReleaseEntry) -> Tuple[Path, Path]:
+    def _download_release(self, release: ReleaseEntry) -> tuple[Path, Path]:
         temp_dir = Path(tempfile.mkdtemp(prefix="cortex-update-"))
         artifact_name = release.download_url.split("/")[-1] or f"cortex-{release.version.raw}.whl"
         artifact_path = temp_dir / artifact_name
@@ -296,7 +297,7 @@ class UpdateService:
             fh.write(log_line)
 
 
-def _release_to_dict(release: Optional[ReleaseEntry]) -> Optional[Dict[str, Any]]:
+def _release_to_dict(release: ReleaseEntry | None) -> dict[str, Any] | None:
     if not release:
         return None
 

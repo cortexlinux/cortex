@@ -5,9 +5,10 @@ Structures and helpers for Cortex update manifests.
 from __future__ import annotations
 
 import platform
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Optional
 
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import Version
@@ -20,7 +21,7 @@ class UpdateChannel(str, Enum):
     BETA = "beta"
 
     @classmethod
-    def from_string(cls, raw: str) -> "UpdateChannel":
+    def from_string(cls, raw: str) -> UpdateChannel:
         try:
             return cls(raw.lower())
         except ValueError as exc:
@@ -33,10 +34,10 @@ class SystemInfo:
     python_version: Version
     os_name: str
     architecture: str
-    distro: Optional[str] = None
+    distro: str | None = None
 
     @classmethod
-    def current(cls) -> "SystemInfo":
+    def current(cls) -> SystemInfo:
         return cls(
             python_version=Version(platform.python_version()),
             os_name=platform.system().lower(),
@@ -45,7 +46,7 @@ class SystemInfo:
         )
 
 
-def _detect_distro() -> Optional[str]:
+def _detect_distro() -> str | None:
     try:
         import distro  # type: ignore
 
@@ -56,13 +57,13 @@ def _detect_distro() -> Optional[str]:
 
 @dataclass
 class CompatibilityRule:
-    python_spec: Optional[SpecifierSet] = None
-    os_names: List[str] = field(default_factory=list)
-    architectures: List[str] = field(default_factory=list)
-    distros: List[str] = field(default_factory=list)
+    python_spec: SpecifierSet | None = None
+    os_names: list[str] = field(default_factory=list)
+    architectures: list[str] = field(default_factory=list)
+    distros: list[str] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "CompatibilityRule":
+    def from_dict(cls, data: dict[str, Any]) -> CompatibilityRule:
         specifier_value = data.get("python")
         specifier = None
         if specifier_value:
@@ -101,11 +102,11 @@ class ReleaseEntry:
     download_url: str
     sha256: str
     release_notes: str
-    published_at: Optional[str] = None
-    compatibility: List[CompatibilityRule] = field(default_factory=list)
+    published_at: str | None = None
+    compatibility: list[CompatibilityRule] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ReleaseEntry":
+    def from_dict(cls, data: dict[str, Any]) -> ReleaseEntry:
         compatibility_data = data.get("compatibility", [])
         compatibility = [CompatibilityRule.from_dict(entry) for entry in compatibility_data]
 
@@ -128,12 +129,12 @@ class ReleaseEntry:
 
 @dataclass
 class UpdateManifest:
-    releases: List[ReleaseEntry]
-    signature: Optional[str] = None
-    generated_at: Optional[str] = None
+    releases: list[ReleaseEntry]
+    signature: str | None = None
+    generated_at: str | None = None
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "UpdateManifest":
+    def from_dict(cls, data: dict[str, Any]) -> UpdateManifest:
         releases_data = data.get("releases", [])
         releases = [ReleaseEntry.from_dict(entry) for entry in releases_data]
         return cls(
@@ -145,8 +146,8 @@ class UpdateManifest:
     def iter_releases(
         self,
         *,
-        channel: Optional[UpdateChannel] = None,
-        system: Optional[SystemInfo] = None,
+        channel: UpdateChannel | None = None,
+        system: SystemInfo | None = None,
     ) -> Iterable[ReleaseEntry]:
         for release in self.releases:
             if channel and release.channel != channel:
@@ -160,8 +161,8 @@ class UpdateManifest:
         *,
         current_version: CortexVersion,
         channel: UpdateChannel,
-        system: Optional[SystemInfo] = None,
-    ) -> Optional[ReleaseEntry]:
+        system: SystemInfo | None = None,
+    ) -> ReleaseEntry | None:
         system_info = system or SystemInfo.current()
 
         eligible = [

@@ -27,7 +27,7 @@ class CortexVersion:
     parsed: Version
 
     @classmethod
-    def from_string(cls, raw_version: str) -> "CortexVersion":
+    def from_string(cls, raw_version: str) -> CortexVersion:
         try:
             parsed = Version(raw_version)
         except InvalidVersion as exc:
@@ -45,7 +45,7 @@ def get_installed_version() -> CortexVersion:
     Falls back to the package's __version__ attribute when metadata is unavailable.
     """
 
-    raw_version: Optional[str] = None
+    raw_version: str | None = None
 
     try:
         raw_version = metadata.version(PACKAGE_NAME)
