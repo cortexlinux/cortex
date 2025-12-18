@@ -1,6 +1,6 @@
 from intent.clarifier import Clarifier
 from intent.context import SessionContext
-from intent.detector import IntentDetector, Intent
+from intent.detector import Intent,IntentDetector
 from intent.planner import InstallationPlanner
 
 # src/intent/llm_agent.py

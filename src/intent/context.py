@@ -25,7 +25,7 @@ class SessionContext:
     def set_gpu(self, gpu_name: str):
         self.detected_gpu = gpu_name
 
-    def get_gpu(self) -> Optional[str]:
+    def get_gpu(self) -> str | None:
         return self.detected_gpu
 
     # -------------------
