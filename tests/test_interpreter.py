@@ -180,6 +180,7 @@ class TestCommandInterpreter(unittest.TestCase):
 
         interpreter = CommandInterpreter(api_key=self.api_key, provider="openai", cache=mock_cache)
         interpreter.client = mock_client
+        interpreter.cache = None
 
         system_info = {"os": "ubuntu", "version": "22.04"}
         with patch.object(interpreter, "parse", wraps=interpreter.parse) as mock_parse:
