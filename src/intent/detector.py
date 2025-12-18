@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, ClassVar
+from typing import list, ClassVar
 
 # detector.py
 
@@ -16,7 +16,8 @@ class IntentDetector:
     Extracts high-level installation intents from natural language requests.
     """
 
-    COMMON_PACKAGES: ClassVar[dict[str, List[str]]] = {
+
+    COMMON_PACKAGES: ClassVar[dict[str, list[str]]] = {
         "cuda": ["cuda", "nvidia toolkit"],
         "pytorch": ["pytorch", "torch"],
         "tensorflow": ["tensorflow", "tf"],
@@ -25,7 +26,7 @@ class IntentDetector:
         "gpu": ["gpu", "graphics card", "rtx", "nvidia"],
     }
 
-    def detect(self, text: str) -> List[Intent]:
+    def detect(self, text: str) -> list[Intent]:
         text = text.lower()
         intents = []
 

@@ -1,5 +1,5 @@
 from intent.detector import Intent
-from typing import List
+from typing import list
 
 # planner.py
 
@@ -8,7 +8,7 @@ class InstallationPlanner:
 
     GPU_PACKAGES = ["cuda", "cudnn", "pytorch", "tensorflow"]
 
-    def build_plan(self, intents: List[Intent]) -> List[str]:
+    def build_plan(self, intents: list[Intent]) -> list[str]:
         plan = []
         installed = set()
 

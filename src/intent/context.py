@@ -1,5 +1,5 @@
 from intent.detector import Intent
-from typing import List, Optional
+from typing import list, Optional
 
 # context.py
 
@@ -13,9 +13,9 @@ class SessionContext:
 
     def __init__(self):
         self.detected_gpu: str | None = None
-        self.previous_intents: List[Intent] = []
-        self.installed_packages: List[str] = []
-        self.clarifications: List[str] = []
+        self.previous_intents: list[Intent] = []
+        self.installed_packages: list[str] = []
+        self.clarifications: list[str] = []
 
     # -------------------
     # GPU CONTEXT
@@ -31,10 +31,10 @@ class SessionContext:
     # INTENT CONTEXT
     # -------------------
 
-    def add_intents(self, intents: List[Intent]):
+    def add_intents(self, intents: list[Intent]):
         self.previous_intents.extend(intents)
 
-    def get_previous_intents(self) -> List[Intent]:
+    def get_previous_intents(self) -> list[Intent]:
         return self.previous_intents
 
     # -------------------
@@ -55,7 +55,7 @@ class SessionContext:
     def add_clarification(self, question: str):
         self.clarifications.append(question)
 
-    def get_clarifications(self) -> List[str]:
+    def get_clarifications(self) -> list[str]:
         return self.clarifications
 
     # -------------------
