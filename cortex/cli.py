@@ -83,7 +83,7 @@ class CortexCLI:
         # Unknown provider: fall back to legacy validation.
         is_valid, _detected_provider, error = validate_api_key()
         if not is_valid:
-            self._print_error(error)
+            self._print_error(error or "Invalid API key")
             return None
         return os.environ.get("OPENAI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
 
@@ -727,7 +727,7 @@ class CortexCLI:
         # Validate input first
         is_valid, error = validate_install_request(software)
         if not is_valid:
-            self._print_error(error)
+            self._print_error(error or "Invalid install request")
             return 1
 
         # Special-case the ml-cpu stack:
