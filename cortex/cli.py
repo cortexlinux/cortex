@@ -18,6 +18,10 @@ from cortex.llm.interpreter import CommandInterpreter
 
 # Import the new Notification Manager
 from cortex.notification_manager import NotificationManager
+
+# Import Role Manager
+from cortex.role_manager import RoleManager, RoleError, RoleNotFoundError
+
 from cortex.user_preferences import (
     PreferencesManager,
     format_preference_value,
@@ -30,12 +34,13 @@ from cortex.validators import (
 
 
 class CortexCLI:
-    def __init__(self, verbose: bool = False):
+    def __init__(self, verbose: bool = False, role: str = "default"):
         self.spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         self.spinner_idx = 0
         self.prefs_manager = None  # Lazy initialization
         self.verbose = verbose
         self.offline = False
+        self.role = role
 
     def _debug(self, message: str):
         """Print debug info only in verbose mode"""
@@ -192,6 +197,7 @@ class CortexCLI:
         provider = self._get_provider()
         self._debug(f"Using provider: {provider}")
         self._debug(f"API key: {api_key[:10]}...{api_key[-4:]}")
+        self._debug(f"Using role: {self.role}")
 
         # Initialize installation history
         history = InstallationHistory()
@@ -202,7 +208,7 @@ class CortexCLI:
             self._print_status("🧠", "Understanding request...")
 
             interpreter = CommandInterpreter(
-                api_key=api_key, provider=provider, offline=self.offline
+                api_key=api_key, provider=provider, offline=self.offline, role=self.role
             )
 
             self._print_status("📦", "Planning installation...")
@@ -544,6 +550,131 @@ class CortexCLI:
         # (Keep existing demo logic)
         return 0
 
+    # --- Role Management Methods ---
+
+    def role_list(self):
+        """List all available roles"""
+        from rich.table import Table
+
+        manager = RoleManager()
+        roles = manager.list_roles()
+
+        cx_header("Available Roles")
+
+        table = Table(show_header=True, header_style="bold cyan", box=None)
+        table.add_column("Role", style="green")
+        table.add_column("Description")
+        table.add_column("Type", style="dim")
+
+        for role in roles:
+            role_type = "built-in"
+            if role["is_custom_override"]:
+                role_type = "custom (override)"
+            elif not role["is_builtin"]:
+                role_type = "custom"
+
+            table.add_row(role["name"], role["description"], role_type)
+
+        console.print(table)
+        console.print()
+        cx_print("Use [bold]cortex --role <name> install <pkg>[/bold] to use a role", "info")
+        return 0
+
+    def role_show(self, name: str):
+        """Show details of a specific role"""
+        try:
+            manager = RoleManager()
+            role = manager.get_role(name)
+
+            cx_header(f"Role: {role.name}")
+            console.print(f"[bold]Description:[/bold] {role.description}")
+            console.print(f"[bold]Type:[/bold] {'Built-in' if role.is_builtin else 'Custom'}")
+
+            if role.priorities:
+                console.print(f"[bold]Priorities:[/bold] {', '.join(role.priorities)}")
+
+            console.print("\n[bold]Prompt Additions:[/bold]")
+            console.print(f"[dim]{role.prompt_additions}[/dim]")
+
+            return 0
+        except RoleNotFoundError:
+            self._print_error(f"Role '{name}' not found")
+            return 1
+
+    def role_create(self, name: str, description: str = "", from_template: str | None = None):
+        """Create a new custom role"""
+        import subprocess
+        import tempfile
+
+        manager = RoleManager()
+
+        # Check if role already exists
+        if manager.role_exists(name):
+            self._print_error(f"Role '{name}' already exists")
+            return 1
+
+        # If from_template, copy the template
+        if from_template:
+            try:
+                template_role = manager.get_role(from_template)
+                role = manager.create_role(
+                    name=name,
+                    description=description or f"Custom role based on {from_template}",
+                    prompt_additions=template_role.prompt_additions,
+                    priorities=template_role.priorities.copy(),
+                )
+                self._print_success(f"Created role '{name}' from template '{from_template}'")
+                cx_print(f"Edit at: ~/.cortex/roles/{name}.yaml", "info")
+                return 0
+            except RoleNotFoundError:
+                self._print_error(f"Template role '{from_template}' not found")
+                return 1
+            except RoleError as e:
+                self._print_error(f"Failed to create role: {e}")
+                return 1
+
+        # Create from scratch - use template and open in editor
+        template = manager.get_role_template().replace("my-custom-role", name)
+
+        if description:
+            template = template.replace(
+                '"Brief description of what this role does"',
+                f'"{description}"'
+            )
+
+        # Save template to the roles directory
+        role_path = manager.custom_roles_dir / f"{name}.yaml"
+        role_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(role_path, "w") as f:
+            f.write(template)
+
+        self._print_success(f"Created role template at: {role_path}")
+        cx_print("Edit the file to customize your role's behavior", "info")
+
+        # Try to open in editor
+        editor = os.environ.get("EDITOR", "nano")
+        cx_print(f"Opening in {editor}...", "info")
+
+        try:
+            subprocess.run([editor, str(role_path)])
+        except FileNotFoundError:
+            cx_print(f"Could not open editor. Edit the file manually: {role_path}", "warning")
+
+        return 0
+
+    def role_delete(self, name: str):
+        """Delete a custom role"""
+        manager = RoleManager()
+
+        try:
+            manager.delete_role(name)
+            self._print_success(f"Deleted role '{name}'")
+            return 0
+        except RoleError as e:
+            self._print_error(str(e))
+            return 1
+
 
 def show_rich_help():
     """Display beautifully formatted help using Rich"""
@@ -567,11 +698,19 @@ def show_rich_help():
     table.add_row("install <pkg>", "Install software")
     table.add_row("history", "View history")
     table.add_row("rollback <id>", "Undo installation")
-    table.add_row("notify", "Manage desktop notifications")  # Added this line
+    table.add_row("role", "Manage roles (list/show/create/delete)")
+    table.add_row("notify", "Manage desktop notifications")
     table.add_row("cache stats", "Show LLM cache statistics")
     table.add_row("doctor", "System health check")
 
     console.print(table)
+    console.print()
+
+    # Role examples
+    console.print("[bold cyan]Role-based Installation:[/bold cyan]")
+    console.print("[dim]  cortex --role security install nginx[/dim]")
+    console.print("[dim]  cortex --role devops install docker[/dim]")
+    console.print("[dim]  cortex role list[/dim]")
     console.print()
     console.print("[dim]Learn more: https://cortexlinux.com/docs[/dim]")
 
@@ -604,6 +743,12 @@ def main():
     parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
     parser.add_argument(
         "--offline", action="store_true", help="Use cached responses only (no network calls)"
+    )
+    parser.add_argument(
+        "--role", "-r",
+        type=str,
+        default="default",
+        help="Role for prompt customization (default, security, devops, datascience, sysadmin)"
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -670,13 +815,34 @@ def main():
     cache_subs = cache_parser.add_subparsers(dest="cache_action", help="Cache actions")
     cache_subs.add_parser("stats", help="Show cache statistics")
 
+    # Role commands
+    role_parser = subparsers.add_parser("role", help="Manage roles for prompt customization")
+    role_subs = role_parser.add_subparsers(dest="role_action", help="Role actions")
+
+    role_subs.add_parser("list", help="List all available roles")
+
+    role_show_parser = role_subs.add_parser("show", help="Show role details")
+    role_show_parser.add_argument("name", help="Role name to show")
+
+    role_create_parser = role_subs.add_parser("create", help="Create a new custom role")
+    role_create_parser.add_argument("name", help="Name for the new role")
+    role_create_parser.add_argument(
+        "--description", "-d", default="", help="Short description of the role"
+    )
+    role_create_parser.add_argument(
+        "--from", dest="from_template", help="Copy from existing role"
+    )
+
+    role_delete_parser = role_subs.add_parser("delete", help="Delete a custom role")
+    role_delete_parser.add_argument("name", help="Role name to delete")
+
     args = parser.parse_args()
 
     if not args.command:
         show_rich_help()
         return 0
 
-    cli = CortexCLI(verbose=args.verbose)
+    cli = CortexCLI(verbose=args.verbose, role=args.role)
     cli.offline = bool(getattr(args, "offline", False))
 
     try:
@@ -706,6 +872,23 @@ def main():
                 return cli.cache_stats()
             parser.print_help()
             return 1
+        elif args.command == "role":
+            role_action = getattr(args, "role_action", None)
+            if role_action == "list":
+                return cli.role_list()
+            elif role_action == "show":
+                return cli.role_show(args.name)
+            elif role_action == "create":
+                return cli.role_create(
+                    args.name,
+                    description=args.description,
+                    from_template=getattr(args, "from_template", None),
+                )
+            elif role_action == "delete":
+                return cli.role_delete(args.name)
+            else:
+                # Default to list if no action specified
+                return cli.role_list()
         else:
             parser.print_help()
             return 1
