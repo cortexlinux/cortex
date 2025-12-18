@@ -18,7 +18,8 @@ class CommandInterpreter:
     """Interprets natural language commands into executable shell commands using LLM APIs.
 
     Supports multiple providers (OpenAI, Claude, Ollama) with optional semantic caching
-    and offline mode for cached responses.
+    and offline mode for cached responses. Supports role-based prompt customization
+    for specialized tasks (security, devops, datascience, sysadmin).
     """
 
     def __init__(
@@ -28,6 +29,7 @@ class CommandInterpreter:
         model: str | None = None,
         offline: bool = False,
         cache: Optional["SemanticCache"] = None,
+        role: str = "default",
     ):
         """Initialize the command interpreter.
 
@@ -37,10 +39,16 @@ class CommandInterpreter:
             model: Optional model name override
             offline: If True, only use cached responses
             cache: Optional SemanticCache instance for response caching
+            role: Role name for prompt customization (default, security, devops, etc.)
         """
         self.api_key = api_key
         self.provider = APIProvider(provider.lower())
         self.offline = offline
+        self.role_name = role
+
+        # Load role configuration
+        self._role = None
+        self._load_role(role)
 
         if cache is None:
             try:
@@ -65,6 +73,30 @@ class CommandInterpreter:
 
         self._initialize_client()
 
+    def _load_role(self, role_name: str) -> None:
+        """
+        Load a role by name.
+
+        Args:
+            role_name: Name of the role to load
+
+        Raises:
+            ValueError: If role cannot be loaded
+        """
+        try:
+            from cortex.role_manager import RoleManager, RoleNotFoundError
+
+            manager = RoleManager()
+            self._role = manager.get_role(role_name)
+        except RoleNotFoundError:
+            raise ValueError(f"Role '{role_name}' not found. Use 'cortex role list' to see available roles.")
+        except Exception as e:
+            # Fallback to no role customization if role system fails
+            self._role = None
+            # Only warn, don't fail - the base prompt still works
+            import sys
+            print(f"Warning: Could not load role '{role_name}': {e}", file=sys.stderr)
+
     def _initialize_client(self):
         if self.provider == APIProvider.OPENAI:
             try:
@@ -86,7 +118,13 @@ class CommandInterpreter:
             self.client = None  # Will use requests
 
     def _get_system_prompt(self) -> str:
-        return """You are a Linux system command expert. Convert natural language requests into safe, validated bash commands.
+        """
+        Build the system prompt, incorporating role-specific additions if available.
+
+        Returns:
+            Complete system prompt string
+        """
+        base_prompt = """You are a Linux system command expert. Convert natural language requests into safe, validated bash commands.
 
 Rules:
 1. Return ONLY a JSON array of commands
@@ -102,6 +140,22 @@ Format:
 
 Example request: "install docker with nvidia support"
 Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.io", "sudo apt install -y nvidia-docker2", "sudo systemctl restart docker"]}"""
+
+        # Add role-specific prompt additions if available
+        if getattr(self, "_role", None) and self._role.prompt_additions:
+            role_section = f"""
+
+=== Role: {self._role.name} ===
+{self._role.description}
+
+{self._role.prompt_additions}"""
+
+            if self._role.priorities:
+                role_section += f"\nPriorities: {', '.join(self._role.priorities)}"
+
+            return base_prompt + role_section
+
+        return base_prompt
 
     def _call_openai(self, user_input: str) -> list[str]:
         try:
