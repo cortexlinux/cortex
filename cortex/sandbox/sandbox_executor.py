@@ -24,8 +24,6 @@ import time
 from datetime import datetime
 from typing import Any
 
-from cortex.validators import DANGEROUS_PATTERNS
-
 try:
     import resource  # type: ignore
 
@@ -33,6 +31,8 @@ try:
 except ImportError:  # pragma: no cover
     resource = None  # type: ignore
     HAS_RESOURCE = False
+
+from cortex.validators import DANGEROUS_PATTERNS
 
 
 class CommandBlocked(Exception):
