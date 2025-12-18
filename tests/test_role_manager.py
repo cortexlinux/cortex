@@ -98,9 +98,11 @@ class TestRoleManager:
     def test_manager_initialization(self):
         """Test RoleManager initialization"""
         manager = RoleManager()
-        assert manager.builtin_roles_dir.exists() or not manager.builtin_roles_dir.exists()
-        # Custom roles dir should be created
-        assert manager.custom_roles_dir.parent.exists()
+        # Verify builtin_roles_dir is a Path object
+        assert isinstance(manager.builtin_roles_dir, Path)
+        # Custom roles dir should be created and exist
+        assert isinstance(manager.custom_roles_dir, Path)
+        assert manager.custom_roles_dir.exists()
 
     def test_validate_role_valid(self, manager_with_temp_dirs):
         """Test validating a valid role"""
@@ -399,18 +401,16 @@ class TestBuiltinRoles:
                 assert role.description
                 assert role.prompt_additions
             except RoleNotFoundError:
-                # Built-in roles might not exist in test environment
-                # if running from a different directory
-                pass
+                pytest.skip(f"Built-in role '{role_name}' not found (running from different directory)")
 
     def test_default_role_priorities(self):
         """Test that default role has expected priorities"""
         manager = RoleManager()
         try:
             role = manager.get_role("default")
-            assert "reliability" in role.priorities or len(role.priorities) > 0
+            assert "reliability" in role.priorities
         except RoleNotFoundError:
-            pass  # Skip if not in correct directory
+            pytest.skip("Default role not found (running from different directory)")
 
     def test_security_role_content(self):
         """Test that security role has security-focused content"""
@@ -420,5 +420,5 @@ class TestBuiltinRoles:
             assert "security" in role.description.lower()
             assert "security" in role.prompt_additions.lower()
         except RoleNotFoundError:
-            pass
+            pytest.skip("Security role not found (running from different directory)")
 

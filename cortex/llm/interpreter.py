@@ -81,7 +81,12 @@ class CommandInterpreter:
             role_name: Name of the role to load
 
         Raises:
-            ValueError: If role cannot be loaded
+            ValueError: If the specified role is not found.
+
+        Note:
+            For other exceptions (e.g., file read errors), a warning is logged
+            to stderr and self._role is set to None, allowing the interpreter
+            to continue with the default base prompt.
         """
         try:
             from cortex.role_manager import RoleManager, RoleNotFoundError
