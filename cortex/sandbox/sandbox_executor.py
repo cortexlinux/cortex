@@ -16,7 +16,10 @@ import json
 import logging
 import os
 import re
-import resource
+try:
+    import resource
+except Exception:
+    resource = None
 import shlex
 import shutil
 import subprocess

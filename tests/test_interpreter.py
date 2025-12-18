@@ -171,6 +171,9 @@ class TestCommandInterpreter(unittest.TestCase):
 
         interpreter = CommandInterpreter(api_key=self.api_key, provider="openai")
         interpreter.client = mock_client
+        # Disable semantic cache to make this test deterministic even if a prior run
+        # populated a persistent cache on disk.
+        interpreter.cache = None
 
         system_info = {"os": "ubuntu", "version": "22.04"}
         result = interpreter.parse_with_context("install docker", system_info=system_info)
