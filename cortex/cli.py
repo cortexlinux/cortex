@@ -617,7 +617,7 @@ class CortexCLI:
         if from_template:
             try:
                 template_role = manager.get_role(from_template)
-                role = manager.create_role(
+                manager.create_role(
                     name=name,
                     description=description or f"Custom role based on {from_template}",
                     prompt_additions=template_role.prompt_additions,
