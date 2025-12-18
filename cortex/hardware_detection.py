@@ -319,12 +319,13 @@ class HardwareDetector:
         # Hostname
         try:
             info.hostname = self._uname().nodename
-        except:
+        except Exception:
             info.hostname = "unknown"
 
         # Kernel
         with contextlib.suppress(builtins.BaseException):
             info.kernel_version = self._uname().release
+
         # Distro
         try:
             if Path("/etc/os-release").exists():
@@ -382,6 +383,7 @@ class HardwareDetector:
 
             # Architecture
             info.cpu.architecture = uname.machine
+
             # Features
             match = re.search(r"flags\s*:\s*(.+)", content)
             if match:
@@ -637,7 +639,7 @@ class HardwareDetector:
             root_path = os.path.abspath(os.sep)
             _total, _used, free = shutil.disk_usage(root_path)
             return round(free / (1024**3), 1)
-        except:
+        except Exception:
             return 0.0
 
 
