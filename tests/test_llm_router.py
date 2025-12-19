@@ -78,6 +78,7 @@ class TestRoutingLogic(unittest.TestCase):
 class TestFallbackBehavior(unittest.TestCase):
     """Test fallback when primary LLM is unavailable."""
 
+    @patch.dict(os.environ, {}, clear=True)
     def test_fallback_to_kimi_when_claude_unavailable(self):
         """Fallback is not supported yet; should error if Claude unavailable."""
         router = LLMRouter(
@@ -86,6 +87,7 @@ class TestFallbackBehavior(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Claude API not configured"):
             router.route_task(TaskType.USER_CHAT)
 
+    @patch.dict(os.environ, {}, clear=True)
     def test_fallback_to_claude_when_kimi_unavailable(self):
         """Fallback is not supported yet; should error if Kimi unavailable."""
         router = LLMRouter(
@@ -94,6 +96,7 @@ class TestFallbackBehavior(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Kimi K2 API not configured"):
             router.route_task(TaskType.SYSTEM_OPERATION)
 
+    @patch.dict(os.environ, {}, clear=True)
     def test_error_when_no_providers_available(self):
         """Should raise error if no providers configured."""
         router = LLMRouter(claude_api_key=None, kimi_api_key=None, enable_fallback=True)
@@ -101,6 +104,7 @@ class TestFallbackBehavior(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Claude API not configured"):
             router.route_task(TaskType.USER_CHAT)
 
+    @patch.dict(os.environ, {}, clear=True)
     def test_error_when_fallback_disabled(self):
         """Should raise error if primary unavailable and fallback disabled."""
         router = LLMRouter(claude_api_key=None, kimi_api_key="test-kimi-key", enable_fallback=False)
