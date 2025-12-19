@@ -28,6 +28,7 @@ except ImportError:  # pragma: no cover
     resource = None
 from datetime import datetime
 from typing import Any
+
 from cortex.validators import DANGEROUS_PATTERNS
 
 try:
@@ -336,21 +337,6 @@ class SandboxExecutor:
             except (OSError, ValueError):
                 continue
 
-            # Check if path is in allowed directories
-            allowed = False
-            for allowed_dir in self.ALLOWED_DIRECTORIES:
-                allowed_expanded = os.path.expanduser(allowed_dir)
-                allowed_abs = os.path.abspath(allowed_expanded)
-
-                # Allow if path is within allowed directory
-                try:
-                    if os.path.commonpath([abs_path, allowed_abs]) == allowed_abs:
-                        allowed = True
-                        break
-                except ValueError:
-                    # Paths don't share common path
-                    pass
-
             # Block access to critical system directories
             critical_dirs = [
                 "/boot",
@@ -563,6 +549,7 @@ class SandboxExecutor:
             return result
 
         # Execute command
+        process: subprocess.Popen[str] | None = None
         try:
             firejail_cmd = self._create_firejail_command(command)
 
@@ -624,7 +611,8 @@ class SandboxExecutor:
             return result
 
         except subprocess.TimeoutExpired:
-            process.kill()
+            if process is not None:
+                process.kill()
             result = ExecutionResult(
                 command=command,
                 exit_code=-1,

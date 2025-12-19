@@ -80,7 +80,8 @@ class TestSandboxExecutor(unittest.TestCase):
         for cmd in blocked_commands:
             is_valid, violation = self.executor.validate_command(cmd)
             self.assertFalse(is_valid, f"Command should be blocked: {cmd}")
-            self.assertIn("not whitelisted", violation.lower())
+            self.assertIsNotNone(violation)
+            self.assertIn("not whitelisted", (violation or "").lower())
 
     def test_validate_sudo_allowed(self):
         """Test sudo commands for package installation."""
@@ -92,7 +93,7 @@ class TestSandboxExecutor(unittest.TestCase):
         ]
 
         for cmd in allowed_sudo:
-            is_valid, violation = self.executor.validate_command(cmd)
+            is_valid, _ = self.executor.validate_command(cmd)
             self.assertTrue(is_valid, f"Sudo command should be allowed: {cmd}")
 
     def test_validate_sudo_blocked(self):
@@ -104,7 +105,7 @@ class TestSandboxExecutor(unittest.TestCase):
         ]
 
         for cmd in blocked_sudo:
-            is_valid, violation = self.executor.validate_command(cmd)
+            is_valid, _ = self.executor.validate_command(cmd)
             self.assertFalse(is_valid, f"Sudo command should be blocked: {cmd}")
 
     @patch("subprocess.Popen")
@@ -128,9 +129,11 @@ class TestSandboxExecutor(unittest.TestCase):
         result = self.executor.execute("apt-get update", dry_run=True)
 
         self.assertTrue(result.success)
-        self.assertIsNotNone(result.preview)
+        preview = result.preview
+        self.assertIsNotNone(preview)
         self.assertIn("[DRY-RUN]", result.stdout)
-        self.assertIn("apt-get", result.preview)
+        assert preview is not None
+        self.assertIn("apt-get", preview)
 
     def test_execute_blocked_command(self):
         """Test execution of blocked command."""
@@ -205,7 +208,7 @@ class TestSandboxExecutor(unittest.TestCase):
         ]
 
         for cmd in critical_paths:
-            is_valid, violation = self.executor.validate_command(cmd)
+            _ = self.executor.validate_command(cmd)
             # Note: Current implementation may allow some of these
             # Adjust based on security requirements
             # For now, we just test that validation runs
@@ -266,7 +269,7 @@ class TestSandboxExecutor(unittest.TestCase):
         """Test that whitelisted commands are recognized."""
         for cmd in self.executor.ALLOWED_COMMANDS:
             # Test base command (may need arguments)
-            is_valid, violation = self.executor.validate_command(f"{cmd} --help")
+            _ = self.executor.validate_command(f"{cmd} --help")
             # Some commands might need specific validation
             # This is a basic check
 
@@ -323,7 +326,7 @@ class TestSecurityFeatures(unittest.TestCase):
                 test_cmd = test_cmd.replace(r".*", "http://example.com/script.sh")
                 test_cmd = test_cmd.replace(r"[0-7]{3,4}", "777")
 
-            is_valid, violation = self.executor.validate_command(test_cmd)
+            is_valid, _ = self.executor.validate_command(test_cmd)
             self.assertFalse(is_valid, f"Pattern should be blocked: {pattern}")
 
     def test_path_traversal_protection(self):
@@ -334,7 +337,7 @@ class TestSecurityFeatures(unittest.TestCase):
         ]
 
         for cmd in traversal_commands:
-            is_valid, violation = self.executor.validate_command(cmd)
+            _ = self.executor.validate_command(cmd)
             # Should be blocked or at least validated
             # Current implementation may need enhancement
 
