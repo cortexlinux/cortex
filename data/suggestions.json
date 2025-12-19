@@ -1,0 +1,262 @@
+{
+  "suggestions": [
+    {
+      "id": "docker",
+      "name": "docker",
+      "display_name": "Docker Engine + Compose",
+      "description": "Install Docker Engine with Docker Compose for containerization",
+      "keywords": ["docker", "container", "compose", "containers"],
+      "category": "devops",
+      "priority": 10,
+      "requires_hardware": [],
+      "preferred_with_hardware": [],
+      "packages": ["docker.io", "docker-compose"],
+      "commands_preview": [
+        "sudo apt-get update",
+        "sudo apt-get install -y docker.io docker-compose",
+        "sudo usermod -aG docker $USER"
+      ]
+    },
+    {
+      "id": "docker-gpu",
+      "name": "docker-gpu",
+      "display_name": "Docker with NVIDIA runtime",
+      "description": "Install Docker with NVIDIA Container Toolkit for GPU acceleration",
+      "keywords": ["docker", "nvidia", "gpu", "cuda", "container"],
+      "category": "devops",
+      "priority": 20,
+      "requires_hardware": ["nvidia_gpu"],
+      "preferred_with_hardware": ["nvidia_gpu"],
+      "packages": ["docker.io", "docker-compose", "nvidia-container-toolkit"],
+      "commands_preview": [
+        "sudo apt-get update",
+        "sudo apt-get install -y docker.io docker-compose",
+        "distribution=$(. /etc/os-release;echo $ID$VERSION_ID)",
+        "curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -",
+        "curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | sudo tee /etc/apt/sources.list.d/nvidia-docker.list",
+        "sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit",
+        "sudo systemctl restart docker"
+      ]
+    },
+    {
+      "id": "docker-dev",
+      "name": "docker-dev",
+      "display_name": "Docker + dev tools",
+      "description": "Install Docker with development tools (git, build-essential, etc.)",
+      "keywords": ["docker", "dev", "development", "tools", "git"],
+      "category": "devops",
+      "priority": 15,
+      "requires_hardware": [],
+      "preferred_with_hardware": [],
+      "packages": ["docker.io", "docker-compose", "git", "build-essential", "curl", "wget"],
+      "commands_preview": [
+        "sudo apt-get update",
+        "sudo apt-get install -y docker.io docker-compose git build-essential curl wget",
+        "sudo usermod -aG docker $USER"
+      ]
+    },
+    {
+      "id": "ml-stack",
+      "name": "ml-stack",
+      "display_name": "ML Development Stack",
+      "description": "Complete machine learning environment (Python, PyTorch, Jupyter, CUDA)",
+      "keywords": ["ml", "machine learning", "pytorch", "tensorflow", "jupyter", "python", "ai"],
+      "category": "ml",
+      "priority": 10,
+      "requires_hardware": [],
+      "preferred_with_hardware": ["nvidia_gpu"],
+      "packages": ["python3-pip", "python3-venv", "jupyter", "python3-numpy", "python3-pandas"],
+      "commands_preview": [
+        "sudo apt-get update",
+        "sudo apt-get install -y python3-pip python3-venv jupyter python3-numpy python3-pandas",
+        "pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118"
+      ]
+    },
+    {
+      "id": "ml-gpu",
+      "name": "ml-gpu",
+      "display_name": "ML Stack with GPU Support",
+      "description": "ML stack optimized for NVIDIA GPUs with CUDA and cuDNN",
+      "keywords": ["ml", "gpu", "nvidia", "cuda", "pytorch", "tensorflow", "cudnn"],
+      "category": "ml",
+      "priority": 25,
+      "requires_hardware": ["nvidia_gpu"],
+      "preferred_with_hardware": ["nvidia_gpu"],
+      "packages": ["python3-pip", "python3-venv", "jupyter", "nvidia-cuda-toolkit"],
+      "commands_preview": [
+        "sudo apt-get update",
+        "sudo apt-get install -y python3-pip python3-venv jupyter nvidia-cuda-toolkit",
+        "pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118"
+      ]
+    },
+    {
+      "id": "web-dev",
+      "name": "web-dev",
+      "display_name": "Web Development Stack",
+      "description": "Full web development environment (Node.js, npm, git, VS Code)",
+      "keywords": ["web", "node", "npm", "javascript", "typescript", "frontend", "backend"],
+      "category": "web",
+      "priority": 10,
+      "requires_hardware": [],
+      "preferred_with_hardware": [],
+      "packages": ["nodejs", "npm", "git", "curl", "build-essential"],
+      "commands_preview": [
+        "curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -",
+        "sudo apt-get install -y nodejs",
+        "sudo apt-get install -y git curl build-essential"
+      ]
+    },
+    {
+      "id": "web-dev-full",
+      "name": "web-dev-full",
+      "display_name": "Complete Web Dev Stack",
+      "description": "Web dev with databases, Redis, and Docker",
+      "keywords": ["web", "full", "database", "redis", "postgres", "mysql", "docker"],
+      "category": "web",
+      "priority": 15,
+      "requires_hardware": [],
+      "preferred_with_hardware": [],
+      "packages": ["nodejs", "npm", "git", "postgresql", "redis-server", "docker.io"],
+      "commands_preview": [
+        "curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -",
+        "sudo apt-get install -y nodejs postgresql redis-server docker.io"
+      ]
+    },
+    {
+      "id": "devops-tools",
+      "name": "devops-tools",
+      "display_name": "DevOps Tools Suite",
+      "description": "Essential DevOps tools (kubectl, helm, terraform, ansible)",
+      "keywords": ["devops", "kubernetes", "kubectl", "helm", "terraform", "ansible"],
+      "category": "devops",
+      "priority": 10,
+      "requires_hardware": [],
+      "preferred_with_hardware": [],
+      "packages": ["curl", "wget", "git"],
+      "commands_preview": [
+        "curl -LO \"https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl\"",
+        "sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl",
+        "curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash"
+      ]
+    },
+    {
+      "id": "python-dev",
+      "name": "python-dev",
+      "display_name": "Python Development Environment",
+      "description": "Complete Python development setup with virtualenv and common packages",
+      "keywords": ["python", "dev", "development", "pip", "venv", "virtualenv"],
+      "category": "dev",
+      "priority": 10,
+      "requires_hardware": [],
+      "preferred_with_hardware": [],
+      "packages": ["python3", "python3-pip", "python3-venv", "python3-dev", "build-essential"],
+      "commands_preview": [
+        "sudo apt-get update",
+        "sudo apt-get install -y python3 python3-pip python3-venv python3-dev build-essential"
+      ]
+    },
+    {
+      "id": "rust-dev",
+      "name": "rust-dev",
+      "display_name": "Rust Development Environment",
+      "description": "Install Rust toolchain and Cargo",
+      "keywords": ["rust", "cargo", "rustc", "development"],
+      "category": "dev",
+      "priority": 10,
+      "requires_hardware": [],
+      "preferred_with_hardware": [],
+      "packages": ["curl", "build-essential"],
+      "commands_preview": [
+        "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+      ]
+    },
+    {
+      "id": "go-dev",
+      "name": "go-dev",
+      "display_name": "Go Development Environment",
+      "description": "Install Go programming language",
+      "keywords": ["go", "golang", "development"],
+      "category": "dev",
+      "priority": 10,
+      "requires_hardware": [],
+      "preferred_with_hardware": [],
+      "packages": ["wget"],
+      "commands_preview": [
+        "wget https://go.dev/dl/go1.21.5.linux-amd64.tar.gz",
+        "sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.21.5.linux-amd64.tar.gz",
+        "export PATH=$PATH:/usr/local/go/bin"
+      ]
+    },
+    {
+      "id": "kubernetes",
+      "name": "kubernetes",
+      "display_name": "Kubernetes Tools",
+      "description": "Install kubectl, helm, and k9s",
+      "keywords": ["kubernetes", "k8s", "kubectl", "helm", "k9s"],
+      "category": "devops",
+      "priority": 10,
+      "requires_hardware": [],
+      "preferred_with_hardware": [],
+      "packages": ["curl"],
+      "commands_preview": [
+        "curl -LO \"https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl\"",
+        "sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl"
+      ]
+    },
+    {
+      "id": "nginx",
+      "name": "nginx",
+      "display_name": "Nginx Web Server",
+      "description": "Install and configure Nginx web server",
+      "keywords": ["nginx", "web", "server", "http", "reverse proxy"],
+      "category": "web",
+      "priority": 10,
+      "requires_hardware": [],
+      "preferred_with_hardware": [],
+      "packages": ["nginx"],
+      "commands_preview": [
+        "sudo apt-get update",
+        "sudo apt-get install -y nginx",
+        "sudo systemctl enable nginx",
+        "sudo systemctl start nginx"
+      ]
+    },
+    {
+      "id": "postgresql",
+      "name": "postgresql",
+      "display_name": "PostgreSQL Database",
+      "description": "Install PostgreSQL database server",
+      "keywords": ["postgres", "postgresql", "database", "db", "sql"],
+      "category": "database",
+      "priority": 10,
+      "requires_hardware": [],
+      "preferred_with_hardware": [],
+      "packages": ["postgresql", "postgresql-contrib"],
+      "commands_preview": [
+        "sudo apt-get update",
+        "sudo apt-get install -y postgresql postgresql-contrib",
+        "sudo systemctl enable postgresql",
+        "sudo systemctl start postgresql"
+      ]
+    },
+    {
+      "id": "mysql",
+      "name": "mysql",
+      "display_name": "MySQL Database",
+      "description": "Install MySQL database server",
+      "keywords": ["mysql", "database", "db", "sql", "mariadb"],
+      "category": "database",
+      "priority": 10,
+      "requires_hardware": [],
+      "preferred_with_hardware": [],
+      "packages": ["mysql-server"],
+      "commands_preview": [
+        "sudo apt-get update",
+        "sudo apt-get install -y mysql-server",
+        "sudo systemctl enable mysql",
+        "sudo systemctl start mysql"
+      ]
+    }
+  ]
+}
+

@@ -205,3 +205,8 @@ htmlcov/
 coverage.xml
 *.cover
 .hypothesis/
+
+# Test scripts (not part of distribution)
+test_*.py
+test_ui_*.py
+*_test_standalone.py

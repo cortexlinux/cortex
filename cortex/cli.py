@@ -179,6 +179,49 @@ class CortexCLI:
         return doctor.run_checks()
 
     def install(self, software: str, execute: bool = False, dry_run: bool = False):
+        # Check for interactive suggestions
+        try:
+            from cortex.interactive_suggestions import SuggestionDatabase, InteractiveSuggestionUI
+            from cortex.hardware_detection import HardwareDetector
+
+            # Quick hardware detection for suggestions
+            detector = HardwareDetector(use_cache=True)
+            hardware_info = detector.detect_quick()
+
+            # Check if there are any suggestions for this query
+            db = SuggestionDatabase()
+            results = db.search(software, hardware_info, limit=10)
+
+            # Only show interactive UI if we have suggestions
+            if results:
+                self._debug(f"Found {len(results)} suggestions for '{software}'")
+                ui = InteractiveSuggestionUI(db, hardware_info)
+                suggestion = ui.show(initial_query=software)
+
+                # If user cancelled (None), continue with original query
+                if suggestion is None:
+                    # User cancelled, continue with original software name
+                    self._debug("User cancelled suggestion selection")
+                elif suggestion:
+                    # Use the suggestion's display name or description for LLM
+                    software = suggestion.get("display_name", software)
+                    cx_print(
+                        f"Selected: [bold]{suggestion.get('display_name', software)}[/bold]",
+                        "success",
+                    )
+                    if suggestion.get("description"):
+                        cx_print(f"  {suggestion.get('description')}", "info")
+            else:
+                self._debug(f"No suggestions found for '{software}'")
+        except Exception as e:
+            # If suggestions fail, continue with normal flow
+            import traceback
+            # Always log to debug, but don't break the flow
+            logger.debug(f"Suggestion system error: {e}", exc_info=True)
+            if self.verbose:
+                self._debug(f"Suggestion system error: {e}")
+                self._debug(traceback.format_exc())
+            # Don't show error to user - just continue with normal install flow
         # Validate input first
         is_valid, error = validate_install_request(software)
         if not is_valid:

@@ -6,6 +6,7 @@ openai>=1.0.0
 
 # Terminal UI
 rich>=13.0.0
+prompt-toolkit>=3.0.0
 
 # Configuration
 pyyaml>=6.0.0
