@@ -1,32 +1,32 @@
-import sys
-import os
 import argparse
-import time
 import logging
-from typing import Optional
+import os
+import sys
+import time
 from datetime import datetime
+from typing import Any
 
-from LLM.interpreter import CommandInterpreter
+# Suppress noisy log messages in normal operation
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("cortex.installation_history").setLevel(logging.ERROR)
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from cortex.branding import VERSION, console, cx_header, cx_print, show_banner
 from cortex.coordinator import InstallationCoordinator, StepStatus
-from cortex.installation_history import (
-    InstallationHistory,
-    InstallationStatus,
-    InstallationType,
-)
+from cortex.installation_history import InstallationHistory, InstallationStatus, InstallationType
+from cortex.llm.interpreter import CommandInterpreter
+from cortex.notification_manager import NotificationManager
+from cortex.stack_manager import StackManager
 from cortex.user_preferences import (
     PreferencesManager,
-    print_all_preferences,
     format_preference_value,
+    print_all_preferences,
 )
 from cortex.validators import (
     validate_api_key,
     validate_install_request,
-    validate_installation_id,
-    ValidationError,
 )
-
-# Import the new Notification Manager
-from cortex.notification_manager import NotificationManager
 
 # Suppress noisy log messages in normal operation
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -41,13 +41,14 @@ class CortexCLI:
         self.spinner_idx = 0
         self.prefs_manager = None  # Lazy initialization
         self.verbose = verbose
+        self.offline = False
 
     def _debug(self, message: str):
         """Print debug info only in verbose mode"""
         if self.verbose:
             console.print(f"[dim][DEBUG] {message}[/dim]")
 
-    def _get_api_key(self) -> Optional[str]:
+    def _get_api_key(self) -> str | None:
         # Check if using Ollama (no API key needed)
         provider = self._get_provider()
         if provider == "ollama":
@@ -57,16 +58,10 @@ class CortexCLI:
         is_valid, detected_provider, error = validate_api_key()
         if not is_valid:
             self._print_error(error)
-            cx_print(
-                "Run [bold]cortex wizard[/bold] to configure your API key.", "info"
-            )
-            cx_print(
-                "Or use [bold]CORTEX_PROVIDER=ollama[/bold] for offline mode.", "info"
-            )
+            cx_print("Run [bold]cortex wizard[/bold] to configure your API key.", "info")
+            cx_print("Or use [bold]CORTEX_PROVIDER=ollama[/bold] for offline mode.", "info")
             return None
-        api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get(
-            "OPENAI_API_KEY"
-        )
+        api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY")
         return api_key
 
     def _get_provider(self) -> str:
@@ -116,17 +111,13 @@ class CortexCLI:
         """Handle notification commands"""
         # Addressing CodeRabbit feedback: Handle missing subcommand gracefully
         if not args.notify_action:
-            self._print_error(
-                "Please specify a subcommand (config/enable/disable/dnd/send)"
-            )
+            self._print_error("Please specify a subcommand (config/enable/disable/dnd/send)")
             return 1
 
         mgr = NotificationManager()
 
         if args.notify_action == "config":
-            console.print(
-                "[bold cyan]🔧 Current Notification Configuration:[/bold cyan]"
-            )
+            console.print("[bold cyan]🔧 Current Notification Configuration:[/bold cyan]")
             status = (
                 "[green]Enabled[/green]"
                 if mgr.config.get("enabled", True)
@@ -150,9 +141,7 @@ class CortexCLI:
         elif args.notify_action == "disable":
             mgr.config["enabled"] = False
             mgr._save_config()
-            cx_print(
-                "Notifications disabled (Critical alerts will still show)", "warning"
-            )
+            cx_print("Notifications disabled (Critical alerts will still show)", "warning")
             return 0
 
         elif args.notify_action == "dnd":
@@ -178,7 +167,7 @@ class CortexCLI:
             if not args.message:
                 self._print_error("Message required")
                 return 1
-            console.print(f"[dim]Sending notification...[/dim]")
+            console.print("[dim]Sending notification...[/dim]")
             mgr.send(args.title, args.message, level=args.level, actions=args.actions)
             return 0
 
@@ -188,12 +177,138 @@ class CortexCLI:
 
     # -------------------------------
 
+    def stack(self, args: argparse.Namespace) -> int:
+        """Handle `cortex stack` commands (list/describe/install/dry-run)."""
+        try:
+            manager = StackManager()
+
+            # Validate --dry-run requires a stack name
+            if args.dry_run and not args.name:
+                self._print_error(
+                    "--dry-run requires a stack name (e.g., `cortex stack ml --dry-run`)"
+                )
+                return 1
+
+            # List stacks (default when no name/describe)
+            if args.list or (not args.name and not args.describe):
+                return self._handle_stack_list(manager)
+
+            # Describe a specific stack
+            if args.describe:
+                return self._handle_stack_describe(manager, args.describe)
+
+            # Install a stack (only remaining path)
+            return self._handle_stack_install(manager, args)
+
+        except FileNotFoundError as e:
+            self._print_error(f"stacks.json not found. Ensure cortex/stacks.json exists: {e}")
+            return 1
+        except ValueError as e:
+            self._print_error(f"stacks.json is invalid or malformed: {e}")
+            return 1
+
+    def _handle_stack_list(self, manager: StackManager) -> int:
+        """List all available stacks."""
+        stacks = manager.list_stacks()
+        cx_print("\n📦 Available Stacks:\n", "info")
+        for stack in stacks:
+            pkg_count = len(stack.get("packages", []))
+            console.print(f"  [green]{stack.get('id', 'unknown')}[/green]")
+            console.print(f"    {stack.get('name', 'Unnamed Stack')}")
+            console.print(f"    {stack.get('description', 'No description')}")
+            console.print(f"    [dim]({pkg_count} packages)[/dim]\n")
+        cx_print("Use: cortex stack <name> to install a stack", "info")
+        return 0
+
+    def _handle_stack_describe(self, manager: StackManager, stack_id: str) -> int:
+        """Describe a specific stack."""
+        stack = manager.find_stack(stack_id)
+        if not stack:
+            self._print_error(f"Stack '{stack_id}' not found. Use --list to see available stacks.")
+            return 1
+        description = manager.describe_stack(stack_id)
+        console.print(description)
+        return 0
+
+    def _handle_stack_install(self, manager: StackManager, args: argparse.Namespace) -> int:
+        """Install a stack with optional hardware-aware selection."""
+        original_name = args.name
+        suggested_name = manager.suggest_stack(args.name)
+
+        if suggested_name != original_name:
+            cx_print(
+                f"💡 No GPU detected, using '{suggested_name}' instead of '{original_name}'",
+                "info",
+            )
+
+        stack = manager.find_stack(suggested_name)
+        if not stack:
+            self._print_error(
+                f"Stack '{suggested_name}' not found. Use --list to see available stacks."
+            )
+            return 1
+
+        packages = stack.get("packages", [])
+        if not packages:
+            self._print_error(f"Stack '{suggested_name}' has no packages configured.")
+            return 1
+
+        if args.dry_run:
+            return self._handle_stack_dry_run(stack, packages)
+
+        return self._handle_stack_real_install(stack, packages)
+
+    def _handle_stack_dry_run(self, stack: dict[str, Any], packages: list[str]) -> int:
+        """Preview packages that would be installed without executing."""
+        cx_print(f"\n📋 Stack: {stack['name']}", "info")
+        console.print("\nPackages that would be installed:")
+        for pkg in packages:
+            console.print(f"  • {pkg}")
+        console.print(f"\nTotal: {len(packages)} packages")
+        cx_print("\nDry run only - no commands executed", "warning")
+        return 0
+
+    def _handle_stack_real_install(self, stack: dict[str, Any], packages: list[str]) -> int:
+        """Install all packages in the stack."""
+        cx_print(f"\n🚀 Installing stack: {stack['name']}\n", "success")
+
+        # Batch into a single LLM request
+        packages_str = " ".join(packages)
+        result = self.install(software=packages_str, execute=True, dry_run=False)
+
+        if result != 0:
+            self._print_error(f"Failed to install stack '{stack['name']}'")
+            return 1
+
+        self._print_success(f"\n✅ Stack '{stack['name']}' installed successfully!")
+        console.print(f"Installed {len(packages)} packages")
+        return 0
+
+    # Run system health checks
+    def doctor(self):
+        from cortex.doctor import SystemDoctor
+
+        doctor = SystemDoctor()
+        return doctor.run_checks()
+
     def install(self, software: str, execute: bool = False, dry_run: bool = False):
-        # Validate input first
         is_valid, error = validate_install_request(software)
         if not is_valid:
             self._print_error(error)
             return 1
+
+        # Special-case the ml-cpu stack:
+        # The LLM sometimes generates outdated torch==1.8.1+cpu installs
+        # which fail on modern Python. For the "pytorch-cpu jupyter numpy pandas"
+        # combo, force a supported CPU-only PyTorch recipe instead.
+        normalized = " ".join(software.split()).lower()
+
+        if normalized == "pytorch-cpu jupyter numpy pandas":
+            software = (
+                "pip3 install torch torchvision torchaudio "
+                "--index-url https://download.pytorch.org/whl/cpu && "
+                "pip3 install jupyter numpy pandas"
+            )
 
         api_key = self._get_api_key()
         if not api_key:
@@ -211,7 +326,9 @@ class CortexCLI:
         try:
             self._print_status("🧠", "Understanding request...")
 
-            interpreter = CommandInterpreter(api_key=api_key, provider=provider)
+            interpreter = CommandInterpreter(
+                api_key=api_key, provider=provider, offline=self.offline
+            )
 
             self._print_status("📦", "Planning installation...")
             for _ in range(10):
@@ -275,9 +392,7 @@ class CortexCLI:
 
                     # Record successful installation
                     if install_id:
-                        history.update_installation(
-                            install_id, InstallationStatus.SUCCESS
-                        )
+                        history.update_installation(install_id, InstallationStatus.SUCCESS)
                         print(f"\n📝 Installation recorded (ID: {install_id})")
                         print(f"   To rollback: cortex rollback {install_id}")
 
@@ -291,9 +406,7 @@ class CortexCLI:
                         )
 
                     if result.failed_step is not None:
-                        self._print_error(
-                            f"Installation failed at step {result.failed_step + 1}"
-                        )
+                        self._print_error(f"Installation failed at step {result.failed_step + 1}")
                     else:
                         self._print_error("Installation failed")
                     if result.error_message:
@@ -310,85 +423,39 @@ class CortexCLI:
 
         except ValueError as e:
             if install_id:
-                history.update_installation(
-                    install_id, InstallationStatus.FAILED, str(e)
-                )
+                history.update_installation(install_id, InstallationStatus.FAILED, str(e))
             self._print_error(str(e))
             return 1
         except RuntimeError as e:
             if install_id:
-                history.update_installation(
-                    install_id, InstallationStatus.FAILED, str(e)
-                )
+                history.update_installation(install_id, InstallationStatus.FAILED, str(e))
             self._print_error(f"API call failed: {str(e)}")
             return 1
         except Exception as e:
             if install_id:
-                history.update_installation(
-                    install_id, InstallationStatus.FAILED, str(e)
-                )
+                history.update_installation(install_id, InstallationStatus.FAILED, str(e))
             self._print_error(f"Unexpected error: {str(e)}")
             return 1
 
-    def diagnose(
-        self,
-        error: Optional[str] = None,
-        image: Optional[str] = None,
-        clipboard: bool = False,
-    ):
-        """Diagnose an error from text input (MVP: text-only)."""
-
-        if not error:
-            self._print_error("Please provide an error message to diagnose")
-            return 1
-
-        cx_print("Diagnosing error...", "info")
-
-        provider = self._get_provider()
-
-        # 🔹 OFFLINE FALLBACK (NO API KEYS REQUIRED)
-        if provider == "ollama":
-            print("\nDiagnosis:\n")
-            print(
-                f"Detected error:\n{error}\n\n"
-                "Possible causes:\n"
-                "- Interrupted package installation\n"
-                "- Broken dpkg state\n"
-                "- Locked apt database\n\n"
-                "Suggested fixes:\n"
-                "sudo dpkg --configure -a\n"
-                "sudo apt --fix-broken install\n"
-                "sudo apt update\n"
-            )
-            return 0
-
-        # 🔹 LLM PATH (Claude / Kimi later)
-        api_key = self._get_api_key()
-        if not api_key:
-            return 1
-
+    def cache_stats(self) -> int:
         try:
-            from cortex.llm_router import complete_task, TaskType
+            from cortex.semantic_cache import SemanticCache
 
-            response = complete_task(
-                prompt=f"Diagnose this Linux error and suggest fixes:\n{error}",
-                task_type=TaskType.ERROR_DEBUGGING,
-            )
+            cache = SemanticCache()
+            stats = cache.stats()
+            hit_rate = f"{stats.hit_rate * 100:.1f}%" if stats.total else "0.0%"
 
-            print("\nDiagnosis:\n")
-            print(response)
+            cx_header("Cache Stats")
+            cx_print(f"Hits: {stats.hits}", "info")
+            cx_print(f"Misses: {stats.misses}", "info")
+            cx_print(f"Hit rate: {hit_rate}", "info")
+            cx_print(f"Saved calls (approx): {stats.hits}", "info")
             return 0
-
         except Exception as e:
-            self._print_error(str(e))
+            self._print_error(f"Unable to read cache stats: {e}")
             return 1
 
-    def history(
-        self,
-        limit: int = 20,
-        status: Optional[str] = None,
-        show_id: Optional[str] = None,
-    ):
+    def history(self, limit: int = 20, status: str | None = None, show_id: str | None = None):
         """Show installation history"""
         history = InstallationHistory()
 
@@ -416,7 +483,7 @@ class CortexCLI:
                     print(f"\nError: {record.error_message}")
 
                 if record.commands_executed:
-                    print(f"\nCommands executed:")
+                    print("\nCommands executed:")
                     for cmd in record.commands_executed:
                         print(f"  {cmd}")
 
@@ -478,7 +545,7 @@ class CortexCLI:
             self.prefs_manager = PreferencesManager()
         return self.prefs_manager
 
-    def check_pref(self, key: Optional[str] = None):
+    def check_pref(self, key: str | None = None):
         """Check/display user preferences"""
         manager = self._get_prefs_manager()
 
@@ -501,9 +568,7 @@ class CortexCLI:
             self._print_error(f"Failed to read preferences: {str(e)}")
             return 1
 
-    def edit_pref(
-        self, action: str, key: Optional[str] = None, value: Optional[str] = None
-    ):
+    def edit_pref(self, action: str, key: str | None = None, value: str | None = None):
         """Edit user preferences (add/set, delete/remove, list)"""
         manager = self._get_prefs_manager()
 
@@ -627,10 +692,29 @@ def show_rich_help():
     table.add_row("history", "View history")
     table.add_row("rollback <id>", "Undo installation")
     table.add_row("notify", "Manage desktop notifications")  # Added this line
+    table.add_row("cache stats", "Show LLM cache statistics")
+    table.add_row("stack <name>", "Install the stack")
+    table.add_row("doctor", "System health check")
 
     console.print(table)
     console.print()
     console.print("[dim]Learn more: https://cortexlinux.com/docs[/dim]")
+
+
+def shell_suggest(text: str) -> int:
+    """
+    Internal helper used by shell hotkey integration.
+    Prints a single suggested command to stdout.
+    """
+    try:
+        from cortex.shell_integration import suggest_command
+
+        suggestion = suggest_command(text)
+        if suggestion:
+            print(suggestion)
+        return 0
+    except Exception:
+        return 1
 
 
 def main():
@@ -641,11 +725,10 @@ def main():
     )
 
     # Global flags
+    parser.add_argument("--version", "-V", action="version", version=f"cortex {VERSION}")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
     parser.add_argument(
-        "--version", "-V", action="version", version=f"cortex {VERSION}"
-    )
-    parser.add_argument(
-        "--verbose", "-v", action="store_true", help="Show detailed output"
+        "--offline", action="store_true", help="Use cached responses only (no network calls)"
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -654,34 +737,19 @@ def main():
     demo_parser = subparsers.add_parser("demo", help="See Cortex in action")
 
     # Wizard command
-    wizard_parser = subparsers.add_parser(
-        "wizard", help="Configure API key interactively"
-    )
+    wizard_parser = subparsers.add_parser("wizard", help="Configure API key interactively")
 
     # Status command
     status_parser = subparsers.add_parser("status", help="Show system status")
 
+    # doctor command
+    doctor_parser = subparsers.add_parser("doctor", help="Run system health check")
+
     # Install command
     install_parser = subparsers.add_parser("install", help="Install software")
     install_parser.add_argument("software", type=str, help="Software to install")
-    install_parser.add_argument(
-        "--execute", action="store_true", help="Execute commands"
-    )
-    install_parser.add_argument(
-        "--dry-run", action="store_true", help="Show commands only"
-    )
-
-    # Diagnose command
-    diagnose_parser = subparsers.add_parser(
-        "diagnose", help="Diagnose an error from text or image"
-    )
-    diagnose_parser.add_argument("error", nargs="?", help="Error message text")
-    diagnose_parser.add_argument(
-        "--image", help="Path to error screenshot (PNG, JPG, WebP)"
-    )
-    diagnose_parser.add_argument(
-        "--clipboard", action="store_true", help="Use image from clipboard"
-    )
+    install_parser.add_argument("--execute", action="store_true", help="Execute commands")
+    install_parser.add_argument("--dry-run", action="store_true", help="Show commands only")
 
     # History command
     history_parser = subparsers.add_parser("history", help="View history")
@@ -699,17 +767,13 @@ def main():
     check_pref_parser.add_argument("key", nargs="?")
 
     edit_pref_parser = subparsers.add_parser("edit-pref", help="Edit preferences")
-    edit_pref_parser.add_argument(
-        "action", choices=["set", "add", "delete", "list", "validate"]
-    )
+    edit_pref_parser.add_argument("action", choices=["set", "add", "delete", "list", "validate"])
     edit_pref_parser.add_argument("key", nargs="?")
     edit_pref_parser.add_argument("value", nargs="?")
 
     # --- New Notify Command ---
     notify_parser = subparsers.add_parser("notify", help="Manage desktop notifications")
-    notify_subs = notify_parser.add_subparsers(
-        dest="notify_action", help="Notify actions"
-    )
+    notify_subs = notify_parser.add_subparsers(dest="notify_action", help="Notify actions")
 
     notify_subs.add_parser("config", help="Show configuration")
     notify_subs.add_parser("enable", help="Enable notifications")
@@ -722,11 +786,25 @@ def main():
     send_parser = notify_subs.add_parser("send", help="Send test notification")
     send_parser.add_argument("message", help="Notification message")
     send_parser.add_argument("--title", default="Cortex Notification")
-    send_parser.add_argument(
-        "--level", choices=["low", "normal", "critical"], default="normal"
-    )
+    send_parser.add_argument("--level", choices=["low", "normal", "critical"], default="normal")
     send_parser.add_argument("--actions", nargs="*", help="Action buttons")
     # --------------------------
+
+    # Stack command
+    stack_parser = subparsers.add_parser("stack", help="Manage pre-built package stacks")
+    stack_parser.add_argument(
+        "name", nargs="?", help="Stack name to install (ml, ml-cpu, webdev, devops, data)"
+    )
+    stack_group = stack_parser.add_mutually_exclusive_group()
+    stack_group.add_argument("--list", "-l", action="store_true", help="List all available stacks")
+    stack_group.add_argument("--describe", "-d", metavar="STACK", help="Show details about a stack")
+    stack_parser.add_argument(
+        "--dry-run", action="store_true", help="Show what would be installed (requires stack name)"
+    )
+    # Cache commands
+    cache_parser = subparsers.add_parser("cache", help="Cache operations")
+    cache_subs = cache_parser.add_subparsers(dest="cache_action", help="Cache actions")
+    cache_subs.add_parser("stats", help="Show cache statistics")
 
     args = parser.parse_args()
 
@@ -735,6 +813,7 @@ def main():
         return 0
 
     cli = CortexCLI(verbose=args.verbose)
+    cli.offline = bool(getattr(args, "offline", False))
 
     try:
         if args.command == "demo":
@@ -744,17 +823,9 @@ def main():
         elif args.command == "status":
             return cli.status()
         elif args.command == "install":
-            return cli.install(
-                args.software, execute=args.execute, dry_run=args.dry_run
-            )
-        elif args.command == "diagnose":
-            return cli.diagnose(
-                error=args.error, image=args.image, clipboard=args.clipboard
-            )
+            return cli.install(args.software, execute=args.execute, dry_run=args.dry_run)
         elif args.command == "history":
-            return cli.history(
-                limit=args.limit, status=args.status, show_id=args.show_id
-            )
+            return cli.history(limit=args.limit, status=args.status, show_id=args.show_id)
         elif args.command == "rollback":
             return cli.rollback(args.id, dry_run=args.dry_run)
         elif args.command == "check-pref":
@@ -764,6 +835,15 @@ def main():
         # Handle the new notify command
         elif args.command == "notify":
             return cli.notify(args)
+        elif args.command == "stack":
+            return cli.stack(args)
+        elif args.command == "doctor":
+            return cli.doctor()
+        elif args.command == "cache":
+            if getattr(args, "cache_action", None) == "stats":
+                return cli.cache_stats()
+            parser.print_help()
+            return 1
         else:
             parser.print_help()
             return 1

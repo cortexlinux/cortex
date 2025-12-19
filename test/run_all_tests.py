@@ -1,21 +1,37 @@
+"""Unified test runner that discovers unit and integration suites."""
+
+from __future__ import annotations
+
+import argparse
 import os
 import sys
 import unittest
 
 
-def main() -> int:
-    """Discover and run all unittest modules within the test directory."""
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.abspath(os.path.join(current_dir, ".."))
+def discover_tests(pattern: str = "test_*.py") -> unittest.TestSuite:
+    """Discover tests starting from the repository's ``test`` directory."""
 
-    if project_root not in sys.path:
-        sys.path.insert(0, project_root)
+    start_dir = os.path.dirname(__file__)
+    loader = unittest.TestLoader()
+    return loader.discover(start_dir=start_dir, pattern=pattern)
 
-    suite = unittest.defaultTestLoader.discover(start_dir=current_dir, pattern="test_*.py")
+
+def main(argv: list[str] | None = None) -> int:
+    """Execute all test suites and return the exit code."""
+
+    parser = argparse.ArgumentParser(description="Run Cortex unit/integration tests")
+    parser.add_argument(
+        "--pattern",
+        default="test_*.py",
+        help="Glob pattern used for discovery (defaults to test_*.py)",
+    )
+    args = parser.parse_args(argv)
+
+    suite = discover_tests(pattern=args.pattern)
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     return 0 if result.wasSuccessful() else 1
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+if __name__ == "__main__":  # pragma: no cover
+    sys.exit(main())
