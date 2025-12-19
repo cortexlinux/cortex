@@ -14,6 +14,20 @@ from LLM.interpreter import CommandInterpreter
 from cortex.coordinator import InstallationCoordinator, StepStatus
 from cortex.update_manifest import UpdateChannel
 from cortex.updater import ChecksumMismatch, InstallError, UpdateError, UpdateService
+from typing import Any
+
+# Suppress noisy log messages in normal operation
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("cortex.installation_history").setLevel(logging.ERROR)
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from cortex.branding import VERSION, console, cx_header, cx_print, show_banner
+from cortex.coordinator import InstallationCoordinator, StepStatus
+from cortex.installation_history import InstallationHistory, InstallationStatus, InstallationType
+from cortex.llm.interpreter import CommandInterpreter
+from cortex.notification_manager import NotificationManager
+from cortex.stack_manager import StackManager
 from cortex.user_preferences import (
     PreferencesManager,
     format_preference_value,
@@ -65,6 +79,210 @@ class CortexCLI:
 
     def install(self, software: str, execute: bool = False, dry_run: bool = False):
         self._notify_update_if_available()
+    # --- New Notification Method ---
+    def notify(self, args):
+        """Handle notification commands"""
+        # Addressing CodeRabbit feedback: Handle missing subcommand gracefully
+        if not args.notify_action:
+            self._print_error("Please specify a subcommand (config/enable/disable/dnd/send)")
+            return 1
+
+        mgr = NotificationManager()
+
+        if args.notify_action == "config":
+            console.print("[bold cyan]🔧 Current Notification Configuration:[/bold cyan]")
+            status = (
+                "[green]Enabled[/green]"
+                if mgr.config.get("enabled", True)
+                else "[red]Disabled[/red]"
+            )
+            console.print(f"Status: {status}")
+            console.print(
+                f"DND Window: [yellow]{mgr.config['dnd_start']} - {mgr.config['dnd_end']}[/yellow]"
+            )
+            console.print(f"History File: {mgr.history_file}")
+            return 0
+
+        elif args.notify_action == "enable":
+            mgr.config["enabled"] = True
+            # Addressing CodeRabbit feedback: Ideally should use a public method instead of private _save_config,
+            # but keeping as is for a simple fix (or adding a save method to NotificationManager would be best).
+            mgr._save_config()
+            self._print_success("Notifications enabled")
+            return 0
+
+        elif args.notify_action == "disable":
+            mgr.config["enabled"] = False
+            mgr._save_config()
+            cx_print("Notifications disabled (Critical alerts will still show)", "warning")
+            return 0
+
+        elif args.notify_action == "dnd":
+            if not args.start or not args.end:
+                self._print_error("Please provide start and end times (HH:MM)")
+                return 1
+
+            # Addressing CodeRabbit feedback: Add time format validation
+            try:
+                datetime.strptime(args.start, "%H:%M")
+                datetime.strptime(args.end, "%H:%M")
+            except ValueError:
+                self._print_error("Invalid time format. Use HH:MM (e.g., 22:00)")
+                return 1
+
+            mgr.config["dnd_start"] = args.start
+            mgr.config["dnd_end"] = args.end
+            mgr._save_config()
+            self._print_success(f"DND Window updated: {args.start} - {args.end}")
+            return 0
+
+        elif args.notify_action == "send":
+            if not args.message:
+                self._print_error("Message required")
+                return 1
+            console.print("[dim]Sending notification...[/dim]")
+            mgr.send(args.title, args.message, level=args.level, actions=args.actions)
+            return 0
+
+        else:
+            self._print_error("Unknown notify command")
+            return 1
+
+    # -------------------------------
+
+    def stack(self, args: argparse.Namespace) -> int:
+        """Handle `cortex stack` commands (list/describe/install/dry-run)."""
+        try:
+            manager = StackManager()
+
+            # Validate --dry-run requires a stack name
+            if args.dry_run and not args.name:
+                self._print_error(
+                    "--dry-run requires a stack name (e.g., `cortex stack ml --dry-run`)"
+                )
+                return 1
+
+            # List stacks (default when no name/describe)
+            if args.list or (not args.name and not args.describe):
+                return self._handle_stack_list(manager)
+
+            # Describe a specific stack
+            if args.describe:
+                return self._handle_stack_describe(manager, args.describe)
+
+            # Install a stack (only remaining path)
+            return self._handle_stack_install(manager, args)
+
+        except FileNotFoundError as e:
+            self._print_error(f"stacks.json not found. Ensure cortex/stacks.json exists: {e}")
+            return 1
+        except ValueError as e:
+            self._print_error(f"stacks.json is invalid or malformed: {e}")
+            return 1
+
+    def _handle_stack_list(self, manager: StackManager) -> int:
+        """List all available stacks."""
+        stacks = manager.list_stacks()
+        cx_print("\n📦 Available Stacks:\n", "info")
+        for stack in stacks:
+            pkg_count = len(stack.get("packages", []))
+            console.print(f"  [green]{stack.get('id', 'unknown')}[/green]")
+            console.print(f"    {stack.get('name', 'Unnamed Stack')}")
+            console.print(f"    {stack.get('description', 'No description')}")
+            console.print(f"    [dim]({pkg_count} packages)[/dim]\n")
+        cx_print("Use: cortex stack <name> to install a stack", "info")
+        return 0
+
+    def _handle_stack_describe(self, manager: StackManager, stack_id: str) -> int:
+        """Describe a specific stack."""
+        stack = manager.find_stack(stack_id)
+        if not stack:
+            self._print_error(f"Stack '{stack_id}' not found. Use --list to see available stacks.")
+            return 1
+        description = manager.describe_stack(stack_id)
+        console.print(description)
+        return 0
+
+    def _handle_stack_install(self, manager: StackManager, args: argparse.Namespace) -> int:
+        """Install a stack with optional hardware-aware selection."""
+        original_name = args.name
+        suggested_name = manager.suggest_stack(args.name)
+
+        if suggested_name != original_name:
+            cx_print(
+                f"💡 No GPU detected, using '{suggested_name}' instead of '{original_name}'",
+                "info",
+            )
+
+        stack = manager.find_stack(suggested_name)
+        if not stack:
+            self._print_error(
+                f"Stack '{suggested_name}' not found. Use --list to see available stacks."
+            )
+            return 1
+
+        packages = stack.get("packages", [])
+        if not packages:
+            self._print_error(f"Stack '{suggested_name}' has no packages configured.")
+            return 1
+
+        if args.dry_run:
+            return self._handle_stack_dry_run(stack, packages)
+
+        return self._handle_stack_real_install(stack, packages)
+
+    def _handle_stack_dry_run(self, stack: dict[str, Any], packages: list[str]) -> int:
+        """Preview packages that would be installed without executing."""
+        cx_print(f"\n📋 Stack: {stack['name']}", "info")
+        console.print("\nPackages that would be installed:")
+        for pkg in packages:
+            console.print(f"  • {pkg}")
+        console.print(f"\nTotal: {len(packages)} packages")
+        cx_print("\nDry run only - no commands executed", "warning")
+        return 0
+
+    def _handle_stack_real_install(self, stack: dict[str, Any], packages: list[str]) -> int:
+        """Install all packages in the stack."""
+        cx_print(f"\n🚀 Installing stack: {stack['name']}\n", "success")
+
+        # Batch into a single LLM request
+        packages_str = " ".join(packages)
+        result = self.install(software=packages_str, execute=True, dry_run=False)
+
+        if result != 0:
+            self._print_error(f"Failed to install stack '{stack['name']}'")
+            return 1
+
+        self._print_success(f"\n✅ Stack '{stack['name']}' installed successfully!")
+        console.print(f"Installed {len(packages)} packages")
+        return 0
+
+    # Run system health checks
+    def doctor(self):
+        from cortex.doctor import SystemDoctor
+
+        doctor = SystemDoctor()
+        return doctor.run_checks()
+
+    def install(self, software: str, execute: bool = False, dry_run: bool = False):
+        is_valid, error = validate_install_request(software)
+        if not is_valid:
+            self._print_error(error)
+            return 1
+
+        # Special-case the ml-cpu stack:
+        # The LLM sometimes generates outdated torch==1.8.1+cpu installs
+        # which fail on modern Python. For the "pytorch-cpu jupyter numpy pandas"
+        # combo, force a supported CPU-only PyTorch recipe instead.
+        normalized = " ".join(software.split()).lower()
+
+        if normalized == "pytorch-cpu jupyter numpy pandas":
+            software = (
+                "pip3 install torch torchvision torchaudio "
+                "--index-url https://download.pytorch.org/whl/cpu && "
+                "pip3 install jupyter numpy pandas"
+            )
+
         api_key = self._get_api_key()
         if not api_key:
             return 1
@@ -557,6 +775,16 @@ class CortexCLI:
                 if not filepath.exists():
                     self._print_error(f"File not found: {filepath}")
                     return 1
+    table.add_row("demo", "See Cortex in action")
+    table.add_row("wizard", "Configure API key")
+    table.add_row("status", "System status")
+    table.add_row("install <pkg>", "Install software")
+    table.add_row("history", "View history")
+    table.add_row("rollback <id>", "Undo installation")
+    table.add_row("notify", "Manage desktop notifications")  # Added this line
+    table.add_row("cache stats", "Show LLM cache statistics")
+    table.add_row("stack <name>", "Install the stack")
+    table.add_row("doctor", "System health check")
 
                 manager.import_json(filepath)
                 return 0
@@ -641,6 +869,14 @@ Environment Variables:
     channel_set_parser.add_argument(
         "channel", choices=[c.value for c in UpdateChannel], help="Channel to use"
     )
+    # doctor command
+    doctor_parser = subparsers.add_parser("doctor", help="Run system health check")
+
+    # Install command
+    install_parser = subparsers.add_parser("install", help="Install software")
+    install_parser.add_argument("software", type=str, help="Software to install")
+    install_parser.add_argument("--execute", action="store_true", help="Execute commands")
+    install_parser.add_argument("--dry-run", action="store_true", help="Show commands only")
 
     # History command
     history_parser = subparsers.add_parser("history", help="View installation history")
@@ -692,6 +928,53 @@ Environment Variables:
         "key", nargs="?", help="Preference key or filepath (for export/import)"
     )
     edit_pref_parser.add_argument("value", nargs="?", help="Preference value (for set/add/update)")
+    rollback_parser = subparsers.add_parser("rollback", help="Rollback installation")
+    rollback_parser.add_argument("id", help="Installation ID")
+    rollback_parser.add_argument("--dry-run", action="store_true")
+
+    # Preferences commands
+    check_pref_parser = subparsers.add_parser("check-pref", help="Check preferences")
+    check_pref_parser.add_argument("key", nargs="?")
+
+    edit_pref_parser = subparsers.add_parser("edit-pref", help="Edit preferences")
+    edit_pref_parser.add_argument("action", choices=["set", "add", "delete", "list", "validate"])
+    edit_pref_parser.add_argument("key", nargs="?")
+    edit_pref_parser.add_argument("value", nargs="?")
+
+    # --- New Notify Command ---
+    notify_parser = subparsers.add_parser("notify", help="Manage desktop notifications")
+    notify_subs = notify_parser.add_subparsers(dest="notify_action", help="Notify actions")
+
+    notify_subs.add_parser("config", help="Show configuration")
+    notify_subs.add_parser("enable", help="Enable notifications")
+    notify_subs.add_parser("disable", help="Disable notifications")
+
+    dnd_parser = notify_subs.add_parser("dnd", help="Configure DND window")
+    dnd_parser.add_argument("start", help="Start time (HH:MM)")
+    dnd_parser.add_argument("end", help="End time (HH:MM)")
+
+    send_parser = notify_subs.add_parser("send", help="Send test notification")
+    send_parser.add_argument("message", help="Notification message")
+    send_parser.add_argument("--title", default="Cortex Notification")
+    send_parser.add_argument("--level", choices=["low", "normal", "critical"], default="normal")
+    send_parser.add_argument("--actions", nargs="*", help="Action buttons")
+    # --------------------------
+
+    # Stack command
+    stack_parser = subparsers.add_parser("stack", help="Manage pre-built package stacks")
+    stack_parser.add_argument(
+        "name", nargs="?", help="Stack name to install (ml, ml-cpu, webdev, devops, data)"
+    )
+    stack_group = stack_parser.add_mutually_exclusive_group()
+    stack_group.add_argument("--list", "-l", action="store_true", help="List all available stacks")
+    stack_group.add_argument("--describe", "-d", metavar="STACK", help="Show details about a stack")
+    stack_parser.add_argument(
+        "--dry-run", action="store_true", help="Show what would be installed (requires stack name)"
+    )
+    # Cache commands
+    cache_parser = subparsers.add_parser("cache", help="Cache operations")
+    cache_subs = cache_parser.add_subparsers(dest="cache_action", help="Cache actions")
+    cache_subs.add_parser("stats", help="Show cache statistics")
 
     args = parser.parse_args()
 
@@ -730,6 +1013,18 @@ Environment Variables:
             return cli.check_pref(key=args.key)
         elif args.command == "edit-pref":
             return cli.edit_pref(action=args.action, key=args.key, value=args.value)
+        # Handle the new notify command
+        elif args.command == "notify":
+            return cli.notify(args)
+        elif args.command == "stack":
+            return cli.stack(args)
+        elif args.command == "doctor":
+            return cli.doctor()
+        elif args.command == "cache":
+            if getattr(args, "cache_action", None) == "stats":
+                return cli.cache_stats()
+            parser.print_help()
+            return 1
         else:
             parser.print_help()
             return 1
