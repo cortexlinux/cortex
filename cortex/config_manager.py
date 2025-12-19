@@ -329,7 +329,7 @@ class ConfigManager:
             package_sources = self.DEFAULT_SOURCES
 
         # Build configuration dictionary
-        config = {
+        config: dict[str, Any] = {
             "cortex_version": self.CORTEX_VERSION,
             "exported_at": datetime.now().isoformat(),
             "os": self._detect_os_version(),
@@ -460,6 +460,10 @@ class ConfigManager:
         current_version = current_pkg_map[key]
         if current_version == version:
             return "already_installed", pkg
+
+        # If the config doesn't specify a version, treat it as an upgrade/install request.
+        if not isinstance(version, str) or not version:
+            return "upgrade", {**pkg, "current_version": current_version}
 
         # Compare versions
         try:
@@ -808,6 +812,9 @@ class ConfigManager:
             True if successful, False otherwise
         """
         try:
+            if self.sandbox_executor is None:
+                return self._install_direct(name=name, version=version, source=source)
+
             if source == self.SOURCE_APT:
                 command = (
                     f"sudo apt-get install -y {name}={version}"
