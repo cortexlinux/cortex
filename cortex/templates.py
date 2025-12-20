@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.hwprofiler import HardwareProfiler
 from cortex.packages import PackageManager, PackageManagerType
@@ -24,6 +24,7 @@ from cortex.packages import PackageManager, PackageManagerType
 
 class TemplateFormat(Enum):
     """Supported template formats."""
+
     YAML = "yaml"
     JSON = "json"
 
@@ -31,6 +32,7 @@ class TemplateFormat(Enum):
 @dataclass
 class HardwareRequirements:
     """Hardware requirements for a template."""
+
     min_ram_mb: Optional[int] = None
     min_cores: Optional[int] = None
     min_storage_mb: Optional[int] = None
@@ -43,6 +45,7 @@ class HardwareRequirements:
 @dataclass
 class InstallationStep:
     """A single installation step in a template."""
+
     command: str
     description: str
     rollback: Optional[str] = None
@@ -53,6 +56,7 @@ class InstallationStep:
 @dataclass
 class Template:
     """Represents an installation template."""
+
     name: str
     description: str
     version: str
@@ -63,7 +67,7 @@ class Template:
     post_install: List[str] = field(default_factory=list)
     verification_commands: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert template to dictionary."""
         result = {
@@ -73,12 +77,12 @@ class Template:
             "packages": self.packages,
             "post_install": self.post_install,
             "verification_commands": self.verification_commands,
-            "metadata": self.metadata
+            "metadata": self.metadata,
         }
-        
+
         if self.author:
             result["author"] = self.author
-        
+
         if self.steps:
             result["steps"] = [
                 {
@@ -86,11 +90,11 @@ class Template:
                     "description": step.description,
                     "rollback": step.rollback,
                     "verify": step.verify,
-                    "requires_root": step.requires_root
+                    "requires_root": step.requires_root,
                 }
                 for step in self.steps
             ]
-        
+
         if self.hardware_requirements:
             hw = self.hardware_requirements
             result["hardware_requirements"] = {
@@ -100,11 +104,11 @@ class Template:
                 "requires_gpu": hw.requires_gpu,
                 "gpu_vendor": hw.gpu_vendor,
                 "requires_cuda": hw.requires_cuda,
-                "min_cuda_version": hw.min_cuda_version
+                "min_cuda_version": hw.min_cuda_version,
             }
-        
+
         return result
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Template":
         """Create template from dictionary."""
@@ -119,21 +123,23 @@ class Template:
                 requires_gpu=hw_data.get("requires_gpu", False),
                 gpu_vendor=hw_data.get("gpu_vendor"),
                 requires_cuda=hw_data.get("requires_cuda", False),
-                min_cuda_version=hw_data.get("min_cuda_version")
+                min_cuda_version=hw_data.get("min_cuda_version"),
             )
-        
+
         # Parse installation steps
         steps = []
         if "steps" in data:
             for step_data in data["steps"]:
-                steps.append(InstallationStep(
-                    command=step_data["command"],
-                    description=step_data.get("description", ""),
-                    rollback=step_data.get("rollback"),
-                    verify=step_data.get("verify"),
-                    requires_root=step_data.get("requires_root", True)
-                ))
-        
+                steps.append(
+                    InstallationStep(
+                        command=step_data["command"],
+                        description=step_data.get("description", ""),
+                        rollback=step_data.get("rollback"),
+                        verify=step_data.get("verify"),
+                        requires_root=step_data.get("requires_root", True),
+                    )
+                )
+
         return cls(
             name=data["name"],
             description=data["description"],
@@ -144,40 +150,40 @@ class Template:
             hardware_requirements=hw_req,
             post_install=data.get("post_install", []),
             verification_commands=data.get("verification_commands", []),
-            metadata=data.get("metadata", {})
+            metadata=data.get("metadata", {}),
         )
 
 
 class TemplateValidator:
     """Validates template structure and content."""
-    
+
     REQUIRED_FIELDS = ["name", "description", "version"]
     REQUIRED_STEP_FIELDS = ["command", "description"]
-    
+
     # Allowed post_install commands (whitelist for security)
     ALLOWED_POST_INSTALL_COMMANDS = {
-        'echo',  # Safe echo commands
+        "echo",  # Safe echo commands
     }
-    
+
     # Dangerous shell metacharacters that should be rejected
-    DANGEROUS_SHELL_CHARS = [';', '|', '&', '>', '<', '`', '\\']
-    
+    DANGEROUS_SHELL_CHARS = [";", "|", "&", ">", "<", "`", "\\"]
+
     @staticmethod
     def _validate_post_install_commands(post_install: List[str]) -> List[str]:
         """
         Validate post_install commands for security.
-        
+
         Returns:
             List of validation errors
         """
         errors = []
-        
+
         for i, cmd in enumerate(post_install):
             if not cmd or not cmd.strip():
                 continue
-            
+
             cmd_stripped = cmd.strip()
-            
+
             # Check for dangerous shell metacharacters
             for char in TemplateValidator.DANGEROUS_SHELL_CHARS:
                 if char in cmd_stripped:
@@ -186,41 +192,39 @@ class TemplateValidator:
                         "Only safe commands like 'echo' are allowed."
                     )
                     break
-            
+
             # Check for command substitution patterns
-            if '$(' in cmd_stripped or '`' in cmd_stripped:
+            if "$(" in cmd_stripped or "`" in cmd_stripped:
                 # Allow $(...) in echo commands for version checks (built-in templates use this)
-                if not cmd_stripped.startswith('echo '):
+                if not cmd_stripped.startswith("echo "):
                     errors.append(
                         f"post_install[{i}]: Command substitution only allowed in 'echo' commands"
                     )
-            
+
             # Check for wildcards/globs
-            if '*' in cmd_stripped or '?' in cmd_stripped:
-                if not cmd_stripped.startswith('echo '):
-                    errors.append(
-                        f"post_install[{i}]: Wildcards only allowed in 'echo' commands"
-                    )
-            
+            if "*" in cmd_stripped or "?" in cmd_stripped:
+                if not cmd_stripped.startswith("echo "):
+                    errors.append(f"post_install[{i}]: Wildcards only allowed in 'echo' commands")
+
             # Whitelist check - only allow echo commands
-            if not cmd_stripped.startswith('echo '):
+            if not cmd_stripped.startswith("echo "):
                 errors.append(
                     f"post_install[{i}]: Only 'echo' commands are allowed in post_install. "
                     f"Found: {cmd_stripped[:50]}"
                 )
-        
+
         return errors
-    
+
     @staticmethod
     def validate(template: Template) -> Tuple[bool, List[str]]:
         """
         Validate a template.
-        
+
         Returns:
             Tuple of (is_valid, list_of_errors)
         """
         errors = []
-        
+
         # Check required fields
         if not template.name:
             errors.append("Template name is required")
@@ -228,18 +232,18 @@ class TemplateValidator:
             errors.append("Template description is required")
         if not template.version:
             errors.append("Template version is required")
-        
+
         # Validate steps
         for i, step in enumerate(template.steps):
             if not step.command:
                 errors.append(f"Step {i+1}: command is required")
             if not step.description:
                 errors.append(f"Step {i+1}: description is required")
-        
+
         # Validate packages list
         if not template.packages and not template.steps:
             errors.append("Template must have either packages or steps defined")
-        
+
         # Validate hardware requirements
         if template.hardware_requirements:
             hw = template.hardware_requirements
@@ -251,22 +255,24 @@ class TemplateValidator:
                 errors.append("min_storage_mb must be non-negative")
             if hw.requires_cuda and not hw.requires_gpu:
                 errors.append("requires_cuda is true but requires_gpu is false")
-        
+
         # Validate post_install commands for security
         if template.post_install:
-            post_install_errors = TemplateValidator._validate_post_install_commands(template.post_install)
+            post_install_errors = TemplateValidator._validate_post_install_commands(
+                template.post_install
+            )
             errors.extend(post_install_errors)
-        
+
         return len(errors) == 0, errors
 
 
 class TemplateManager:
     """Manages installation templates."""
-    
+
     def __init__(self, templates_dir: Optional[str] = None):
         """
         Initialize template manager.
-        
+
         Args:
             templates_dir: Directory containing templates (defaults to built-in templates)
         """
@@ -276,14 +282,14 @@ class TemplateManager:
             # Default to built-in templates directory
             base_dir = Path(__file__).parent
             self.templates_dir = base_dir / "templates"
-        
+
         self.user_templates_dir = Path.home() / ".cortex" / "templates"
         self.user_templates_dir.mkdir(parents=True, exist_ok=True)
-        
+
         self._templates_cache: Dict[str, Template] = {}
         self._hardware_profiler = HardwareProfiler()
         self._package_manager = PackageManager()
-    
+
     def _get_template_path(self, name: str) -> Optional[Path]:
         """Find template file by name."""
         # Check user templates first
@@ -291,47 +297,51 @@ class TemplateManager:
             user_path = self.user_templates_dir / f"{name}{ext}"
             if user_path.exists():
                 return user_path
-        
+
         # Check built-in templates
         for ext in [".yaml", ".yml", ".json"]:
             builtin_path = self.templates_dir / f"{name}{ext}"
             if builtin_path.exists():
                 return builtin_path
-        
+
         return None
-    
+
     def load_template(self, name: str) -> Optional[Template]:
         """Load a template by name."""
         if name in self._templates_cache:
             return self._templates_cache[name]
-        
+
         template_path = self._get_template_path(name)
         if not template_path:
             return None
-        
+
         try:
-            with open(template_path, 'r', encoding='utf-8') as f:
-                if template_path.suffix in ['.yaml', '.yml']:
+            with open(template_path, "r", encoding="utf-8") as f:
+                if template_path.suffix in [".yaml", ".yml"]:
                     data = yaml.safe_load(f)
                 else:
                     data = json.load(f)
-            
+
             template = Template.from_dict(data)
             self._templates_cache[name] = template
             return template
         except Exception as e:
             raise ValueError(f"Failed to load template {name}: {str(e)}")
-    
-    def save_template(self, template: Template, name: Optional[str] = None, 
-                     format: TemplateFormat = TemplateFormat.YAML) -> Path:
+
+    def save_template(
+        self,
+        template: Template,
+        name: Optional[str] = None,
+        format: TemplateFormat = TemplateFormat.YAML,
+    ) -> Path:
         """
         Save a template to user templates directory.
-        
+
         Args:
             template: Template to save
             name: Template name (defaults to template.name)
             format: File format (YAML or JSON)
-        
+
         Returns:
             Path to saved template file
         """
@@ -339,25 +349,25 @@ class TemplateManager:
         is_valid, errors = TemplateValidator.validate(template)
         if not is_valid:
             raise ValueError(f"Template validation failed: {', '.join(errors)}")
-        
+
         template_name = name or template.name
         ext = ".yaml" if format == TemplateFormat.YAML else ".json"
         template_path = self.user_templates_dir / f"{template_name}{ext}"
-        
+
         data = template.to_dict()
-        
-        with open(template_path, 'w', encoding='utf-8') as f:
+
+        with open(template_path, "w", encoding="utf-8") as f:
             if format == TemplateFormat.YAML:
                 yaml.dump(data, f, default_flow_style=False, sort_keys=False)
             else:
                 json.dump(data, f, indent=2)
-        
+
         return template_path
-    
+
     def list_templates(self) -> Dict[str, Dict[str, Any]]:
         """List all available templates."""
         templates = {}
-        
+
         # List built-in templates (load directly from file to avoid user overrides)
         if self.templates_dir.exists():
             for ext in [".yaml", ".yml", ".json"]:
@@ -367,8 +377,8 @@ class TemplateManager:
                         # Skip duplicate names across extensions
                         continue
                     try:
-                        with open(template_file, 'r', encoding='utf-8') as f:
-                            if template_file.suffix in ['.yaml', '.yml']:
+                        with open(template_file, "r", encoding="utf-8") as f:
+                            if template_file.suffix in [".yaml", ".yml"]:
                                 data = yaml.safe_load(f)
                             else:
                                 data = json.load(f)
@@ -379,12 +389,12 @@ class TemplateManager:
                             "version": template.version,
                             "author": template.author,
                             "type": "built-in",
-                            "path": str(template_file)
+                            "path": str(template_file),
                         }
                     except Exception:
                         # Ignore malformed built-ins but continue listing others
                         pass
-        
+
         # List user templates
         if self.user_templates_dir.exists():
             for ext in [".yaml", ".yml", ".json"]:
@@ -400,27 +410,27 @@ class TemplateManager:
                                     "version": template.version,
                                     "author": template.author,
                                     "type": "user",
-                                    "path": str(template_file)
+                                    "path": str(template_file),
                                 }
                         except Exception:
                             pass
-        
+
         return templates
-    
+
     def check_hardware_compatibility(self, template: Template) -> Tuple[bool, List[str]]:
         """
         Check if current hardware meets template requirements.
-        
+
         Returns:
             Tuple of (is_compatible, list_of_warnings)
         """
         if not template.hardware_requirements:
             return True, []
-        
+
         hw_profile = self._hardware_profiler.profile()
         hw_req = template.hardware_requirements
         warnings = []
-        
+
         # Check RAM
         if hw_req.min_ram_mb:
             available_ram = hw_profile.get("ram", 0)
@@ -429,7 +439,7 @@ class TemplateManager:
                     f"Insufficient RAM: {available_ram}MB available, "
                     f"{hw_req.min_ram_mb}MB required"
                 )
-        
+
         # Check CPU cores
         if hw_req.min_cores:
             available_cores = hw_profile.get("cpu", {}).get("cores", 0)
@@ -438,32 +448,26 @@ class TemplateManager:
                     f"Insufficient CPU cores: {available_cores} available, "
                     f"{hw_req.min_cores} required"
                 )
-        
+
         # Check storage
         if hw_req.min_storage_mb:
-            total_storage = sum(
-                s.get("size", 0) for s in hw_profile.get("storage", [])
-            )
+            total_storage = sum(s.get("size", 0) for s in hw_profile.get("storage", []))
             if total_storage < hw_req.min_storage_mb:
                 warnings.append(
                     f"Insufficient storage: {total_storage}MB available, "
                     f"{hw_req.min_storage_mb}MB required"
                 )
-        
+
         # Check GPU requirements
         if hw_req.requires_gpu:
             gpus = hw_profile.get("gpu", [])
             if not gpus:
                 warnings.append("GPU required but not detected")
             elif hw_req.gpu_vendor:
-                vendor_match = any(
-                    g.get("vendor") == hw_req.gpu_vendor for g in gpus
-                )
+                vendor_match = any(g.get("vendor") == hw_req.gpu_vendor for g in gpus)
                 if not vendor_match:
-                    warnings.append(
-                        f"{hw_req.gpu_vendor} GPU required but not found"
-                    )
-        
+                    warnings.append(f"{hw_req.gpu_vendor} GPU required but not found")
+
         # Check CUDA requirements
         if hw_req.requires_cuda:
             gpus = hw_profile.get("gpu", [])
@@ -474,8 +478,8 @@ class TemplateManager:
                     if hw_req.min_cuda_version:
                         # Simple version comparison
                         try:
-                            gpu_cuda = tuple(map(int, cuda_version.split('.')))
-                            req_cuda = tuple(map(int, hw_req.min_cuda_version.split('.')))
+                            gpu_cuda = tuple(map(int, cuda_version.split(".")))
+                            req_cuda = tuple(map(int, hw_req.min_cuda_version.split(".")))
                             if gpu_cuda >= req_cuda:
                                 cuda_found = True
                                 break
@@ -486,24 +490,22 @@ class TemplateManager:
                     else:
                         cuda_found = True
                         break
-            
+
             if not cuda_found:
-                warnings.append(
-                    f"CUDA {hw_req.min_cuda_version or ''} required but not found"
-                )
-        
+                warnings.append(f"CUDA {hw_req.min_cuda_version or ''} required but not found")
+
         is_compatible = len(warnings) == 0
         return is_compatible, warnings
-    
+
     def generate_commands(self, template: Template) -> List[str]:
         """
         Generate installation commands from template.
-        
+
         Returns:
             List of installation commands
         """
         commands = []
-        
+
         # If template has explicit steps, use those
         if template.steps:
             commands = [step.command for step in template.steps]
@@ -518,71 +520,71 @@ class TemplateManager:
                 # Fallback: direct apt/yum install
                 pm_type = pm.pm_type.value
                 commands = [f"{pm_type} install -y {' '.join(template.packages)}"]
-        
+
         return commands
-    
+
     def import_template(self, file_path: str, name: Optional[str] = None) -> Template:
         """
         Import a template from a file.
-        
+
         Args:
             file_path: Path to template file
             name: Optional new name for the template
-        
+
         Returns:
             Loaded template
         """
         template_path = Path(file_path)
         if not template_path.exists():
             raise FileNotFoundError(f"Template file not found: {file_path}")
-        
+
         try:
-            with open(template_path, 'r', encoding='utf-8') as f:
-                if template_path.suffix in ['.yaml', '.yml']:
+            with open(template_path, "r", encoding="utf-8") as f:
+                if template_path.suffix in [".yaml", ".yml"]:
                     data = yaml.safe_load(f)
                 else:
                     data = json.load(f)
-            
+
             template = Template.from_dict(data)
-            
+
             # Override name if provided
             if name:
                 template.name = name
-            
+
             # Validate
             is_valid, errors = TemplateValidator.validate(template)
             if not is_valid:
                 raise ValueError(f"Template validation failed: {', '.join(errors)}")
-            
+
             return template
         except Exception as e:
             raise ValueError(f"Failed to import template: {str(e)}")
-    
-    def export_template(self, name: str, file_path: str, 
-                       format: TemplateFormat = TemplateFormat.YAML) -> Path:
+
+    def export_template(
+        self, name: str, file_path: str, format: TemplateFormat = TemplateFormat.YAML
+    ) -> Path:
         """
         Export a template to a file.
-        
+
         Args:
             name: Template name
             file_path: Destination file path
             format: File format
-        
+
         Returns:
             Path to exported file
         """
         template = self.load_template(name)
         if not template:
             raise ValueError(f"Template not found: {name}")
-        
+
         export_path = Path(file_path)
         data = template.to_dict()
-        
-        with open(export_path, 'w', encoding='utf-8') as f:
+
+        with open(export_path, "w", encoding="utf-8") as f:
             if format == TemplateFormat.YAML:
                 yaml.dump(data, f, default_flow_style=False, sort_keys=False)
             else:
                 json.dump(data, f, indent=2)
-        
-        return export_path
 
+        return export_path
