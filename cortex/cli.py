@@ -625,7 +625,6 @@ def shell_suggest(text: str) -> int:
     except Exception:
         return 1
 
-
 def main():
     parser = argparse.ArgumentParser(
         prog="cortex",
@@ -642,7 +641,11 @@ def main():
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
+<<<<<<< HEAD
     # Config command
+=======
+   # Config command
+>>>>>>> b08658626f417d10c9765029c4f1d7aa1e2720cb
     config_parser = subparsers.add_parser("config", help="Manage configuration")
     config_subs = config_parser.add_subparsers(dest="config_action", help="Config actions")
 

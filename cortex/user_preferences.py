@@ -139,7 +139,11 @@ class PreferencesManager:
                 theme=data.get("theme", "default"),
                 language=data.get("language", "en"),
                 timezone=data.get("timezone", "UTC"),
+<<<<<<< HEAD
                 approval_mode=data.get("approval_mode", "suggest"),
+=======
+                approval_mode=data.get("approval_mode","suggest"),
+>>>>>>> b08658626f417d10c9765029c4f1d7aa1e2720cb
             )
 
             return self.preferences
