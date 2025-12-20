@@ -185,7 +185,7 @@ def validate_command(command: str, strict: bool = True) -> tuple[bool, str | Non
     if strict:
         first_word = command.split()[0]
         # Handle sudo prefix and its options
-        if first_word == 'sudo':
+        if first_word == "sudo":
             parts = command.split()
             # Skip sudo and any flags (starting with -)
             actual_command_index = 1
