@@ -3,6 +3,10 @@
 # LLM Provider APIs
 anthropic>=0.18.0
 openai>=1.0.0
+requests>=2.32.4
+
+# Configuration
+PyYAML>=6.0.0
 
 # YAML parsing for template system
 PyYAML>=6.0
@@ -14,3 +18,4 @@ pyyaml>=6.0.0
 
 # Type hints for older Python versions
 typing-extensions>=4.0.0
+PyYAML==6.0.3

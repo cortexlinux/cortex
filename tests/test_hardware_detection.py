@@ -284,7 +284,7 @@ class TestHardwareDetector:
 
         assert result is False
 
-    @patch("os.statvfs")
+    @patch("os.statvfs", create=True)
     def test_get_disk_free_gb(self, mock_statvfs, detector):
         """Test disk free space detection."""
         mock_statvfs.return_value = MagicMock(f_frsize=4096, f_bavail=262144000)  # ~1TB free
@@ -317,7 +317,7 @@ class TestDetectionMethods:
     def detector(self):
         return HardwareDetector(use_cache=False)
 
-    @patch("os.uname")
+    @patch("os.uname", create=True)
     def test_detect_system(self, mock_uname, detector):
         """Test system info detection."""
         mock_uname.return_value = MagicMock(nodename="testhost", release="5.15.0-generic")
