@@ -91,6 +91,7 @@ class UserPreferences:
     theme: str = "default"
     language: str = "en"
     timezone: str = "UTC"
+    approval_mode: str = "suggest"
 
 
 class PreferencesManager:
@@ -138,6 +139,7 @@ class PreferencesManager:
                 theme=data.get("theme", "default"),
                 language=data.get("language", "en"),
                 timezone=data.get("timezone", "UTC"),
+                approval_mode=data.get("approval_mode", "suggest"),
             )
 
             return self.preferences
@@ -170,6 +172,7 @@ class PreferencesManager:
             "theme": self.preferences.theme,
             "language": self.preferences.language,
             "timezone": self.preferences.timezone,
+            "approval_mode": self.preferences.approval_mode,
         }
 
         # Write atomically (write to temp, then rename)
