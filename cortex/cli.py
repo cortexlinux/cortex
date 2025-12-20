@@ -28,6 +28,12 @@ from cortex.validators import (
     validate_install_request,
 )
 
+# Suppress noisy log messages in normal operation
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("cortex.installation_history").setLevel(logging.ERROR)
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
 
 class CortexCLI:
     def __init__(self, verbose: bool = False):
@@ -325,7 +331,6 @@ class CortexCLI:
             )
 
             self._print_status("📦", "Planning installation...")
-
             for _ in range(10):
                 self._animate_spinner("Analyzing system requirements...")
             self._clear_line()

@@ -11,16 +11,25 @@ Author: Cortex Linux Team
 License: Modified MIT License
 """
 
+# --- Optional provider imports for mocking ---
+try:
+    from anthropic import Anthropic  # type: ignore
+except Exception:  # pragma: no cover
+    Anthropic = None  # type: ignore
+
+try:
+    from openai import OpenAI  # type: ignore
+except Exception:  # pragma: no cover
+    OpenAI = None  # type: ignore
+# --------------------------------------------
+
 import json
 import logging
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import Any
-
-from anthropic import Anthropic
-from openai import OpenAI
+from typing import Any, Literal
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -132,22 +141,34 @@ class LLMRouter:
         self.track_costs = track_costs
 
         # Initialize clients
+        # Initialize clients
         self.claude_client = None
         self.kimi_client = None
 
-        if self.claude_api_key:
-            self.claude_client = Anthropic(api_key=self.claude_api_key)
-            logger.info("✅ Claude API client initialized")
+        # --- Claude ---
+        if Anthropic and self.claude_api_key:
+            try:
+                self.claude_client = Anthropic(api_key=self.claude_api_key)
+                logger.info("✅ Claude API client initialized")
+            except Exception:
+                self.claude_client = None
+                logger.warning("⚠️ Claude init failed, fallback enabled")
         else:
-            logger.warning("⚠️  No Claude API key provided")
+            logger.info("ℹ️ Claude unavailable (missing key or SDK)")
 
-        if self.kimi_api_key:
-            self.kimi_client = OpenAI(
-                api_key=self.kimi_api_key, base_url="https://api.moonshot.ai/v1"
-            )
-            logger.info("✅ Kimi K2 API client initialized")
+        # --- Kimi ---
+        if OpenAI and self.kimi_api_key:
+            try:
+                self.kimi_client = OpenAI(
+                    api_key=self.kimi_api_key,
+                    base_url="https://api.moonshot.ai/v1",
+                )
+                logger.info("✅ Kimi API client initialized")
+            except Exception:
+                self.kimi_client = None
+                logger.warning("⚠️ Kimi init failed, fallback enabled")
         else:
-            logger.warning("⚠️  No Kimi K2 API key provided")
+            logger.info("ℹ️ Kimi unavailable (missing key or SDK)")
 
         # Cost tracking
         self.total_cost_usd = 0.0
@@ -210,6 +231,7 @@ class LLMRouter:
         temperature: float = 0.7,
         max_tokens: int = 4096,
         tools: list[dict] | None = None,
+        _is_fallback: bool = False,  # 👈 ADD THIS
     ) -> LLMResponse:
         """
         Generate completion using the most appropriate LLM.
@@ -248,8 +270,7 @@ class LLMRouter:
         except Exception as e:
             logger.error(f"❌ Error with {routing.provider.value}: {e}")
 
-            # Try fallback if enabled
-            if self.enable_fallback:
+            if self.enable_fallback and not _is_fallback:
                 fallback_provider = (
                     LLMProvider.KIMI_K2
                     if routing.provider == LLMProvider.CLAUDE
@@ -264,9 +285,10 @@ class LLMRouter:
                     temperature=temperature,
                     max_tokens=max_tokens,
                     tools=tools,
+                    _is_fallback=True,  # 👈 CRITICAL LINE
                 )
-            else:
-                raise
+
+            raise
 
     def _complete_claude(
         self,
@@ -321,7 +343,7 @@ class LLMRouter:
             tokens_used=input_tokens + output_tokens,
             cost_usd=cost,
             latency_seconds=0.0,  # Set by caller
-            raw_response=response.model_dump() if hasattr(response, "model_dump") else None,
+            raw_response=(response.model_dump() if hasattr(response, "model_dump") else None),
         )
 
     def _complete_kimi(
@@ -364,7 +386,7 @@ class LLMRouter:
             tokens_used=input_tokens + output_tokens,
             cost_usd=cost,
             latency_seconds=0.0,  # Set by caller
-            raw_response=response.model_dump() if hasattr(response, "model_dump") else None,
+            raw_response=(response.model_dump() if hasattr(response, "model_dump") else None),
         )
 
     def _calculate_cost(
@@ -391,7 +413,7 @@ class LLMRouter:
         Get usage statistics.
 
         Returns:
-            Dictionary with request counts, tokens, costs per provider
+            dictionary with request counts, tokens, costs per provider
         """
         return {
             "total_requests": self.request_count,
