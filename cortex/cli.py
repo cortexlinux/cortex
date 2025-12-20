@@ -548,6 +548,35 @@ class CortexCLI:
         cx_print("Please export your API key in your shell profile.", "info")
         return 0
 
+    def config(self, args):
+        """
+        Handle `cortex config` commands
+        """
+        if args.config_action == "set":
+            key = args.key
+            value = args.value
+
+            if key != "approval-mode":
+                print(f"❌ Unknown config key: {key}")
+                return 1
+
+            if value not in ("suggest", "auto-edit", "full-auto"):
+                print("❌ Invalid approval-mode. Allowed values:")
+                print("  - suggest")
+                print("  - auto-edit")
+                print("  - full-auto")
+                return 1
+
+            # ✅ Use PreferencesManager (correct for this repo)
+            manager = self._get_prefs_manager()
+            manager.set("approval_mode", value)
+
+            print(f"✅ approval-mode set to '{value}'")
+            return 0
+
+        print("❌ Unknown config action")
+        return 1
+
 
 def show_rich_help():
     """Display beautifully formatted help using Rich"""
@@ -596,7 +625,6 @@ def shell_suggest(text: str) -> int:
     except Exception:
         return 1
 
-
 def main():
     parser = argparse.ArgumentParser(
         prog="cortex",
@@ -612,6 +640,14 @@ def main():
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+   # Config command
+    config_parser = subparsers.add_parser("config", help="Manage configuration")
+    config_subs = config_parser.add_subparsers(dest="config_action", help="Config actions")
+
+    config_set = config_subs.add_parser("set", help="Set configuration value")
+    config_set.add_argument("key", help="Config key (e.g. approval-mode)")
+    config_set.add_argument("value", help="Config value")
 
     # Demo command
     demo_parser = subparsers.add_parser("demo", help="See Cortex in action")
@@ -712,6 +748,8 @@ def main():
             return cli.check_pref(key=args.key)
         elif args.command == "edit-pref":
             return cli.edit_pref(action=args.action, key=args.key, value=args.value)
+        elif args.command == "config":
+            return cli.config(args)
         # Handle the new notify command
         elif args.command == "notify":
             return cli.notify(args)
