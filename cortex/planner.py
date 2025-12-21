@@ -1,6 +1,10 @@
 from typing import Any, dict, list
 
+<<<<<<< HEAD
 from cortex.llm.interpreter import CommandInterpreter
+=======
+from cortex.command_interpreter import CommandInterpreter
+>>>>>>> d299c43 (add yaml-backed AI roles/ personas with CLI --role support)
 
 
 def generate_plan(intent: str, slots: dict[str, Any]) -> list[str]:

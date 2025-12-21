@@ -31,10 +31,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 class CortexCLI:
-    def __init__(self, verbose: bool = False):
+    def __init__(self, verbose: bool = False, role: str = "default"):
         self.spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         self.spinner_idx = 0
-        self.prefs_manager = None  # Lazy initialization
+        self.prefs_manager = None
+        self.role = role  # Lazy initialization
         self.verbose = verbose
         self.offline = False
 
@@ -336,9 +337,7 @@ class CortexCLI:
         try:
             self._print_status("🧠", "Understanding request...")
 
-            interpreter = CommandInterpreter(
-                api_key=api_key, provider=provider, offline=self.offline
-            )
+            interpreter = CommandInterpreter(api_key=api_key, provider=provider, role=self.role)
 
             self._print_status("📦", "Planning installation...")
 
@@ -813,7 +812,10 @@ def main():
     parser.add_argument("--version", "-V", action="version", version=f"cortex {VERSION}")
     parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
     parser.add_argument(
-        "--offline", action="store_true", help="Use cached responses only (no network calls)"
+        "--role",
+        type=str,
+        default="default",
+        help="AI role/persona to use (e.g., default, security, devops)",
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -902,8 +904,7 @@ def main():
         show_rich_help()
         return 0
 
-    cli = CortexCLI(verbose=args.verbose)
-    cli.offline = bool(getattr(args, "offline", False))
+    cli = CortexCLI(verbose=args.verbose, role=args.role)
 
     try:
         if args.command == "demo":

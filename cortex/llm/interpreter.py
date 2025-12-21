@@ -26,33 +26,18 @@ class CommandInterpreter:
         self,
         api_key: str,
         provider: str = "openai",
+        role: str = "default",
         model: str | None = None,
-        offline: bool = False,
-        cache: Optional["SemanticCache"] = None,
+        cache: Any | None = None,
     ):
-        """Initialize the command interpreter.
+        from cortex.roles.loader import load_role
 
-        Args:
-            api_key: API key for the LLM provider
-            provider: Provider name ("openai", "claude", or "ollama")
-            model: Optional model name override
-            offline: If True, only use cached responses
-            cache: Optional SemanticCache instance for response caching
-        """
         self.api_key = api_key
         self.provider = APIProvider(provider.lower())
-        self.offline = offline
-
-        if cache is None:
-            try:
-                from cortex.semantic_cache import SemanticCache
-
-                self.cache: SemanticCache | None = SemanticCache()
-            except (ImportError, OSError):
-                # Cache initialization can fail due to missing dependencies or permissions
-                self.cache = None
-        else:
-            self.cache = cache
+        self.cache = cache
+        self.role_name = role
+        self.role = load_role(role)
+        self.system_prompt = self.role.get("system_prompt", "")
 
         if model:
             self.model = model
@@ -92,7 +77,7 @@ class CommandInterpreter:
             self.client = None  # No client needed for fake provider
 
     def _get_system_prompt(self) -> str:
-        return """You are a Linux system command expert. Convert natural language requests into safe, validated bash commands.
+        base_prompt = """You are a Linux system command expert. Convert natural language requests into safe, validated bash commands.
 
 Rules:
 1. Return ONLY a JSON array of commands
@@ -108,6 +93,10 @@ Format:
 
 Example request: "install docker with nvidia support"
 Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.io", "sudo apt install -y nvidia-docker2", "sudo systemctl restart docker"]}"""
+
+        if getattr(self, "system_prompt", ""):
+            return f"{self.system_prompt}\n\n{base_prompt}"
+        return base_prompt
 
     def _call_openai(self, user_input: str) -> list[str]:
         try:
@@ -225,38 +214,8 @@ Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.i
         return validated
 
     def parse(self, user_input: str, validate: bool = True) -> list[str]:
-        """Parse natural language input into shell commands.
-
-        Args:
-            user_input: Natural language description of desired action
-            validate: If True, validate commands for dangerous patterns
-
-        Returns:
-            List of shell commands to execute
-
-        Raises:
-            ValueError: If input is empty
-            RuntimeError: If offline mode is enabled and no cached response exists
-        """
         if not user_input or not user_input.strip():
             raise ValueError("User input cannot be empty")
-
-        cache_system_prompt = (
-            self._get_system_prompt() + f"\n\n[cortex-cache-validate={bool(validate)}]"
-        )
-
-        if self.cache is not None:
-            cached = self.cache.get_commands(
-                prompt=user_input,
-                provider=self.provider.value,
-                model=self.model,
-                system_prompt=cache_system_prompt,
-            )
-            if cached is not None:
-                return cached
-
-        if self.offline:
-            raise RuntimeError("Offline mode: no cached response available for this request")
 
         if self.provider == APIProvider.OPENAI:
             commands = self._call_openai(user_input)
@@ -272,23 +231,13 @@ Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.i
         if validate:
             commands = self._validate_commands(commands)
 
-        if self.cache is not None and commands:
-            try:
-                self.cache.put_commands(
-                    prompt=user_input,
-                    provider=self.provider.value,
-                    model=self.model,
-                    system_prompt=cache_system_prompt,
-                    commands=commands,
-                )
-            except (OSError, sqlite3.Error):
-                # Silently fail cache writes - not critical for operation
-                pass
-
         return commands
 
     def parse_with_context(
-        self, user_input: str, system_info: dict[str, Any] | None = None, validate: bool = True
+        self,
+        user_input: str,
+        system_info: dict[str, Any] | None = None,
+        validate: bool = True,
     ) -> list[str]:
         context = ""
         if system_info:
