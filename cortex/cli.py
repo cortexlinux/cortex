@@ -186,13 +186,16 @@ class CortexCLI:
         print("\n🧠 CORTEX INTERACTIVE SETUP")
         print("=" * 32)
 
+        # 1️⃣ Detect hardware first
         print("\n🔍 Detecting hardware...")
         hw = detect_hardware()
 
         if getattr(hw, "gpu", None):
             print(f"✔ GPU detected: {hw.gpu}")
+            has_gpu = True
         else:
             print("⚠️ No GPU detected (CPU mode)")
+            has_gpu = False
 
         if getattr(hw, "cpu", None):
             print(f"✔ CPU: {hw.cpu}")
@@ -200,7 +203,50 @@ class CortexCLI:
         if getattr(hw, "memory_gb", None):
             print(f"✔ RAM: {hw.memory_gb} GB")
 
-        print("\nHardware detection complete.\n")
+        # 2️⃣ Provider selection
+        print("\n🤖 Select default LLM provider:\n")
+
+        print("[1] Anthropic Claude (cloud)")
+        print("[2] OpenAI GPT (cloud)")
+        if has_gpu:
+            print("[3] Ollama (local) - recommended for your hardware")
+        else:
+            print("[3] Ollama (local)")
+
+        choice = input("\nChoice (1/2/3): ").strip()
+
+        provider_map = {
+            "1": "anthropic",
+            "2": "openai",
+            "3": "ollama",
+        }
+
+        provider = provider_map.get(choice)
+
+        if not provider:
+            print("❌ Invalid choice. Please re-run `cortex config`.")
+            return 1
+
+        print(f"\n✔ Selected provider: {provider}\n")
+        # 3️⃣ API key configuration (if required)
+        api_key = None
+
+        if provider in ("anthropic", "openai"):
+            env_var = "ANTHROPIC_API_KEY" if provider == "anthropic" else "OPENAI_API_KEY"
+            print(f"🔑 Enter your {env_var}:")
+
+            api_key = input("> ").strip()
+
+            # Very light validation
+            if len(api_key) < 10:
+                print("❌ API key looks invalid. Please re-run `cortex config`.")
+                return 1
+
+            print("✔ API key accepted\n")
+        else:
+            print("ℹ️ Ollama selected — no API key required\n")
+
+        print("Setup step complete.\n")
         return 0
 
     def stack(self, args: argparse.Namespace) -> int:
