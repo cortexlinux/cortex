@@ -38,6 +38,19 @@ class CortexCLI:
         self.verbose = verbose
         self.offline = False
 
+    def _build_prompt_with_stdin(self, user_prompt: str) -> str:
+        """
+        Combine optional stdin context with user prompt.
+        """
+        if getattr(self, "stdin_data", None):
+            return (
+                "Context (from stdin):\n"
+                f"{self.stdin_data}\n\n"
+                "User instruction:\n"
+                f"{user_prompt}"
+            )
+        return user_prompt
+
     def _debug(self, message: str):
         """Print debug info only in verbose mode"""
         if self.verbose:
@@ -346,7 +359,12 @@ class CortexCLI:
                 self._animate_spinner("Analyzing system requirements...")
             self._clear_line()
 
-            commands = interpreter.parse(f"install {software}")
+            prompt = f"install {software}"
+
+            # If stdin is provided, prepend it as context
+            prompt = self._build_prompt_with_stdin(f"install {software}")
+
+            commands = interpreter.parse(prompt)
 
             if not commands:
                 self._print_error(
