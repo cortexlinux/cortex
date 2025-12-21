@@ -8,6 +8,9 @@ requests>=2.32.4
 # Configuration
 PyYAML>=6.0.0
 
+# Environment variable loading from .env files
+python-dotenv>=1.0.0
+
 # Terminal UI
 rich>=13.0.0
 

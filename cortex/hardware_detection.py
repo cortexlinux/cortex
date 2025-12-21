@@ -12,7 +12,9 @@ import contextlib
 import json
 import logging
 import os
+import platform
 import re
+import shutil
 import subprocess
 from dataclasses import asdict, dataclass, field
 from enum import Enum
@@ -191,6 +193,13 @@ class HardwareDetector:
         self.use_cache = use_cache
         self._info: SystemInfo | None = None
 
+    def _uname(self):
+        """Return uname-like info with nodename/release/machine attributes."""
+        uname_fn = getattr(os, "uname", None)
+        if callable(uname_fn):
+            return uname_fn()
+        return platform.uname()
+
     def detect(self, force_refresh: bool = False) -> SystemInfo:
         """
         Detect all hardware information.
@@ -299,14 +308,13 @@ class HardwareDetector:
         """Detect basic system information."""
         # Hostname
         try:
-            info.hostname = os.uname().nodename
+            info.hostname = self._uname().nodename
         except:
             info.hostname = "unknown"
 
         # Kernel
         with contextlib.suppress(builtins.BaseException):
-            info.kernel_version = os.uname().release
-
+            info.kernel_version = self._uname().release
         # Distro
         try:
             if Path("/etc/os-release").exists():
@@ -329,6 +337,7 @@ class HardwareDetector:
     def _detect_cpu(self, info: SystemInfo):
         """Detect CPU information."""
         try:
+            uname = self._uname()
             with open("/proc/cpuinfo") as f:
                 content = f.read()
 
@@ -342,7 +351,7 @@ class HardwareDetector:
                 info.cpu.vendor = CPUVendor.INTEL
             elif "AMD" in info.cpu.model:
                 info.cpu.vendor = CPUVendor.AMD
-            elif "ARM" in info.cpu.model or "aarch" in os.uname().machine:
+            elif "ARM" in info.cpu.model or "aarch" in uname.machine:
                 info.cpu.vendor = CPUVendor.ARM
 
             # Cores (physical)
@@ -362,8 +371,7 @@ class HardwareDetector:
                 info.cpu.frequency_mhz = float(match.group(1))
 
             # Architecture
-            info.cpu.architecture = os.uname().machine
-
+            info.cpu.architecture = uname.machine
             # Features
             match = re.search(r"flags\s*:\s*(.+)", content)
             if match:
@@ -611,8 +619,14 @@ class HardwareDetector:
     def _get_disk_free_gb(self) -> float:
         """Quick disk free space on root."""
         try:
-            statvfs = os.statvfs("/")
-            return round((statvfs.f_frsize * statvfs.f_bavail) / (1024**3), 1)
+            statvfs_fn = getattr(os, "statvfs", None)
+            if callable(statvfs_fn):
+                statvfs = statvfs_fn("/")
+                return round((statvfs.f_frsize * statvfs.f_bavail) / (1024**3), 1)
+
+            root_path = os.path.abspath(os.sep)
+            _total, _used, free = shutil.disk_usage(root_path)
+            return round(free / (1024**3), 1)
         except:
             return 0.0
 
