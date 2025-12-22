@@ -216,25 +216,31 @@ def test_connection_pool_timeout():
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
     
+    pool = None
+    conn1_cm = conn2_cm = None
     try:
         # Create small pool
         pool = get_connection_pool(db_path, pool_size=2, timeout=0.5)
         
-        # Hold all connections
-        conn1 = pool._pool.get()
-        conn2 = pool._pool.get()
+        # Hold all connections via the public context manager API
+        conn1_cm = pool.get_connection()
+        conn1 = conn1_cm.__enter__()
+        conn2_cm = pool.get_connection()
+        conn2 = conn2_cm.__enter__()
         
         # Try to get third connection (should timeout)
         with pytest.raises(TimeoutError, match="Could not acquire database connection"):
             with pool.get_connection() as conn:
                 pass
-        
-        # Return connections
-        pool._pool.put(conn1)
-        pool._pool.put(conn2)
     
     finally:
-        pool.close_all()
+        # Release held connections if they were acquired
+        if conn2_cm is not None:
+            conn2_cm.__exit__(None, None, None)
+        if conn1_cm is not None:
+            conn1_cm.__exit__(None, None, None)
+        if pool is not None:
+            pool.close_all()
         os.unlink(db_path)
 
 
