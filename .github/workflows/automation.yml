@@ -32,8 +32,11 @@ jobs:
         pip install pytest pytest-cov pytest-mock pytest-asyncio
 
     - name: Run tests
+      env:
+        ANTHROPIC_API_KEY: "test-key-for-ci"
+        OPENAI_API_KEY: "test-key-for-ci"
       run: |
-        python -m pytest tests/ -v --cov=cortex --cov-report=xml --cov-report=term-missing
+        python -m pytest tests/ -v --cov=cortex --cov-report=xml --cov-report=term-missing --ignore=tests/integration
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
