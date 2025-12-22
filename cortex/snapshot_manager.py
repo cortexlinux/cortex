@@ -187,7 +187,9 @@ class SnapshotManager:
         try:
             snapshot_id = self._generate_snapshot_id()
             snapshot_path = self._get_snapshot_path(snapshot_id)
-            snapshot_path.mkdir(parents=True, exist_ok=True, mode=0o700)
+            snapshot_path.mkdir(parents=True, exist_ok=True)
+            # Enforce strict permissions; initial mkdir permissions are subject to umask
+            os.chmod(snapshot_path, 0o700)
 
             # Detect installed packages
             logger.info("Detecting installed packages...")
