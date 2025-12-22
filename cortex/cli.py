@@ -30,8 +30,9 @@ from cortex.validators import (
 
 # Import suggestion system components
 try:
-    from cortex.tui import run_suggestions
     from cortex.database import PackageDatabase
+    from cortex.tui import run_suggestions
+
     SUGGESTIONS_AVAILABLE = True
 except ImportError:
     SUGGESTIONS_AVAILABLE = False
@@ -117,57 +118,60 @@ class CortexCLI:
             self._print_error("Suggestion system not available")
             self._print_error("Falling back to install command...")
             return self.install(query, execute=False, dry_run=True)
-        
+
         try:
             # Show suggestions interactively
             selected = run_suggestions(query, interactive=True)
-            
+
             if not selected:
                 # User cancelled
                 return 0
-            
+
             # User selected something, now install it
             console.print()
             cx_print(f"Selected: {selected['name']}", "success")
             console.print()
-            
+
             # Ask if they want to install
             try:
-                choice = console.input("[bold cyan]Install this? (y/n):[/bold cyan] ").strip().lower()
-                if choice in ('y', 'yes'):
+                choice = (
+                    console.input("[bold cyan]Install this? (y/n):[/bold cyan] ").strip().lower()
+                )
+                if choice in ("y", "yes"):
                     # Use stack data directly - no LLM needed!
-                    from cortex.matcher import IntentMatcher
                     from cortex.database import SuggestionDatabase
-                    
+                    from cortex.matcher import IntentMatcher
+
                     db = SuggestionDatabase()
                     matcher = IntentMatcher(db)
-                    preview = matcher.get_install_preview(selected['type'], selected['id'])
-                    
+                    preview = matcher.get_install_preview(selected["type"], selected["id"])
+
                     if preview.get("error"):
                         self._print_error(preview["error"])
                         return 1
-                    
+
                     commands = preview.get("commands", [])
                     if not commands:
                         cx_print("No installation commands for this stack", "warning")
                         return 0
-                    
+
                     # Show what will be installed
                     console.print()
                     cx_print("Installation plan:", "info")
                     for i, cmd in enumerate(commands, 1):
                         console.print(f"  [dim]{i}.[/dim] {cmd}")
                     console.print()
-                    
+
                     # Execute commands with quiet output and spinner
                     import subprocess
+
                     from rich.progress import Progress, SpinnerColumn, TextColumn
-                    
+
                     with Progress(
                         SpinnerColumn(),
                         TextColumn("[progress.description]{task.description}"),
                         console=console,
-                        transient=True
+                        transient=True,
                     ) as progress:
                         for i, cmd in enumerate(commands, 1):
                             # Make commands quieter
@@ -176,9 +180,11 @@ class CortexCLI:
                                 quiet_cmd = cmd.replace("apt ", "apt -qq ")
                             if "pip install" in cmd:
                                 quiet_cmd = cmd.replace("pip install", "pip install -q")
-                            
-                            task = progress.add_task(f"Step {i}/{len(commands)}: Installing...", total=None)
-                            
+
+                            task = progress.add_task(
+                                f"Step {i}/{len(commands)}: Installing...", total=None
+                            )
+
                             # sudo commands need interactive terminal for password prompt
                             if cmd.strip().startswith("sudo"):
                                 progress.stop()  # Pause spinner for sudo
@@ -189,27 +195,24 @@ class CortexCLI:
                             else:
                                 # pip/other commands can run quietly
                                 result = subprocess.run(
-                                    quiet_cmd, 
-                                    shell=True, 
-                                    capture_output=True, 
-                                    text=True
+                                    quiet_cmd, shell=True, capture_output=True, text=True
                                 )
                                 result_returncode = result.returncode
                                 result_stderr = result.stderr
-                            
+
                             progress.remove_task(task)
-                            
+
                             if result_returncode != 0:
                                 self._print_error(f"Step {i} failed")
                                 if result_stderr:
                                     # Show only the last few error lines
-                                    error_lines = result_stderr.strip().split('\n')[-5:]
+                                    error_lines = result_stderr.strip().split("\n")[-5:]
                                     for line in error_lines:
                                         console.print(f"  [dim]{line}[/dim]")
                                 return 1
                             else:
                                 cx_print(f"Step {i}/{len(commands)} complete", "success")
-                    
+
                     console.print()
                     cx_print("Installation complete!", "success")
                     return 0
@@ -220,7 +223,7 @@ class CortexCLI:
                 console.print()
                 cx_print("Installation cancelled", "info")
                 return 0
-                
+
         except Exception as e:
             self._print_error(f"Suggestion failed: {e}")
             self._debug(f"Error details: {type(e).__name__}: {str(e)}")
@@ -717,28 +720,40 @@ def shell_suggest(text: str) -> int:
 
 def main():
     # Check early if this looks like a suggestion query (before argparse prints errors)
-    if len(sys.argv) >= 2 and sys.argv[1] not in ['demo', 'wizard', 'status', 'install', 
-                                                    'history', 'rollback', 'check-pref', 
-                                                    'edit-pref', 'notify', 'cache', 
-                                                    '-h', '--help', '-V', '--version']:
+    if len(sys.argv) >= 2 and sys.argv[1] not in [
+        "demo",
+        "wizard",
+        "status",
+        "install",
+        "history",
+        "rollback",
+        "check-pref",
+        "edit-pref",
+        "notify",
+        "cache",
+        "-h",
+        "--help",
+        "-V",
+        "--version",
+    ]:
         # This looks like a package query, handle it directly
         query_parts = []
         verbose = False
         offline = False
         for arg in sys.argv[1:]:
-            if arg == '--verbose' or arg == '-v':
+            if arg == "--verbose" or arg == "-v":
                 verbose = True
-            elif arg == '--offline':
+            elif arg == "--offline":
                 offline = True
-            elif not arg.startswith('-'):
+            elif not arg.startswith("-"):
                 query_parts.append(arg)
-        
+
         if query_parts:
-            query = ' '.join(query_parts)
+            query = " ".join(query_parts)
             cli = CortexCLI(verbose=verbose)
             cli.offline = offline
             return cli.suggest(query)
-    
+
     parser = argparse.ArgumentParser(
         prog="cortex",
         description="AI-powered Linux command interpreter",
