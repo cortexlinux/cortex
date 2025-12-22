@@ -215,10 +215,9 @@ class SnapshotManager:
 
             # Save metadata with secure permissions (600)
             metadata_path = self._get_metadata_path(snapshot_id)
-            with open(metadata_path, "w") as f:
+            fd = os.open(metadata_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w") as f:
                 json.dump(asdict(metadata), f, indent=2)
-            # Set secure permissions on metadata file
-            os.chmod(metadata_path, 0o600)
 
             # Apply retention policy
             self._apply_retention_policy()
