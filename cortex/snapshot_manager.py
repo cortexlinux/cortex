@@ -10,6 +10,7 @@ Issue: #45
 
 import json
 import logging
+import os
 import shutil
 import subprocess
 from dataclasses import asdict, dataclass
@@ -186,7 +187,7 @@ class SnapshotManager:
         try:
             snapshot_id = self._generate_snapshot_id()
             snapshot_path = self._get_snapshot_path(snapshot_id)
-            snapshot_path.mkdir(parents=True, exist_ok=True)
+            snapshot_path.mkdir(parents=True, exist_ok=True, mode=0o700)
 
             # Detect installed packages
             logger.info("Detecting installed packages...")
@@ -210,10 +211,12 @@ class SnapshotManager:
                 size_bytes=0,  # Could calculate actual size if needed
             )
 
-            # Save metadata
+            # Save metadata with secure permissions (600)
             metadata_path = self._get_metadata_path(snapshot_id)
             with open(metadata_path, "w") as f:
                 json.dump(asdict(metadata), f, indent=2)
+            # Set secure permissions on metadata file
+            os.chmod(metadata_path, 0o600)
 
             # Apply retention policy
             self._apply_retention_policy()
