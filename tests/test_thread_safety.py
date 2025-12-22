@@ -11,7 +11,7 @@ License: Apache 2.0
 
 import concurrent.futures
 import os
-import random
+import secrets
 import sqlite3
 import tempfile
 import time
@@ -293,7 +293,7 @@ def test_stress_concurrent_operations():
         def mixed_operations(thread_id: int):
             try:
                 for _ in range(50):
-                    if random.random() < 0.7:  # 70% reads
+                    if secrets.SystemRandom().random() < 0.7:  # 70% reads
                         with pool.get_connection() as conn:
                             cursor = conn.cursor()
                             cursor.execute("SELECT COUNT(*) FROM stress")
