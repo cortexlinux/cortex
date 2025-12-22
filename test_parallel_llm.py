@@ -48,7 +48,7 @@ async def test_async_completion():
         )
         elapsed = time.time() - start
 
-        print(f"✅ Async completion successful!")
+        print("✅ Async completion successful!")
         print(f"   Provider: {response.provider.value}")
         print(f"   Latency: {elapsed:.2f}s")
         print(f"   Response: {response.content[:100]}")
@@ -95,7 +95,7 @@ async def test_batch_processing():
         responses = await router.complete_batch(requests, max_concurrent=3)
         elapsed = time.time() - start
 
-        print(f"✅ Batch processing successful!")
+        print("✅ Batch processing successful!")
         print(f"   Total time: {elapsed:.2f}s")
         print(f"   Average per request: {elapsed/len(requests):.2f}s")
 
@@ -109,6 +109,7 @@ async def test_batch_processing():
     except Exception as e:
         print(f"❌ Batch processing failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -142,7 +143,7 @@ async def test_rate_limiting():
         responses = await router.complete_batch(requests, max_concurrent=2)
         elapsed = time.time() - start
 
-        print(f"✅ Rate limiting working!")
+        print("✅ Rate limiting working!")
         print(f"   Total time: {elapsed:.2f}s")
         print(f"   Semaphore value: {router._rate_limit_semaphore._value}")
         return True
@@ -169,9 +170,7 @@ async def test_helper_functions():
     try:
         print("\n4a. Testing query_multiple_packages...")
         packages = ["nginx", "postgresql"]
-        responses = await query_multiple_packages(
-            router, packages, max_concurrent=2
-        )
+        responses = await query_multiple_packages(router, packages, max_concurrent=2)
         print(f"   ✅ Queried {len(responses)} packages")
         results.append(True)
     except Exception as e:
@@ -182,9 +181,7 @@ async def test_helper_functions():
     try:
         print("\n4b. Testing diagnose_errors_parallel...")
         errors = ["Test error 1", "Test error 2"]
-        diagnoses = await diagnose_errors_parallel(
-            router, errors, max_concurrent=2
-        )
+        diagnoses = await diagnose_errors_parallel(router, errors, max_concurrent=2)
         print(f"   ✅ Diagnosed {len(diagnoses)} errors")
         results.append(True)
     except Exception as e:
@@ -195,9 +192,7 @@ async def test_helper_functions():
     try:
         print("\n4c. Testing check_hardware_configs_parallel...")
         components = ["nvidia_gpu", "intel_cpu"]
-        configs = await check_hardware_configs_parallel(
-            router, components, max_concurrent=2
-        )
+        configs = await check_hardware_configs_parallel(router, components, max_concurrent=2)
         print(f"   ✅ Checked {len(configs)} components")
         results.append(True)
     except Exception as e:
@@ -233,8 +228,9 @@ async def test_performance_comparison():
         print("Simulating sequential execution...")
         start_seq = time.time()
         for req in requests:
-            await router.acomplete(**{k: v for k, v in req.items() if k != "task_type"}, 
-                                 task_type=req["task_type"])
+            await router.acomplete(
+                **{k: v for k, v in req.items() if k != "task_type"}, task_type=req["task_type"]
+            )
         elapsed_seq = time.time() - start_seq
 
         # Parallel execution
@@ -244,7 +240,7 @@ async def test_performance_comparison():
         elapsed_par = time.time() - start_par
 
         speedup = elapsed_seq / elapsed_par if elapsed_par > 0 else 1.0
-        print(f"\n✅ Performance comparison:")
+        print("\n✅ Performance comparison:")
         print(f"   Sequential: {elapsed_seq:.2f}s")
         print(f"   Parallel: {elapsed_par:.2f}s")
         print(f"   Speedup: {speedup:.2f}x")
@@ -316,4 +312,3 @@ async def main():
 if __name__ == "__main__":
     success = asyncio.run(main())
     sys.exit(0 if success else 1)
-

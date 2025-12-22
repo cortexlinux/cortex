@@ -1,10 +1,12 @@
 import argparse
-import logging
 import os
+import subprocess
 import sys
 import time
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from cortex.branding import VERSION, console, cx_header, cx_print, show_banner
 from cortex.coordinator import InstallationCoordinator, StepStatus
@@ -13,83 +15,54 @@ from cortex.installation_history import InstallationHistory, InstallationStatus,
 from cortex.llm.interpreter import CommandInterpreter
 from cortex.notification_manager import NotificationManager
 from cortex.stack_manager import StackManager
+from cortex.update_manifest import UpdateChannel
+from cortex.updater import ChecksumMismatch, InstallError, UpdateError, UpdateService
 from cortex.user_preferences import (
     PreferencesManager,
     format_preference_value,
     print_all_preferences,
 )
-from cortex.validators import (
-    validate_api_key,
-    validate_install_request,
-)
+from cortex.utils.stdin import combine_stdin_with_prompt, read_stdin
+from cortex.validators import validate_api_key, validate_install_request
 
 # Suppress noisy log messages in normal operation
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("cortex.installation_history").setLevel(logging.ERROR)
+# logging.getLogger("httpx").setLevel(logging.WARNING)
+# logging.getLogger("cortex.installation_history").setLevel(logging.ERROR)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 class CortexCLI:
-    def __init__(self, verbose: bool = False):
+    def __init__(self):
         self.spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         self.spinner_idx = 0
+        self.update_service = UpdateService()
         self.prefs_manager = None  # Lazy initialization
-        self.verbose = verbose
-        self.offline = False
-
-    def _debug(self, message: str):
-        """Print debug info only in verbose mode"""
-        if self.verbose:
-            console.print(f"[dim][DEBUG] {message}[/dim]")
 
     def _get_api_key(self) -> str | None:
-        # Check if using Ollama (no API key needed)
-        provider = self._get_provider()
-        if provider == "ollama":
-            self._debug("Using Ollama (no API key required)")
-            return "ollama-local"  # Placeholder for Ollama
-
-        is_valid, detected_provider, error = validate_api_key()
-        if not is_valid:
-            self._print_error(error)
-            cx_print("Run [bold]cortex wizard[/bold] to configure your API key.", "info")
-            cx_print("Or use [bold]CORTEX_PROVIDER=ollama[/bold] for offline mode.", "info")
+        api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            self._print_error(
+                "API key not found. Set OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable."
+            )
             return None
-        api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY")
         return api_key
 
     def _get_provider(self) -> str:
-        # Check environment variable for explicit provider choice
-        explicit_provider = os.environ.get("CORTEX_PROVIDER", "").lower()
-        if explicit_provider in ["ollama", "openai", "claude"]:
-            return explicit_provider
-
-        # Auto-detect based on available API keys
-        if os.environ.get("ANTHROPIC_API_KEY"):
-            return "claude"
-        elif os.environ.get("OPENAI_API_KEY"):
+        if os.environ.get("OPENAI_API_KEY"):
             return "openai"
-
-        # Fallback to Ollama for offline mode
-        return "ollama"
+        elif os.environ.get("ANTHROPIC_API_KEY"):
+            return "claude"
+        return "openai"
 
     def _print_status(self, emoji: str, message: str):
-        """Legacy status print - maps to cx_print for Rich output"""
-        status_map = {
-            "🧠": "thinking",
-            "📦": "info",
-            "⚙️": "info",
-            "🔍": "info",
-        }
-        status = status_map.get(emoji, "info")
-        cx_print(message, status)
+        print(f"{emoji} {message}")
 
     def _print_error(self, message: str):
-        cx_print(f"Error: {message}", "error")
+        print(f"❌ Error: {message}", file=sys.stderr)
 
     def _print_success(self, message: str):
-        cx_print(message, "success")
+        print(f"✅ {message}")
 
     def _animate_spinner(self, message: str):
         sys.stdout.write(f"\r{self.spinner_chars[self.spinner_idx]} {message}")
@@ -322,8 +295,6 @@ class CortexCLI:
             return 1
 
         provider = self._get_provider()
-        self._debug(f"Using provider: {provider}")
-        self._debug(f"API key: {api_key[:10]}...{api_key[-4:]}")
 
         # Initialize installation history
         history = InstallationHistory()
@@ -333,9 +304,7 @@ class CortexCLI:
         try:
             self._print_status("🧠", "Understanding request...")
 
-            interpreter = CommandInterpreter(
-                api_key=api_key, provider=provider, offline=self.offline
-            )
+            interpreter = CommandInterpreter(api_key=api_key, provider=provider)
 
             self._print_status("📦", "Planning installation...")
 
@@ -521,23 +490,92 @@ class CortexCLI:
             self._print_error(f"Unexpected error: {str(e)}")
             return 1
 
-    def cache_stats(self) -> int:
+    def update(self, channel: str | None = None, force: bool = False, dry_run: bool = False):
         try:
-            from cortex.semantic_cache import SemanticCache
-
-            cache = SemanticCache()
-            stats = cache.stats()
-            hit_rate = f"{stats.hit_rate * 100:.1f}%" if stats.total else "0.0%"
-
-            cx_header("Cache Stats")
-            cx_print(f"Hits: {stats.hits}", "info")
-            cx_print(f"Misses: {stats.misses}", "info")
-            cx_print(f"Hit rate: {hit_rate}", "info")
-            cx_print(f"Saved calls (approx): {stats.hits}", "info")
-            return 0
-        except Exception as e:
-            self._print_error(f"Unable to read cache stats: {e}")
+            channel_enum = (
+                UpdateChannel.from_string(channel) if channel else self.update_service.get_channel()
+            )
+        except ValueError as exc:
+            self._print_error(str(exc))
             return 1
+
+        try:
+            result = self.update_service.perform_update(
+                force=force, channel=channel_enum, dry_run=dry_run
+            )
+        except ChecksumMismatch as exc:
+            self._print_error(f"Security check failed: {exc}")
+            return 1
+        except InstallError as exc:
+            self._print_error(f"Installer error: {exc}")
+            return 1
+        except UpdateError as exc:
+            self._print_error(f"Update failed: {exc}")
+            return 1
+        except Exception as exc:
+            self._print_error(f"Unexpected update failure: {exc}")
+            return 1
+
+        if not result.release:
+            self._print_status("ℹ️", result.message or "Cortex is already up to date.")
+            return 0
+
+        release = result.release
+
+        if not result.updated:
+            self._print_status(
+                "🔔", f"Update available: {release.version.raw} ({release.channel.value})"
+            )
+            if release.release_notes:
+                self._print_status("🆕", "What's new:")
+                for line in release.release_notes.strip().splitlines():
+                    print(f"   {line}")
+            self._print_status("ℹ️", result.message or "Dry run complete.")
+            return 0
+
+        self._print_success(
+            f"Update complete! {result.previous_version.raw} → {release.version.raw}"
+        )
+        self._print_status("🗂️", f"Log saved to {result.log_path}")
+        if release.release_notes:
+            self._print_status("🆕", "What's new:")
+            for line in release.release_notes.strip().splitlines():
+                print(f"   {line}")
+
+        return 0
+
+    def _notify_update_if_available(self):
+        if os.environ.get("CORTEX_UPDATE_CHECK", "1") in ("0", "false", "False"):
+            return
+
+        try:
+            result = self.update_service.check_for_updates()
+        except Exception:
+            return
+
+        if result.update_available and result.release:
+            release = result.release
+            print(
+                f"\n🔔 Cortex update available: {release.version.raw} "
+                f"({result.channel.value} channel)\n"
+                "   Run 'cortex update' to learn more.\n"
+            )
+
+    def show_channel(self):
+        channel = self.update_service.get_channel()
+        self._print_status("ℹ️", f"Current update channel: {channel.value}")
+        return 0
+
+    def set_channel(self, channel: str):
+        try:
+            channel_enum = UpdateChannel.from_string(channel)
+        except ValueError as exc:
+            self._print_error(str(exc))
+            return 1
+
+        self.update_service.set_channel(channel_enum)
+        self._print_success(f"Update channel set to '{channel_enum.value}'")
+        return 0
 
     def history(self, limit: int = 20, status: str | None = None, show_id: str | None = None):
         """Show installation history"""
@@ -639,6 +677,28 @@ class CortexCLI:
                 value = manager.get(key)
                 if value is None:
                     self._print_error(f"Preference key '{key}' not found")
+                    print("\nAvailable preference keys:")
+                    print("  - verbosity")
+                    print("  - theme")
+                    print("  - language")
+                    print("  - timezone")
+                    print("  - confirmations.before_install")
+                    print("  - confirmations.before_remove")
+                    print("  - confirmations.before_upgrade")
+                    print("  - confirmations.before_system_changes")
+                    print("  - auto_update.check_on_start")
+                    print("  - auto_update.auto_install")
+                    print("  - auto_update.frequency_hours")
+                    print("  - ai.model")
+                    print("  - ai.creativity")
+                    print("  - ai.explain_steps")
+                    print("  - ai.suggest_alternatives")
+                    print("  - ai.learn_from_history")
+                    print("  - ai.max_suggestions")
+                    print("  - packages.default_sources")
+                    print("  - packages.prefer_latest")
+                    print("  - packages.auto_cleanup")
+                    print("  - packages.backup_before_changes")
                     return 1
 
                 print(f"\n{key} = {format_preference_value(value)}")
@@ -646,6 +706,25 @@ class CortexCLI:
             else:
                 # Show all preferences
                 print_all_preferences(manager)
+
+                # Show validation status
+                print("\nValidation Status:")
+                errors = manager.validate()
+                if errors:
+                    print("❌ Configuration has errors:")
+                    for error in errors:
+                        print(f"  - {error}")
+                    return 1
+                else:
+                    print("✅ Configuration is valid")
+
+                # Show config info
+                info = manager.get_config_info()
+                print(f"\nConfiguration file: {info['config_path']}")
+                print(f"File size: {info['config_size_bytes']} bytes")
+                if info["last_modified"]:
+                    print(f"Last modified: {info['last_modified']}")
+
                 return 0
 
         except Exception as e:
@@ -658,45 +737,149 @@ class CortexCLI:
 
         try:
             if action in ["add", "set", "update"]:
-                if not key or not value:
-                    self._print_error("Key and value required")
+                # Set/update a preference
+                if not key:
+                    self._print_error("Key is required for set/add/update action")
+                    print("Usage: cortex edit-pref set <key> <value>")
+                    print("Example: cortex edit-pref set ai.model gpt-4")
                     return 1
+
+                if not value:
+                    self._print_error("Value is required for set/add/update action")
+                    print("Usage: cortex edit-pref set <key> <value>")
+                    return 1
+
+                # Get current value for comparison
+                old_value = manager.get(key)
+
+                # Set new value
                 manager.set(key, value)
+
                 self._print_success(f"Updated {key}")
+                if old_value is not None:
+                    print(f"  Old value: {format_preference_value(old_value)}")
                 print(f"  New value: {format_preference_value(manager.get(key))}")
+
+                # Validate after change
+                errors = manager.validate()
+                if errors:
+                    print("\n⚠️  Warning: Configuration has validation errors:")
+                    for error in errors:
+                        print(f"  - {error}")
+                    print("\nYou may want to fix these issues.")
+
                 return 0
 
             elif action in ["delete", "remove", "reset-key"]:
+                # Reset a specific key to default
                 if not key:
-                    self._print_error("Key required")
+                    self._print_error("Key is required for delete/remove/reset-key action")
+                    print("Usage: cortex edit-pref delete <key>")
+                    print("Example: cortex edit-pref delete ai.model")
                     return 1
-                # Simplified reset logic
-                print(f"Resetting {key}...")
-                # (In a real implementation we would reset to default)
+
+                # To "delete" a key, we reset entire config and reload (since we can't delete individual keys)
+                # Instead, we'll reset to the default value for that key
+                print(f"Resetting {key} to default value...")
+
+                # Create a new manager with defaults
+                from cortex.user_preferences import UserPreferences
+
+                defaults = UserPreferences()
+
+                # Get the default value
+                parts = key.split(".")
+                obj = defaults
+                for part in parts:
+                    obj = getattr(obj, part)
+                default_value = obj
+
+                # Set to default
+                manager.set(key, format_preference_value(default_value))
+
+                self._print_success(f"Reset {key} to default")
+                print(f"  Value: {format_preference_value(manager.get(key))}")
+
                 return 0
 
             elif action in ["list", "show", "display"]:
+                # List all preferences (same as check-pref)
                 return self.check_pref()
 
             elif action == "reset-all":
-                confirm = input("⚠️  Reset ALL preferences? (y/n): ")
-                if confirm.lower() == "y":
-                    manager.reset()
-                    self._print_success("Preferences reset")
+                # Reset all preferences to defaults
+                confirm = input(
+                    "⚠️  This will reset ALL preferences to defaults. Continue? (yes/no): "
+                )
+                if confirm.lower() not in ["yes", "y"]:
+                    print("Operation cancelled.")
+                    return 0
+
+                manager.reset()
+                self._print_success("All preferences reset to defaults")
                 return 0
 
             elif action == "validate":
+                # Validate configuration
                 errors = manager.validate()
                 if errors:
-                    print("❌ Errors found")
+                    print("❌ Configuration has errors:")
+                    for error in errors:
+                        print(f"  - {error}")
+                    return 1
                 else:
-                    self._print_success("Valid")
+                    self._print_success("Configuration is valid")
+                    return 0
+
+            elif action == "export":
+                # Export preferences to file
+                if not key:  # Using key as filepath
+                    self._print_error("Filepath is required for export action")
+                    print("Usage: cortex edit-pref export <filepath>")
+                    print("Example: cortex edit-pref export ~/cortex-prefs.json")
+                    return 1
+
+                from pathlib import Path
+
+                manager.export_json(Path(key))
+                self._print_success(f"Preferences exported to {key}")
+                return 0
+
+            elif action == "import":
+                # Import preferences from file
+                if not key:  # Using key as filepath
+                    self._print_error("Filepath is required for import action")
+                    print("Usage: cortex edit-pref import <filepath>")
+                    print("Example: cortex edit-pref import ~/cortex-prefs.json")
+                    return 1
+
+                from pathlib import Path
+
+                filepath = Path(key)
+                if not filepath.exists():
+                    self._print_error(f"File not found: {filepath}")
+                    return 1
+
+                manager.import_json(filepath)
+                self._print_success(f"Preferences imported from {key}")
                 return 0
 
             else:
                 self._print_error(f"Unknown action: {action}")
+                print("\nAvailable actions:")
+                print("  set/add/update <key> <value>  - Set a preference value")
+                print("  delete/remove <key>           - Reset a preference to default")
+                print("  list/show/display             - Display all preferences")
+                print("  reset-all                     - Reset all preferences to defaults")
+                print("  validate                      - Validate configuration")
+                print("  export <filepath>             - Export preferences to JSON")
+                print("  import <filepath>             - Import preferences from JSON")
                 return 1
 
+        except AttributeError as e:
+            self._print_error(f"Invalid preference key: {key}")
+            print("Use 'cortex check-pref' to see available keys")
+            return 1
         except Exception as e:
             self._print_error(f"Failed to edit preferences: {str(e)}")
             return 1
@@ -745,54 +928,6 @@ class CortexCLI:
         return 0
 
 
-def show_rich_help():
-    """Display beautifully formatted help using Rich"""
-    from rich.table import Table
-
-    show_banner(show_version=True)
-    console.print()
-
-    console.print("[bold]AI-powered package manager for Linux[/bold]")
-    console.print("[dim]Just tell Cortex what you want to install.[/dim]")
-    console.print()
-
-    # Commands table
-    table = Table(show_header=True, header_style="bold cyan", box=None)
-    table.add_column("Command", style="green")
-    table.add_column("Description")
-
-    table.add_row("demo", "See Cortex in action")
-    table.add_row("wizard", "Configure API key")
-    table.add_row("status", "System status")
-    table.add_row("install <pkg>", "Install software")
-    table.add_row("history", "View history")
-    table.add_row("rollback <id>", "Undo installation")
-    table.add_row("notify", "Manage desktop notifications")  # Added this line
-    table.add_row("cache stats", "Show LLM cache statistics")
-    table.add_row("stack <name>", "Install the stack")
-    table.add_row("doctor", "System health check")
-
-    console.print(table)
-    console.print()
-    console.print("[dim]Learn more: https://cortexlinux.com/docs[/dim]")
-
-
-def shell_suggest(text: str) -> int:
-    """
-    Internal helper used by shell hotkey integration.
-    Prints a single suggested command to stdout.
-    """
-    try:
-        from cortex.shell_integration import suggest_command
-
-        suggestion = suggest_command(text)
-        if suggestion:
-            print(suggestion)
-        return 0
-    except Exception:
-        return 1
-
-
 def main():
     # Load environment variables from .env files BEFORE accessing any API keys
     # This must happen before any code that reads os.environ for API keys
@@ -804,26 +939,57 @@ def main():
         prog="cortex",
         description="AI-powered Linux command interpreter",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
+        epilog="""
+Examples:
+  cortex install docker
+  cortex install docker --execute
+  cortex install "python 3.11 with pip"
+  cortex install nginx --dry-run
+  cortex history
+  cortex history show <id>
+  cortex rollback <id>
+  cortex check-pref
+  cortex check-pref ai.model
+  cortex edit-pref set ai.model gpt-4
+  cortex edit-pref delete theme
+  cortex edit-pref reset-all
 
-    # Global flags
-    parser.add_argument("--version", "-V", action="version", version=f"cortex {VERSION}")
-    parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
-    parser.add_argument(
-        "--offline", action="store_true", help="Use cached responses only (no network calls)"
+Environment Variables:
+  OPENAI_API_KEY      OpenAI API key for GPT-4
+  ANTHROPIC_API_KEY   Anthropic API key for Claude
+        """,
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-    # Demo command
-    demo_parser = subparsers.add_parser("demo", help="See Cortex in action")
+    # Install command
+    install_parser = subparsers.add_parser(
+        "install", help="Install software using natural language"
+    )
+    install_parser.add_argument("software", type=str, help="Software to install (natural language)")
+    install_parser.add_argument(
+        "--execute", action="store_true", help="Execute the generated commands"
+    )
+    install_parser.add_argument(
+        "--dry-run", action="store_true", help="Show commands without executing"
+    )
 
-    # Wizard command
-    wizard_parser = subparsers.add_parser("wizard", help="Configure API key interactively")
+    update_parser = subparsers.add_parser("update", help="Check for Cortex updates or upgrade")
+    update_parser.add_argument(
+        "--channel", choices=[c.value for c in UpdateChannel], help="Update channel to use"
+    )
+    update_parser.add_argument("--force", action="store_true", help="Force network check")
+    update_parser.add_argument(
+        "--dry-run", action="store_true", help="Show details without installing"
+    )
 
-    # Status command
-    status_parser = subparsers.add_parser("status", help="Show system status")
-
+    channel_parser = subparsers.add_parser("channel", help="Manage Cortex update channel")
+    channel_sub = channel_parser.add_subparsers(dest="channel_command", required=True)
+    channel_sub.add_parser("show", help="Display current update channel")
+    channel_set_parser = channel_sub.add_parser("set", help="Set update channel")
+    channel_set_parser.add_argument(
+        "channel", choices=[c.value for c in UpdateChannel], help="Channel to use"
+    )
     # doctor command
     doctor_parser = subparsers.add_parser("doctor", help="Run system health check")
 
@@ -839,12 +1005,55 @@ def main():
     )
 
     # History command
-    history_parser = subparsers.add_parser("history", help="View history")
-    history_parser.add_argument("--limit", type=int, default=20)
-    history_parser.add_argument("--status", choices=["success", "failed"])
-    history_parser.add_argument("show_id", nargs="?")
+    history_parser = subparsers.add_parser("history", help="View installation history")
+    history_parser.add_argument("--limit", type=int, default=20, help="Number of records to show")
+    history_parser.add_argument(
+        "--status",
+        choices=["success", "failed", "rolled_back", "in_progress"],
+        help="Filter by status",
+    )
+    history_parser.add_argument(
+        "show_id", nargs="?", help="Show details for specific installation ID"
+    )
 
     # Rollback command
+    rollback_parser = subparsers.add_parser("rollback", help="Rollback an installation")
+    rollback_parser.add_argument("id", help="Installation ID to rollback")
+    rollback_parser.add_argument(
+        "--dry-run", action="store_true", help="Show rollback actions without executing"
+    )
+
+    # Check preferences command
+    check_pref_parser = subparsers.add_parser("check-pref", help="Check/display user preferences")
+    check_pref_parser.add_argument(
+        "key", nargs="?", help="Specific preference key to check (optional)"
+    )
+
+    # Edit preferences command
+    edit_pref_parser = subparsers.add_parser("edit-pref", help="Edit user preferences")
+    edit_pref_parser.add_argument(
+        "action",
+        choices=[
+            "set",
+            "add",
+            "update",
+            "delete",
+            "remove",
+            "reset-key",
+            "list",
+            "show",
+            "display",
+            "reset-all",
+            "validate",
+            "export",
+            "import",
+        ],
+        help="Action to perform",
+    )
+    edit_pref_parser.add_argument(
+        "key", nargs="?", help="Preference key or filepath (for export/import)"
+    )
+    edit_pref_parser.add_argument("value", nargs="?", help="Preference value (for set/add/update)")
     rollback_parser = subparsers.add_parser("rollback", help="Rollback installation")
     rollback_parser.add_argument("id", help="Installation ID")
     rollback_parser.add_argument("--dry-run", action="store_true")
@@ -896,13 +1105,32 @@ def main():
     args = parser.parse_args()
 
     if not args.command:
-        show_rich_help()
-        return 0
+        parser.print_help()
+        return 1
 
-    cli = CortexCLI(verbose=args.verbose)
-    cli.offline = bool(getattr(args, "offline", False))
+    cli = CortexCLI()
 
+    if args.command == "install":
+        return cli.install(args.software, execute=args.execute, dry_run=args.dry_run)
+    if args.command == "update":
+        return cli.update(channel=args.channel, force=args.force, dry_run=args.dry_run)
+    if args.command == "channel":
+        if args.channel_command == "show":
+            return cli.show_channel()
+        if args.channel_command == "set":
+            return cli.set_channel(args.channel)
+
+    return 0
     try:
+        if args.command == "install":
+            return cli.install(args.software, execute=args.execute, dry_run=args.dry_run)
+        elif args.command == "update":
+            return cli.update(channel=args.channel, force=args.force, dry_run=args.dry_run)
+        elif args.command == "channel":
+            if args.channel_command == "show":
+                return cli.show_channel()
+            if args.channel_command == "set":
+                return cli.set_channel(args.channel)
         if args.command == "demo":
             return cli.demo()
         elif args.command == "wizard":
@@ -940,7 +1168,7 @@ def main():
             parser.print_help()
             return 1
     except KeyboardInterrupt:
-        print("\n❌ Operation cancelled", file=sys.stderr)
+        print("\n❌ Operation cancelled by user", file=sys.stderr)
         return 130
     except Exception as e:
         print(f"❌ Unexpected error: {e}", file=sys.stderr)
