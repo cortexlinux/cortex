@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="images/cortex_logo.png" alt="Cortex Linux" width="200" />
+  <img src="images/logo.png" alt="Cortex Linux" width="200" />
 </p>
 
 <h1 align="center">Cortex Linux</h1>
