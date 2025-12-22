@@ -48,6 +48,7 @@ class SnapshotManager:
 
     RETENTION_LIMIT = 10
     TIMEOUT = 30  # seconds for package detection
+    RESTORE_TIMEOUT = 300  # seconds for package install/remove operations
 
     def __init__(self, snapshots_dir: Optional[Path] = None):
         """
@@ -348,14 +349,14 @@ class SnapshotManager:
                 cmd_list = ["sudo", "apt-get", "remove", "-y"] + sorted(apt_to_remove)
                 commands.append(" ".join(cmd_list))  # For display
                 if not dry_run:
-                    subprocess.run(cmd_list, check=True, capture_output=True, text=True)
+                    subprocess.run(cmd_list, check=True, capture_output=True, text=True, timeout=self.RESTORE_TIMEOUT)
 
             if apt_to_install:
                 # Use list-based command to prevent shell injection
                 cmd_list = ["sudo", "apt-get", "install", "-y"] + sorted(apt_to_install)
                 commands.append(" ".join(cmd_list))  # For display
                 if not dry_run:
-                    subprocess.run(cmd_list, check=True, capture_output=True, text=True)
+                    subprocess.run(cmd_list, check=True, capture_output=True, text=True, timeout=self.RESTORE_TIMEOUT)
 
             # Calculate differences for PIP
             snapshot_pip = {pkg["name"]: pkg["version"] for pkg in snapshot.packages.get("pip", [])}
@@ -367,7 +368,7 @@ class SnapshotManager:
                 cmd_list = ["pip", "uninstall", "-y"] + sorted(pip_to_remove)
                 commands.append(" ".join(cmd_list))  # For display
                 if not dry_run:
-                    subprocess.run(cmd_list, check=True, capture_output=True, text=True)
+                    subprocess.run(cmd_list, check=True, capture_output=True, text=True, timeout=self.RESTORE_TIMEOUT)
 
             if pip_to_install:
                 # Use list-based command to prevent shell injection
@@ -375,7 +376,7 @@ class SnapshotManager:
                 cmd_list = ["pip", "install"] + packages_with_versions
                 commands.append(" ".join(cmd_list))  # For display
                 if not dry_run:
-                    subprocess.run(cmd_list, check=True, capture_output=True, text=True)
+                    subprocess.run(cmd_list, check=True, capture_output=True, text=True, timeout=self.RESTORE_TIMEOUT)
 
             # Calculate differences for NPM
             snapshot_npm = {pkg["name"]: pkg["version"] for pkg in snapshot.packages.get("npm", [])}
@@ -387,7 +388,7 @@ class SnapshotManager:
                 cmd_list = ["npm", "uninstall", "-g"] + sorted(npm_to_remove)
                 commands.append(" ".join(cmd_list))  # For display
                 if not dry_run:
-                    subprocess.run(cmd_list, check=True, capture_output=True, text=True)
+                    subprocess.run(cmd_list, check=True, capture_output=True, text=True, timeout=self.RESTORE_TIMEOUT)
 
             if npm_to_install:
                 # Use list-based command to prevent shell injection
@@ -395,13 +396,18 @@ class SnapshotManager:
                 cmd_list = ["npm", "install", "-g"] + packages_with_versions
                 commands.append(" ".join(cmd_list))  # For display
                 if not dry_run:
-                    subprocess.run(cmd_list, check=True, capture_output=True, text=True)
+                    subprocess.run(cmd_list, check=True, capture_output=True, text=True, timeout=self.RESTORE_TIMEOUT)
 
             if dry_run:
                 return (True, f"Dry-run complete. {len(commands)} commands would be executed.", commands)
             else:
                 return (True, f"Successfully restored snapshot {snapshot_id}", commands)
 
+        except subprocess.TimeoutExpired as e:
+            logger.error(f"Command timed out during restore: {e}")
+            cmd_str = ' '.join(e.cmd) if isinstance(e.cmd, list) else str(e.cmd)
+            error_msg = f"Restore failed. Command timed out after {e.timeout}s: {cmd_str}"
+            return (False, error_msg, commands)
         except subprocess.CalledProcessError as e:
             logger.error(f"Command failed during restore: {e}")
             stderr_msg = e.stderr if hasattr(e, 'stderr') and e.stderr else str(e)

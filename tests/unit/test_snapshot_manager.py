@@ -275,6 +275,316 @@ class TestSnapshotManager(unittest.TestCase):
         # Note: Permission checking requires actual filesystem, 
         # but we verify the directory exists
 
+    @patch("subprocess.run")
+    @patch.object(SnapshotManager, "_detect_apt_packages")
+    @patch.object(SnapshotManager, "_detect_pip_packages")
+    @patch.object(SnapshotManager, "_detect_npm_packages")
+    @patch.object(SnapshotManager, "get_snapshot")
+    def test_restore_snapshot_live_execution(self, mock_get, mock_npm, mock_pip, mock_apt, mock_run):
+        """Test snapshot restore with dry_run=False (actual execution)."""
+        # Mock current packages - vim is installed
+        mock_apt.return_value = [{"name": "vim", "version": "8.2"}]
+        mock_pip.return_value = [{"name": "cowsay", "version": "6.1"}]
+        mock_npm.return_value = []
+        
+        # Mock snapshot data - nginx should be installed, vim removed, cowsay removed
+        mock_snapshot = SnapshotMetadata(
+            id="test_snapshot",
+            timestamp="2025-01-01T12:00:00",
+            description="Test",
+            packages={
+                "apt": [{"name": "nginx", "version": "1.18.0"}],
+                "pip": [],
+                "npm": []
+            },
+            system_info={},
+            file_count=1,
+            size_bytes=0
+        )
+        mock_get.return_value = mock_snapshot
+        
+        # Mock subprocess.run for sudo check and command execution
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        
+        success, message, commands = self.manager.restore_snapshot("test_snapshot", dry_run=False)
+        
+        self.assertTrue(success)
+        self.assertIn("restored", message.lower())
+        self.assertGreater(len(commands), 0)
+        
+        # Verify subprocess.run was called for actual execution
+        self.assertGreater(mock_run.call_count, 1)  # At least sudo check + one command
+        
+        # Verify commands contain expected operations
+        all_commands = " ".join(commands)
+        self.assertIn("vim", all_commands)  # Should remove vim
+        self.assertIn("nginx", all_commands)  # Should install nginx
+        self.assertIn("cowsay", all_commands)  # Should remove cowsay
+
+    @patch("subprocess.run")
+    def test_get_system_info_error_handling(self, mock_run):
+        """Test _get_system_info handles errors gracefully."""
+        # Simulate subprocess failure
+        mock_run.side_effect = Exception("Command failed")
+        
+        system_info = self.manager._get_system_info()
+        
+        # Should return a dict (possibly empty or with defaults) instead of crashing
+        self.assertIsInstance(system_info, dict)
+        # The function logs warnings but continues, so we just verify it doesn't crash
+
+    @patch("subprocess.run")
+    def test_get_system_info_returncode_error(self, mock_run):
+        """Test _get_system_info handles non-zero returncodes."""
+        # Simulate command returning non-zero exit code
+        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="error")
+        
+        system_info = self.manager._get_system_info()
+        
+        # Should handle gracefully and return a dict
+        self.assertIsInstance(system_info, dict)
+
+    @patch("subprocess.run")
+    @patch.object(SnapshotManager, "_detect_apt_packages")
+    @patch.object(SnapshotManager, "_detect_pip_packages")
+    @patch.object(SnapshotManager, "_detect_npm_packages")
+    @patch.object(SnapshotManager, "get_snapshot")
+    def test_restore_snapshot_called_process_error(self, mock_get, mock_npm, mock_pip, mock_apt, mock_run):
+        """Test restore_snapshot handles CalledProcessError correctly."""
+        import subprocess
+        
+        # Mock current packages
+        mock_apt.return_value = [{"name": "vim", "version": "8.2"}]
+        mock_pip.return_value = []
+        mock_npm.return_value = []
+        
+        # Mock snapshot data
+        mock_snapshot = SnapshotMetadata(
+            id="test_snapshot",
+            timestamp="2025-01-01T12:00:00",
+            description="Test",
+            packages={
+                "apt": [{"name": "nginx", "version": "1.18.0"}],
+                "pip": [],
+                "npm": []
+            },
+            system_info={},
+            file_count=1,
+            size_bytes=0
+        )
+        mock_get.return_value = mock_snapshot
+        
+        # First call succeeds (sudo check), second call raises CalledProcessError
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout="", stderr=""),  # sudo check succeeds
+            subprocess.CalledProcessError(1, "apt-get", stderr="Package not found")
+        ]
+        
+        success, message, commands = self.manager.restore_snapshot("test_snapshot", dry_run=False)
+        
+        # Should handle the error gracefully
+        self.assertFalse(success)
+        self.assertIn("failed", message.lower())
+
+    @patch("subprocess.run")
+    @patch.object(SnapshotManager, "_detect_apt_packages")
+    @patch.object(SnapshotManager, "_detect_pip_packages")
+    @patch.object(SnapshotManager, "_detect_npm_packages")
+    @patch.object(SnapshotManager, "get_snapshot")
+    def test_restore_snapshot_called_process_error_no_stderr(self, mock_get, mock_npm, mock_pip, mock_apt, mock_run):
+        """Test restore_snapshot handles CalledProcessError without stderr."""
+        import subprocess
+        
+        # Mock current packages
+        mock_apt.return_value = []
+        mock_pip.return_value = [{"name": "badpkg", "version": "1.0"}]
+        mock_npm.return_value = []
+        
+        # Mock snapshot data
+        mock_snapshot = SnapshotMetadata(
+            id="test_snapshot",
+            timestamp="2025-01-01T12:00:00",
+            description="Test",
+            packages={"apt": [], "pip": [], "npm": []},
+            system_info={},
+            file_count=0,
+            size_bytes=0
+        )
+        mock_get.return_value = mock_snapshot
+        
+        # First call succeeds (sudo check), second raises error without stderr
+        error = subprocess.CalledProcessError(1, "pip")
+        error.stderr = None  # No stderr attribute
+        mock_run.side_effect = [
+            MagicMock(returncode=0),  # sudo check
+            error
+        ]
+        
+        success, message, commands = self.manager.restore_snapshot("test_snapshot", dry_run=False)
+        
+        # Should handle error gracefully even without stderr
+        self.assertFalse(success)
+        self.assertIsInstance(message, str)
+        self.assertGreater(len(message), 0)
+
+    @patch("subprocess.run")
+    @patch.object(SnapshotManager, "_detect_apt_packages")
+    @patch.object(SnapshotManager, "_detect_pip_packages")
+    @patch.object(SnapshotManager, "_detect_npm_packages")
+    @patch.object(SnapshotManager, "get_snapshot")
+    def test_restore_snapshot_sudo_check_failure(self, mock_get, mock_npm, mock_pip, mock_apt, mock_run):
+        """Test restore_snapshot when sudo check fails."""
+        # Mock packages
+        mock_apt.return_value = []
+        mock_pip.return_value = []
+        mock_npm.return_value = []
+        
+        # Mock snapshot
+        mock_snapshot = SnapshotMetadata(
+            id="test_snapshot",
+            timestamp="2025-01-01T12:00:00",
+            description="Test",
+            packages={"apt": [], "pip": [], "npm": []},
+            system_info={},
+            file_count=0,
+            size_bytes=0
+        )
+        mock_get.return_value = mock_snapshot
+        
+        # Sudo check fails
+        mock_run.return_value = MagicMock(returncode=1)
+        
+        success, message, commands = self.manager.restore_snapshot("test_snapshot", dry_run=False)
+        
+        self.assertFalse(success)
+        self.assertIn("sudo", message.lower())
+
+    @patch("subprocess.run")
+    def test_detect_apt_packages_timeout(self, mock_run):
+        """Test APT package detection handles timeout."""
+        import subprocess
+        mock_run.side_effect = subprocess.TimeoutExpired("dpkg-query", 30)
+        
+        packages = self.manager._detect_apt_packages()
+        
+        # Should return empty list on timeout
+        self.assertEqual(len(packages), 0)
+
+    @patch("subprocess.run")
+    def test_detect_pip_packages_file_not_found(self, mock_run):
+        """Test PIP package detection handles missing pip binary."""
+        mock_run.side_effect = FileNotFoundError("pip not found")
+        
+        packages = self.manager._detect_pip_packages()
+        
+        # Should return empty list when pip not found
+        self.assertEqual(len(packages), 0)
+
+    @patch("subprocess.run")
+    def test_detect_npm_packages_json_decode_error(self, mock_run):
+        """Test NPM package detection handles invalid JSON."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="invalid json {{"
+        )
+        
+        packages = self.manager._detect_npm_packages()
+        
+        # Should return empty list on JSON decode error
+        self.assertEqual(len(packages), 0)
+
+    @patch("subprocess.run")
+    @patch.object(SnapshotManager, "_detect_apt_packages")
+    @patch.object(SnapshotManager, "_detect_pip_packages")
+    @patch.object(SnapshotManager, "_detect_npm_packages")
+    @patch.object(SnapshotManager, "get_snapshot")
+    def test_restore_snapshot_sudo_check_exception(self, mock_get, mock_npm, mock_pip, mock_apt, mock_run):
+        """Test restore_snapshot when sudo check raises exception."""
+        # Mock packages
+        mock_apt.return_value = []
+        mock_pip.return_value = []
+        mock_npm.return_value = []
+        
+        # Mock snapshot
+        mock_snapshot = SnapshotMetadata(
+            id="test_snapshot",
+            timestamp="2025-01-01T12:00:00",
+            description="Test",
+            packages={"apt": [], "pip": [], "npm": []},
+            system_info={},
+            file_count=0,
+            size_bytes=0
+        )
+        mock_get.return_value = mock_snapshot
+        
+        # Sudo check raises exception
+        mock_run.side_effect = Exception("sudo check failed")
+        
+        # Should handle exception and continue (logs warning)
+        success, message, commands = self.manager.restore_snapshot("test_snapshot", dry_run=False)
+        
+        # Might succeed or fail depending on implementation, but shouldn't crash
+        self.assertIsInstance(success, bool)
+        self.assertIsInstance(message, str)
+
+    @patch.object(SnapshotManager, "_detect_apt_packages")
+    @patch.object(SnapshotManager, "_detect_pip_packages")
+    @patch.object(SnapshotManager, "_detect_npm_packages")
+    @patch.object(SnapshotManager, "_get_system_info")
+    def test_create_snapshot_exception_handling(self, mock_sys_info, mock_npm, mock_pip, mock_apt):
+        """Test create_snapshot handles exceptions gracefully."""
+        mock_apt.side_effect = Exception("APT detection failed")
+        
+        success, snapshot_id, message = self.manager.create_snapshot("Test")
+        
+        # Should return failure instead of crashing
+        self.assertFalse(success)
+        self.assertIsNone(snapshot_id)
+        self.assertIn("failed", message.lower())
+
+    @patch("subprocess.run")
+    @patch.object(SnapshotManager, "_detect_apt_packages")
+    @patch.object(SnapshotManager, "_detect_pip_packages")
+    @patch.object(SnapshotManager, "_detect_npm_packages")
+    @patch.object(SnapshotManager, "get_snapshot")
+    def test_restore_snapshot_timeout_expired(self, mock_get, mock_npm, mock_pip, mock_apt, mock_run):
+        """Test restore_snapshot handles TimeoutExpired correctly."""
+        import subprocess
+        
+        # Mock current packages
+        mock_apt.return_value = [{"name": "vim", "version": "8.2"}]
+        mock_pip.return_value = []
+        mock_npm.return_value = []
+        
+        # Mock snapshot data
+        mock_snapshot = SnapshotMetadata(
+            id="test_snapshot",
+            timestamp="2025-01-01T12:00:00",
+            description="Test",
+            packages={
+                "apt": [{"name": "nginx", "version": "1.18.0"}],
+                "pip": [],
+                "npm": []
+            },
+            system_info={},
+            file_count=1,
+            size_bytes=0
+        )
+        mock_get.return_value = mock_snapshot
+        
+        # First call succeeds (sudo check), second call times out
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout="", stderr=""),  # sudo check succeeds
+            subprocess.TimeoutExpired("apt-get", 300)
+        ]
+        
+        success, message, commands = self.manager.restore_snapshot("test_snapshot", dry_run=False)
+        
+        # Should handle timeout gracefully
+        self.assertFalse(success)
+        self.assertIn("timed out", message.lower())
+        self.assertIn("300", message)  # Should mention the timeout duration
+
 
 if __name__ == "__main__":
     unittest.main()
