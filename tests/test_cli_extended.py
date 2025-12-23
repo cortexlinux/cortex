@@ -1,3 +1,9 @@
+"""Extended CLI tests - originally from test/ folder.
+
+These tests provide additional coverage with type hints and more thorough
+mocking of internal methods.
+"""
+
 import os
 import sys
 import unittest
@@ -8,8 +14,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from cortex.cli import CortexCLI, main
 
 
-class TestCortexCLI(unittest.TestCase):
-    """Unit tests covering the high-level CLI behaviours."""
+class TestCortexCLIExtended(unittest.TestCase):
+    """Extended unit tests covering CLI behaviours with thorough mocking."""
 
     def setUp(self) -> None:
         self.cli = CortexCLI()
@@ -40,10 +46,18 @@ class TestCortexCLI(unittest.TestCase):
         provider = self.cli._get_provider()
         self.assertEqual(provider, "claude")
 
-    @patch.dict(os.environ, {"CORTEX_PROVIDER": "openai"}, clear=True)
     def test_get_provider_override(self) -> None:
-        provider = self.cli._get_provider()
-        self.assertEqual(provider, "openai")
+        with patch.dict(
+            os.environ,
+            {"CORTEX_PROVIDER": "claude", "OPENAI_API_KEY": "test-key"},
+            clear=True,
+        ):
+            provider = self.cli._get_provider()
+            self.assertEqual(provider, "claude")
+
+            del os.environ["CORTEX_PROVIDER"]
+            provider = self.cli._get_provider()
+            self.assertEqual(provider, "openai")
 
     @patch("cortex.cli.cx_print")
     def test_print_status(self, mock_cx_print) -> None:
@@ -266,7 +280,7 @@ class TestCortexCLI(unittest.TestCase):
         mock_install.return_value = 0
         result = main()
         self.assertEqual(result, 0)
-        mock_install.assert_called_once_with("docker", execute=False, dry_run=False)
+        mock_install.assert_called_once_with("docker", execute=False, dry_run=False, parallel=False)
 
     @patch("sys.argv", ["cortex", "install", "docker", "--execute"])
     @patch("cortex.cli.CortexCLI.install")
@@ -274,7 +288,7 @@ class TestCortexCLI(unittest.TestCase):
         mock_install.return_value = 0
         result = main()
         self.assertEqual(result, 0)
-        mock_install.assert_called_once_with("docker", execute=True, dry_run=False)
+        mock_install.assert_called_once_with("docker", execute=True, dry_run=False, parallel=False)
 
     @patch("sys.argv", ["cortex", "install", "docker", "--dry-run"])
     @patch("cortex.cli.CortexCLI.install")
@@ -282,7 +296,7 @@ class TestCortexCLI(unittest.TestCase):
         mock_install.return_value = 0
         result = main()
         self.assertEqual(result, 0)
-        mock_install.assert_called_once_with("docker", execute=False, dry_run=True)
+        mock_install.assert_called_once_with("docker", execute=False, dry_run=True, parallel=False)
 
     def test_spinner_animation(self) -> None:
         initial_idx = self.cli.spinner_idx

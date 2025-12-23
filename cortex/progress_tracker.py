@@ -47,6 +47,7 @@ try:
 
     PLYER_AVAILABLE = True
 except ImportError:
+    plyer_notification = None
     PLYER_AVAILABLE = False
 
 

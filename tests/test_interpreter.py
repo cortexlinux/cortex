@@ -184,11 +184,14 @@ class TestCommandInterpreter(unittest.TestCase):
         interpreter.cache = None
 
         system_info = {"os": "ubuntu", "version": "22.04"}
-        result = interpreter.parse_with_context("install docker", system_info=system_info)
+        with patch.object(interpreter, "parse", wraps=interpreter.parse) as mock_parse:
+            result = interpreter.parse_with_context("install docker", system_info=system_info)
 
-        self.assertEqual(result, ["apt update"])
-        call_args = mock_client.chat.completions.create.call_args
-        self.assertIn("ubuntu", call_args[1]["messages"][1]["content"])
+            self.assertEqual(result, ["apt update"])
+            mock_parse.assert_called_once()
+
+            enriched_input = mock_parse.call_args[0][0]
+            self.assertIn("ubuntu", enriched_input)
 
     def test_system_prompt_format(self):
         interpreter = CommandInterpreter.__new__(CommandInterpreter)
