@@ -110,6 +110,9 @@ class TestEndToEndWorkflows(unittest.TestCase):
             "CORTEX_PROVIDER": "fake",
             "CORTEX_FAKE_COMMANDS": json.dumps({"commands": ["echo plan"]}),
         }
+
+        result = self._run("python test/run_all_tests.py", env=env)
+
         # Use PIP_BOOTSTRAP_DEV to install pytest and other dev dependencies
         effective_env = dict(BASE_ENV)
         effective_env.update(env)
