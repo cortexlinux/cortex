@@ -31,6 +31,9 @@ class DependencyResolver:
 
         Returns:
             List of resolution strategy dictionaries
+
+        Raises:
+            KeyError: If required keys are missing from conflict_data
         """
         # Validate Input
         required_keys = ['package_a', 'package_b', 'dependency']
@@ -42,13 +45,27 @@ class DependencyResolver:
         pkg_b = conflict_data['package_b']
         dep = conflict_data['dependency']
 
-        # Parse constraints using semantic_version
+        strategies = []
+
+        # Strategy 1: Smart Upgrade
         try:
-            spec_a = semantic_version.SimpleSpec(pkg_a['requires'])
-            # Validation check only
-            _ = semantic_version.SimpleSpec(pkg_b['requires'])
+            # 1. strip operators like ^, ~, >= to get raw version string
+            raw_a = pkg_a['requires'].lstrip('^~>=<')
+            raw_b = pkg_b['requires'].lstrip('^~>=<')
+            
+            # 2. coerce into proper Version objects
+            ver_a = semantic_version.Version.coerce(raw_a)
+            ver_b = semantic_version.Version.coerce(raw_b)
+            
+            target_ver = str(ver_a)
+            
+            # 3. Calculate Risk
+            risk_level = "Low (no breaking changes detected)"
+            if ver_b.major < ver_a.major:
+                risk_level = "Medium (breaking changes detected)"
+                
         except ValueError as e:
-            # Fallback for invalid semver strings
+            # IF parsing fails, return the ERROR strategy the test expects
             return [{
                 "id": 0,
                 "type": "Error",
@@ -56,23 +73,18 @@ class DependencyResolver:
                 "risk": "High"
             }]
 
-        strategies = []
-
-        # Strategy 1: Smart Upgrade (Dynamic Analysis)
-        # We assume pkg_b needs to catch up to pkg_a
-        target_ver = str(spec_a).replace('>=', '').replace('^', '')
         strategies.append({
             "id": 1,
             "type": "Recommended",
             "action": f"Update {pkg_b['name']} to {target_ver} (compatible with {dep})",
-            "risk": "Low (no breaking changes detected)"
+            "risk": risk_level
         })
 
         # Strategy 2: Conservative Downgrade
         strategies.append({
             "id": 2,
             "type": "Alternative",
-            "action": f"Keep {pkg_b['name']}, downgrade {pkg_a['name']}",
+            "action": f"Keep {pkg_b['name']}, downgrade {pkg_a['name']} to compatible version",
             "risk": f"Medium (potential feature loss in {pkg_a['name']})"
         })
 
@@ -80,7 +92,7 @@ class DependencyResolver:
 
 
 if __name__ == "__main__":
-    # Simple CLI demo (Unit tests are in tests/test_resolver.py)
+    # Simple CLI demo
     CONFLICT = {
         "dependency": "lib-x",
         "package_a": {"name": "package-a", "requires": "^2.0.0"},
