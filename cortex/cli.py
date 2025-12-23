@@ -364,6 +364,47 @@ class CortexCLI:
             interpreter = CommandInterpreter(
                 api_key=api_key, provider=provider, offline=self.offline
             )
+            # -------- Intent understanding (NEW) --------
+            intent = interpreter.extract_intent(software)
+            intent = interpreter.extract_intent(software)
+            # ---------- Extract install mode from intent ----------
+            install_mode = intent.get("install_mode", "system")
+
+            # ---------- NORMALIZE INTENT (ADD THIS) ----------
+            action = intent.get("action", "unknown")
+            domain = intent.get("domain", "unknown")
+            confidence = float(intent.get("confidence", 0.0))
+            ambiguous = bool(intent.get("ambiguous", False))
+
+            # Normalize unstable model output
+            if isinstance(action, str) and "|" in action:
+                action = action.split("|")[0].strip()
+
+            # Policy: known domain ⇒ not ambiguous
+            if domain != "unknown":
+                ambiguous = False
+            # ----------------------------------------------
+
+            print("\n🤖 I understood your request as:")
+            print(f"• Action      : {action}")
+            print(f"• Domain      : {domain}")
+            print(f"• Description : {intent.get('description')}")
+            print(f"• Confidence  : {confidence}")
+
+            # Handle ambiguous intent
+            if ambiguous and domain == "unknown" and not execute:
+                print("\n❓ Your request is ambiguous.")
+                print("Please clarify what you want to install.")
+                return 0
+
+            # Handle low confidence
+            if intent.get("confidence", 0) < 0.4:
+                print("\n🤔 I'm not confident I understood your request.")
+                print("Please rephrase with more details.")
+                return 0
+
+            print()  # spacing
+            # -------------------------------------------
 
             self._print_status("📦", "Planning installation...")
 
@@ -371,10 +412,18 @@ class CortexCLI:
                 self._animate_spinner("Analyzing system requirements...")
             self._clear_line()
 
-            prompt = f"install {software}"
+            # ---------- Build command-generation prompt ----------
+            if install_mode == "python":
+                base_prompt = (
+                    f"install {software}. "
+                    "Use pip and Python virtual environments. "
+                    "Do NOT use sudo or system package managers."
+                )
+            else:
+                base_prompt = f"install {software}"
 
-            # If stdin is provided, prepend it as context
-            prompt = self._build_prompt_with_stdin(f"install {software}")
+            prompt = self._build_prompt_with_stdin(base_prompt)
+            # ---------------------------------------------------
 
             commands = interpreter.parse(prompt)
 
@@ -397,6 +446,50 @@ class CortexCLI:
             print("\nGenerated commands:")
             for i, cmd in enumerate(commands, 1):
                 print(f"  {i}. {cmd}")
+
+            # ---------- User confirmation ----------
+            if execute:
+                print("\nDo you want to proceed with these commands?")
+                print("  [y] Yes, execute")
+                print("  [e] Edit commands")
+                print("  [n] No, cancel")
+
+                choice = input("Enter choice [y/e/n]: ").strip().lower()
+
+                if choice == "n":
+                    print("❌ Installation cancelled by user.")
+                    return 0
+
+                elif choice == "e":
+                    print("\nEnter edited commands (one per line).")
+                    print("Press ENTER on an empty line to finish:\n")
+
+                    edited_commands = []
+                    while True:
+                        line = input("> ").strip()
+                        if not line:
+                            break
+                        edited_commands.append(line)
+
+                    if not edited_commands:
+                        print("❌ No commands provided. Cancelling.")
+                        return 1
+
+                    commands = edited_commands
+
+                    print("\n✅ Updated commands:")
+                    for i, cmd in enumerate(commands, 1):
+                        print(f"  {i}. {cmd}")
+
+                    confirm = input("\nExecute edited commands? [y/n]: ").strip().lower()
+                    if confirm != "y":
+                        print("❌ Installation cancelled.")
+                        return 0
+
+                elif choice != "y":
+                    print("❌ Invalid choice. Cancelling.")
+                    return 1
+            # -------------------------------------
 
             if dry_run:
                 print("\n(Dry run mode - commands not executed)")

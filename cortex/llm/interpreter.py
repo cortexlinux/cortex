@@ -94,20 +94,102 @@ class CommandInterpreter:
     def _get_system_prompt(self) -> str:
         return """You are a Linux system command expert. Convert natural language requests into safe, validated bash commands.
 
-Rules:
-1. Return ONLY a JSON array of commands
-2. Each command must be a safe, executable bash command
-3. Commands should be atomic and sequential
-4. Avoid destructive operations without explicit user confirmation
-5. Use package managers appropriate for Debian/Ubuntu systems (apt)
-6. Include necessary privilege escalation (sudo) when required
-7. Validate command syntax before returning
+    Rules:
+    1. Return ONLY a JSON array of commands
+    2. Each command must be a safe, executable bash command
+    3. Commands should be atomic and sequential
+    4. Avoid destructive operations without explicit user confirmation
+    5. Use package managers appropriate for Debian/Ubuntu systems (apt)
+    6. Include necessary privilege escalation (sudo) when required
+    7. Validate command syntax before returning
 
-Format:
-{"commands": ["command1", "command2", ...]}
+    Format:
+    {"commands": ["command1", "command2", ...]}
 
-Example request: "install docker with nvidia support"
-Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.io", "sudo apt install -y nvidia-docker2", "sudo systemctl restart docker"]}"""
+    Example request: "install docker with nvidia support"
+    Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.io", "sudo apt install -y nvidia-docker2", "sudo systemctl restart docker"]}"""
+
+    def _extract_intent_ollama(self, user_input: str) -> dict:
+        import urllib.error
+        import urllib.request
+
+        prompt = f"""
+    {self._get_intent_prompt()}
+
+    User request:
+    {user_input}
+    """
+
+        data = json.dumps(
+            {
+                "model": self.model,
+                "prompt": prompt,
+                "stream": False,
+                "options": {"temperature": 0.2},
+            }
+        ).encode("utf-8")
+
+        req = urllib.request.Request(
+            f"{self.ollama_url}/api/generate",
+            data=data,
+            headers={"Content-Type": "application/json"},
+        )
+
+        try:
+            with urllib.request.urlopen(req, timeout=60) as response:
+                raw = json.loads(response.read().decode("utf-8"))
+                text = raw.get("response", "")
+                return self._parse_intent_from_text(text)
+
+        except Exception:
+            # True failure → unknown intent
+            return {
+                "action": "unknown",
+                "domain": "unknown",
+                "description": "Failed to extract intent",
+                "ambiguous": True,
+                "confidence": 0.0,
+            }
+
+    def _get_intent_prompt(self) -> str:
+        return """You are an intent extraction engine for a Linux package manager.
+
+        Given a user request, extract intent as JSON with:
+        - action: install | remove | update | unknown
+        - domain: short category (machine_learning, web_server, python_dev, containerization, unknown)
+        - description: brief explanation of what the user wants
+        - ambiguous: true/false
+        - confidence: float between 0 and 1
+        Also determine the most appropriate install_mode:
+        - system (apt, requires sudo)
+        - python (pip, virtualenv)
+        - mixed
+
+        Rules:
+        - Do NOT suggest commands
+        - Do NOT list packages
+        - If unsure, set ambiguous=true
+        - Respond ONLY in JSON with the following fields:
+        - action: install | remove | update | unknown
+        - domain: short category describing the request
+        - install_mode: system | python | mixed
+        - description: brief explanation
+        - ambiguous: true or false
+        - confidence: number between 0 and 1
+        - Use install_mode = "python" for Python libraries, data science, or machine learning.
+        - Use install_mode = "system" for system software like docker, nginx, kubernetes.
+        - Use install_mode = "mixed" if both are required.
+
+        Format:
+        {
+        "action": "...",
+        "domain": "...",
+        "install_mode" "..."
+        "description": "...",
+        "ambiguous": true/false,
+        "confidence": 0.0
+        }
+        """
 
     def _call_openai(self, user_input: str) -> list[str]:
         try:
@@ -125,6 +207,50 @@ Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.i
             return self._parse_commands(content)
         except Exception as e:
             raise RuntimeError(f"OpenAI API call failed: {str(e)}")
+
+    def _extract_intent_openai(self, user_input: str) -> dict:
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": self._get_intent_prompt()},
+                {"role": "user", "content": user_input},
+            ],
+            temperature=0.2,
+            max_tokens=300,
+        )
+
+        content = response.choices[0].message.content.strip()
+        return json.loads(content)
+
+    def _parse_intent_from_text(self, text: str) -> dict:
+        """
+        Extract intent JSON from loose LLM output.
+        No semantic assumptions.
+        """
+        # Try to locate JSON block
+        try:
+            start = text.find("{")
+            end = text.rfind("}")
+            if start != -1 and end != -1:
+                parsed = json.loads(text[start : end + 1])
+
+                # Minimal validation (structure only)
+                for key in ["action", "domain", "install_mode", "ambiguous", "confidence"]:
+                    if key not in parsed:
+                        raise ValueError("Missing intent field")
+
+                return parsed
+        except Exception:
+            pass
+
+        # If parsing fails, do NOT guess meaning
+        return {
+            "action": "unknown",
+            "domain": "unknown",
+            "description": "Unstructured intent output",
+            "ambiguous": True,
+            "confidence": 0.0,
+        }
 
     def _call_claude(self, user_input: str) -> list[str]:
         try:
@@ -189,21 +315,47 @@ Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.i
             raise RuntimeError(f"Failed to parse CORTEX_FAKE_COMMANDS: {str(e)}")
 
     def _parse_commands(self, content: str) -> list[str]:
+        """
+        Robust command parser.
+        Handles strict JSON (OpenAI/Claude) and loose output (Ollama).
+        """
         try:
-            if content.startswith("```json"):
-                content = content.split("```json")[1].split("```")[0].strip()
-            elif content.startswith("```"):
-                content = content.split("```")[1].split("```")[0].strip()
+            # Remove code fences
+            if "```" in content:
+                parts = content.split("```")
+                content = next((p for p in parts if "commands" in p), content)
 
-            data = json.loads(content)
+            # Attempt to isolate JSON
+            start = content.find("{")
+            end = content.rfind("}")
+            if start != -1 and end != -1:
+                json_blob = content[start : end + 1]
+            else:
+                json_blob = content
+
+            # First attempt: strict JSON
+            data = json.loads(json_blob)
             commands = data.get("commands", [])
 
-            if not isinstance(commands, list):
-                raise ValueError("Commands must be a list")
+            if isinstance(commands, list):
+                return [c for c in commands if isinstance(c, str) and c.strip()]
 
-            return [cmd for cmd in commands if cmd and isinstance(cmd, str)]
-        except (json.JSONDecodeError, ValueError) as e:
-            raise ValueError(f"Failed to parse LLM response: {str(e)}")
+        except Exception:
+            pass  # fall through to heuristic extraction
+
+        # 🔁 Fallback: heuristic extraction (Ollama-safe)
+        commands = []
+        for line in content.splitlines():
+            line = line.strip()
+
+            # crude but safe: common install commands
+            if line.startswith(("sudo ", "apt ", "apt-get ")):
+                commands.append(line)
+
+        if commands:
+            return commands
+
+        raise ValueError("Failed to parse LLM response: no valid commands found")
 
     def _validate_commands(self, commands: list[str]) -> list[str]:
         dangerous_patterns = [
@@ -296,3 +448,50 @@ Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.i
 
         enriched_input = user_input + context
         return self.parse(enriched_input, validate=validate)
+
+    def _estimate_confidence(self, user_input: str, domain: str) -> float:
+        """
+        Estimate confidence score without hardcoding meaning.
+        Uses simple linguistic signals.
+        """
+        score = 0.0
+        text = user_input.lower()
+
+        # Signal 1: length (more detail → more confidence)
+        if len(text.split()) >= 3:
+            score += 0.3
+        else:
+            score += 0.1
+
+        # Signal 2: install intent words
+        install_words = {"install", "setup", "set up", "configure"}
+        if any(word in text for word in install_words):
+            score += 0.3
+
+        # Signal 3: vague words reduce confidence
+        vague_words = {"something", "stuff", "things", "etc"}
+        if any(word in text for word in vague_words):
+            score -= 0.2
+
+        # Signal 4: unknown domain penalty
+        if domain == "unknown":
+            score -= 0.1
+
+        # Clamp to [0.0, 1.0]
+        # Ensure some minimal confidence for valid text
+        score = max(score, 0.2)
+
+        return round(min(1.0, score), 2)
+
+    def extract_intent(self, user_input: str) -> dict:
+        if not user_input or not user_input.strip():
+            raise ValueError("User input cannot be empty")
+
+        if self.provider == APIProvider.OPENAI:
+            return self._extract_intent_openai(user_input)
+        elif self.provider == APIProvider.CLAUDE:
+            raise NotImplementedError("Intent extraction not yet implemented for Claude")
+        elif self.provider == APIProvider.OLLAMA:
+            return self._extract_intent_ollama(user_input)
+        else:
+            raise ValueError(f"Unsupported provider: {self.provider}")
