@@ -73,9 +73,8 @@ class TestCortexCLIExtended(unittest.TestCase):
         self.cli._print_success("Test success")
         mock_cx_print.assert_called_once_with("Test success", "success")
 
-    @patch.object(CortexCLI, "_get_api_key", return_value=None)
     @patch("cortex.cli.CommandInterpreter")
-    def test_install_no_api_key(self, mock_interpreter_class, _mock_get_api_key) -> None:
+    def test_install_no_api_key(self, mock_interpreter_class) -> None:
         mock_interpreter = Mock()
         mock_interpreter.parse.return_value = ["apt update", "apt install docker"]
         mock_interpreter_class.return_value = mock_interpreter
