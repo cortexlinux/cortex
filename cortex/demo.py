@@ -14,6 +14,7 @@ def run_demo() -> int:
 
     hw = detect_hardware()
 
+
     # Access SystemInfo attributes directly
     cpu_name = hw.cpu.model if hw.cpu and hw.cpu.model else "Unknown"
     memory_gb = round(hw.memory.total_gb, 1) if hw.memory else 0
@@ -26,17 +27,17 @@ def run_demo() -> int:
     if has_gpu and hw.gpu:
         gpu_info = hw.gpu[0]
         print(f"✔ GPU: {gpu_info.model}")
+        print("• LLaMA-3-8B → Optimized for your GPU")
+        print("• Mistral-7B → High performance inference")
+    
     else:
         print("⚠️ GPU: Not detected (CPU mode enabled)")
+        print("• Phi-2 → Lightweight CPU model")
+        print("• Mistral-7B-Instruct → Efficient on CPU")
 
     # 2️⃣ Model Recommendations
     print("\n🤖 Model Recommendations:")
-    if has_gpu:
-        print("• LLaMA-3-8B → Optimized for your GPU")
-        print("• Mistral-7B → High performance inference")
-    else:
-        print("• Phi-2 → Lightweight CPU model")
-        print("• Mistral-7B-Instruct → Efficient on CPU")
+
 
     # 3️⃣ Quick LLM Test (safe mock)
     print("\n🧪 Running quick LLM test...")
