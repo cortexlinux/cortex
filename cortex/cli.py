@@ -313,6 +313,13 @@ class CortexCLI:
             answer = handler.ask(question)
             console.print(answer)
             return 0
+        except ImportError as e:
+            # Provide a helpful message if provider SDK is missing
+            self._print_error(str(e))
+            cx_print(
+                "Install the required SDK or set CORTEX_PROVIDER=ollama for local mode.", "info"
+            )
+            return 1
         except ValueError as e:
             self._print_error(str(e))
             return 1

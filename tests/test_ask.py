@@ -49,6 +49,23 @@ class TestSystemInfoGatherer(unittest.TestCase):
         version = SystemInfoGatherer.get_installed_package("nonexistent-pkg")
         self.assertIsNone(version)
 
+    @patch("subprocess.run")
+    def test_get_pip_package_found(self, mock_run):
+        """Test getting an installed pip package version."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="Name: numpy\nVersion: 1.26.4\nSummary: NumPy",
+        )
+        version = SystemInfoGatherer.get_pip_package("numpy")
+        self.assertEqual(version, "1.26.4")
+
+    @patch("subprocess.run")
+    def test_get_pip_package_not_found(self, mock_run):
+        """Test pip package not found or pip unavailable."""
+        mock_run.return_value = MagicMock(returncode=1, stdout="")
+        version = SystemInfoGatherer.get_pip_package("nonexistent-pkg")
+        self.assertIsNone(version)
+
     @patch("shutil.which")
     def test_check_command_exists_true(self, mock_which):
         """Test checking for an existing command."""

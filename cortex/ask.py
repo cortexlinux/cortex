@@ -10,10 +10,7 @@ import platform
 import shutil
 import sqlite3
 import subprocess
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from cortex.semantic_cache import SemanticCache
+from typing import Any
 
 
 class SystemInfoGatherer:
@@ -54,6 +51,8 @@ class SystemInfoGatherer:
             if result.returncode == 0:
                 return result.stdout.strip()
         except (subprocess.SubprocessError, FileNotFoundError):
+            # If dpkg-query is unavailable or fails, return None silently.
+            # We avoid user-visible logs to keep CLI output clean.
             pass
         return None
 
@@ -72,6 +71,7 @@ class SystemInfoGatherer:
                     if line.startswith("Version:"):
                         return line.split(":", 1)[1].strip()
         except (subprocess.SubprocessError, FileNotFoundError):
+            # If pip is unavailable or the command fails, return None silently.
             pass
         return None
 
@@ -99,6 +99,7 @@ class SystemInfoGatherer:
                 if result.returncode == 0:
                     gpu_info["model"] = result.stdout.strip().split(",")[0]
             except (subprocess.SubprocessError, FileNotFoundError):
+                # If nvidia-smi is unavailable or fails, keep defaults.
                 pass
 
             # Check CUDA version
@@ -116,6 +117,7 @@ class SystemInfoGatherer:
                             if len(parts) > 1:
                                 gpu_info["cuda"] = parts[1].split(",")[0].strip()
             except (subprocess.SubprocessError, FileNotFoundError):
+                # If nvcc is unavailable or fails, leave CUDA info unset.
                 pass
 
         return gpu_info
@@ -222,7 +224,12 @@ Rules:
             temperature=0.3,
             max_tokens=500,
         )
-        return response.choices[0].message.content.strip()
+        # Defensive: content may be None or choices could be empty in edge cases
+        try:
+            content = response.choices[0].message.content or ""
+        except (IndexError, AttributeError):
+            content = ""
+        return content.strip()
 
     def _call_claude(self, question: str, system_prompt: str) -> str:
         response = self.client.messages.create(
@@ -232,7 +239,12 @@ Rules:
             system=system_prompt,
             messages=[{"role": "user", "content": question}],
         )
-        return response.content[0].text.strip()
+        # Defensive: content list or text may be missing/None
+        try:
+            text = getattr(response.content[0], "text", None) or ""
+        except (IndexError, AttributeError):
+            text = ""
+        return text.strip()
 
     def _call_ollama(self, question: str, system_prompt: str) -> str:
         import urllib.error
@@ -287,7 +299,7 @@ Rules:
         context = self.info_gatherer.gather_context()
         system_prompt = self._get_system_prompt(context)
 
-        # Cache key includes context hash for system-specific answers
+        # Cache lookup uses both question and system context (via system_prompt) for system-specific answers
         cache_key = f"ask:{question}"
 
         # Try cache first
