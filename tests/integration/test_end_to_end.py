@@ -132,7 +132,8 @@ class TestEndToEndWorkflows(unittest.TestCase):
         # Ignore warnings that contain the word "failed" but aren't about test failures
         import re
 
-        failed_tests = re.search(r"(\d+)\s+failed", combined_output.lower())
+        # Use a simple, non-backtracking pattern to match pytest's "N failed" summary
+        failed_tests = re.search(r"(\d{1,5}) failed", combined_output.lower())
         has_test_failures = failed_tests and int(failed_tests.group(1)) > 0
         self.assertFalse(has_test_failures, msg=f"Tests failed.\nOutput: {combined_output}")
 
