@@ -1,329 +1,408 @@
-<!-- Improved compatibility of back to top link: See: https://github.com/othneildrew/Best-README-Template/pull/73 -->
-<a name="readme-top"></a>
+<p align="center">
+  <img src="images/logo.png" alt="Cortex Linux" width="200" />
+</p>
 
-<!-- PROJECT SHIELDS -->
-[![Contributors][contributors-shield]][contributors-url]
-[![Forks][forks-shield]][forks-url]
-[![Stargazers][stars-shield]][stars-url]
-[![Issues][issues-shield]][issues-url]
-[![MIT License][license-shield]][license-url]
-[![Discord][discord-shield]][discord-url]
+<h1 align="center">Cortex Linux</h1>
 
-<!-- PROJECT LOGO -->
-<br />
-<div align="center">
-  <a href="https://github.com/cortexlinux/cortex">
-    <img src="images/logo.png" alt="Cortex Linux Logo" width="120" height="120">
+<p align="center">
+  <strong>AI-Powered Package Manager for Debian/Ubuntu</strong><br>
+  Install software using natural language. No more memorizing package names.
+</p>
+
+<p align="center">
+  <a href="https://github.com/cortexlinux/cortex/actions/workflows/ci.yml">
+    <img src="https://github.com/cortexlinux/cortex/actions/workflows/ci.yml/badge.svg" alt="CI Status" />
   </a>
+  <a href="https://github.com/cortexlinux/cortex/blob/main/LICENSE">
+    <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License" />
+  </a>
+  <a href="https://www.python.org/downloads/">
+    <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+" />
+  </a>
+  <a href="https://github.com/cortexlinux/cortex/releases">
+    <img src="https://img.shields.io/badge/version-0.1.0--alpha-orange.svg" alt="Version" />
+  </a>
+  <a href="https://discord.gg/uCqHvxjU83">
+    <img src="https://img.shields.io/discord/1234567890?color=7289da&label=Discord&logo=discord&logoColor=white" alt="Discord" />
+  </a>
+</p>
 
-  <h3 align="center">Cortex Linux</h3>
+<p align="center">
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#features">Features</a> •
+  <a href="#usage">Usage</a> •
+  <a href="#architecture">Architecture</a> •
+  <a href="#contributing">Contributing</a> •
+  <a href="#community">Community</a>
+</p>
 
-  <p align="center">
-    An AI-powered package manager that understands what you actually want to install.
-    <br />
-    <a href="https://cortexlinux.com/docs"><strong>Explore the docs »</strong></a>
-    <br />
-    <br />
-    <a href="https://cortexlinux.com/beta">View Demo</a>
-    ·
-    <a href="https://github.com/cortexlinux/cortex/issues">Report Bug</a>
-    ·
-    <a href="https://github.com/cortexlinux/cortex/issues">Request Feature</a>
-  </p>
-</div>
+---
 
-<!-- TABLE OF CONTENTS -->
-<details>
-  <summary>Table of Contents</summary>
-  <ol>
-    <li>
-      <a href="#about-the-project">About The Project</a>
-      <ul>
-        <li><a href="#built-with">Built With</a></li>
-      </ul>
-    </li>
-    <li>
-      <a href="#getting-started">Getting Started</a>
-      <ul>
-        <li><a href="#prerequisites">Prerequisites</a></li>
-        <li><a href="#installation">Installation</a></li>
-      </ul>
-    </li>
-    <li><a href="#usage">Usage</a></li>
-    <li><a href="#safety-features">Safety Features</a></li>
-    <li><a href="#roadmap">Roadmap</a></li>
-    <li><a href="#contributing">Contributing</a></li>
-    <li><a href="#bounties">Bounties</a></li>
-    <li><a href="#license">License</a></li>
-    <li><a href="#contact">Contact</a></li>
-    <li><a href="#acknowledgements">Acknowledgements</a></li>
-  </ol>
-</details>
+## What is Cortex?
 
-<!-- ABOUT THE PROJECT -->
-## About The Project
-
-[![Cortex Screen Shot][product-screenshot]](https://cortexlinux.com)
-
-Stop memorizing package names. Just tell Cortex what you want.
+Cortex is an AI-native package manager that understands what you want to install, even when you don't know the exact package name.
 
 ```bash
-$ cortex install "full ML stack for my RTX 4090"
+# Instead of googling "what's the package name for PDF editing on Ubuntu?"
+cortex install "something to edit PDFs"
 
-🔍 Detected: NVIDIA RTX 4090 (24GB VRAM)
-📦 Installing: CUDA 12.3, cuDNN, PyTorch 2.1, TensorFlow...
-⚡ Optimized for your GPU
-✅ Done in 4m 23s
+# Instead of remembering exact package names
+cortex install "a lightweight code editor with syntax highlighting"
+
+# Natural language just works
+cortex install "tools for video compression"
 ```
 
-Here's why Cortex exists:
+<p align="center">
+  <img src="images/cortex_demo.gif" alt="Cortex Demo" width="700" />
+</p>
 
-* **Natural language** — Say "install docker" not `apt install docker.io docker-compose docker-buildx`
-* **Hardware-aware** — Automatically detects your GPU, CPU, and RAM to optimize installations
-* **Safe by default** — Every command shows a preview before execution. Nothing runs without your approval.
-* **Undo mistakes** — Full transaction history with rollback capability
+---
 
-Cortex wraps apt/dpkg with an AI layer that translates intent into action, while keeping you in control.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-### Built With
-
-* [![Python][Python-badge]][Python-url]
-* [![Ubuntu][Ubuntu-badge]][Ubuntu-url]
-* [![Claude][Claude-badge]][Claude-url]
-* [![LangChain][LangChain-badge]][LangChain-url]
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- GETTING STARTED -->
-## Getting Started
-
-Get Cortex running on your Debian/Ubuntu system in under 2 minutes.
-
-### Prerequisites
-
-* Ubuntu 22.04+ or Debian 11+
-* Python 3.11+
-* An Anthropic API key ([get one here](https://console.anthropic.com))
-
-### Installation
-
-**One-liner install (coming soon):**
-```bash
-curl -fsSL https://cortexlinux.com/install.sh | bash
-```
-
-**Manual install:**
-
-1. Clone the repo
-   ```bash
-   git clone https://github.com/cortexlinux/cortex.git
-   cd cortex
-   ```
-
-2. Create virtual environment
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
-
-3. Install dependencies
-   ```bash
-   pip install -e .
-   ```
-
-4. Set your API key
-   ```bash
-   export ANTHROPIC_API_KEY='your-api-key-here'
-   ```
-
-5. Run Cortex
-   ```bash
-   cortex install docker
-   ```
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- USAGE EXAMPLES -->
-## Usage
-
-### Quick Start
-```bash
-# See Cortex in action (no API key needed)
-cortex demo
-
-# Configure your API key interactively
-cortex wizard
-
-# Check system status
-cortex status
-```
-
-### Basic Installation
-```bash
-# Preview what would be installed
-cortex install docker
-
-# Actually execute the installation
-cortex install docker --execute
-
-# Natural language works too
-cortex install "web development tools" --execute
-```
-
-### Dry Run (Preview Mode)
-```bash
-# See what would happen without executing
-cortex install tensorflow --dry-run
-```
-
-### Transaction History
-```bash
-# View what Cortex has done
-cortex history
-
-# Show details for specific installation
-cortex history <id>
-
-# Rollback an installation
-cortex rollback <id>
-```
-
-### Debug Mode
-```bash
-# Show verbose output
-cortex -v install nginx
-```
-
-_For more examples, please refer to the [Documentation](https://cortexlinux.com/docs)_
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- SAFETY FEATURES -->
-## Safety Features
+## Features
 
 | Feature | Description |
 |---------|-------------|
-| **Dry-run mode** | Preview all commands before execution |
-| **Transaction log** | Every operation is recorded with undo capability |
-| **Firejail sandbox** | Optional sandboxing for untrusted packages |
-| **Confirmation prompts** | Nothing executes without explicit approval |
-| **Rollback support** | Integration with Timeshift/Snapper snapshots |
+| **Natural Language** | Describe what you need in plain English |
+| **Dry-Run Default** | Preview all commands before execution |
+| **Sandboxed Execution** | Commands run in Firejail isolation |
+| **Full Rollback** | Undo any installation with `cortex rollback` |
+| **Audit Trail** | Complete history in `~/.cortex/history.db` |
+| **Hardware-Aware** | Detects GPU, CPU, memory for optimized packages |
+| **Multi-LLM Support** | Works with Claude, GPT-4, or local Ollama models |
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+---
 
-<!-- ROADMAP -->
-## Roadmap
+## Quick Start
+
+### Prerequisites
+
+- **OS:** Ubuntu 22.04+ / Debian 12+
+- **Python:** 3.10 or higher
+- **API Key:** [Anthropic](https://console.anthropic.com) or [OpenAI](https://platform.openai.com)
+
+### Installation
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/cortexlinux/cortex.git
+cd cortex
+
+# 2. Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# 3. Install Cortex
+pip install -e .
+
+# 4. Configure API key
+echo 'ANTHROPIC_API_KEY=your-key-here' > .env
+
+# 5. Verify installation
+cortex --version
+```
+
+### First Run
+
+```bash
+# Preview what would be installed (safe, no changes made)
+cortex install nginx --dry-run
+
+# Actually install
+cortex install nginx --execute
+```
+
+---
+
+## Usage
+
+### Basic Commands
+
+```bash
+# Install with natural language
+cortex install "web server for static sites" --dry-run
+cortex install "image editing software like photoshop" --execute
+
+# View installation history
+cortex history
+
+# Rollback an installation
+cortex rollback <installation-id>
+
+# Check system preferences
+cortex check-pref
+```
+
+### Command Reference
+
+| Command | Description |
+|---------|-------------|
+| `cortex install <query>` | Install packages matching natural language query |
+| `cortex install <query> --dry-run` | Preview installation plan (default) |
+| `cortex install <query> --execute` | Execute the installation |
+| `cortex history` | View all past installations |
+| `cortex rollback <id>` | Undo a specific installation |
+| `cortex check-pref` | Display current preferences |
+| `cortex --version` | Show version information |
+| `cortex --help` | Display help message |
+
+### Configuration
+
+Cortex stores configuration in `~/.cortex/`:
+
+```
+~/.cortex/
+├── config.yaml      # User preferences
+├── history.db       # Installation history (SQLite)
+└── audit.log        # Detailed audit trail
+```
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         User Input                              │
+│                    "install video editor"                       │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                        CLI Interface                            │
+│                         (cli.py)                                │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      LLM Router                                 │
+│              Claude / GPT-4 / Ollama                            │
+│                                                                 │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
+│  │  Anthropic  │  │   OpenAI    │  │   Ollama    │             │
+│  │   Claude    │  │    GPT-4    │  │   Local     │             │
+│  └─────────────┘  └─────────────┘  └─────────────┘             │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     Coordinator                                 │
+│            (Plan Generation & Validation)                       │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+              ┌───────────────┼───────────────┐
+              ▼               ▼               ▼
+┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+│    Hardware     │ │    Package      │ │    Sandbox      │
+│    Detection    │ │    Manager      │ │    Executor     │
+│                 │ │  (apt/yum/dnf)  │ │   (Firejail)    │
+└─────────────────┘ └─────────────────┘ └─────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   Installation History                          │
+│                 (SQLite + Audit Logging)                        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Project Structure
+
+```
+cortex/
+├── cortex/                 # Main package
+│   ├── cli.py              # Command-line interface
+│   ├── coordinator.py      # Installation orchestration
+│   ├── llm_router.py       # Multi-LLM routing
+│   ├── packages.py         # Package manager wrapper
+│   ├── hardware_detection.py
+│   ├── installation_history.py
+│   └── utils/              # Utility modules
+├── tests/                  # Test suite
+├── docs/                   # Documentation
+├── examples/               # Example scripts
+└── scripts/                # Utility scripts
+```
+
+---
+
+## Safety & Security
+
+Cortex is designed with security as a priority:
+
+| Protection | Implementation |
+|------------|----------------|
+| **Dry-run by default** | No execution without `--execute` flag |
+| **Sandboxed execution** | All commands run in Firejail containers |
+| **Command validation** | Dangerous patterns blocked before execution |
+| **Audit logging** | Every action recorded with timestamps |
+| **Rollback capability** | Full undo support for all installations |
+| **No root by default** | Sudo only when explicitly required |
+
+### Security Policy
+
+Found a vulnerability? Please report it responsibly:
+- Email: security@cortexlinux.com
+- See [SECURITY.md](SECURITY.md) for our disclosure policy
+
+---
+
+## Troubleshooting
+
+<details>
+<summary><strong>"ANTHROPIC_API_KEY not set"</strong></summary>
+
+```bash
+# Verify .env file exists
+cat .env
+# Should show: ANTHROPIC_API_KEY=sk-ant-...
+
+# If missing, create it:
+echo 'ANTHROPIC_API_KEY=your-actual-key' > .env
+```
+</details>
+
+<details>
+<summary><strong>"command not found: cortex"</strong></summary>
+
+```bash
+# Ensure virtual environment is activated
+source venv/bin/activate
+
+# Reinstall
+pip install -e .
+```
+</details>
+
+<details>
+<summary><strong>"Python version too old"</strong></summary>
+
+```bash
+# Check version
+python3 --version
+
+# Install Python 3.11 on Ubuntu/Debian
+sudo apt update
+sudo apt install python3.11 python3.11-venv
+
+# Create venv with specific version
+python3.11 -m venv venv
+```
+</details>
+
+<details>
+<summary><strong>pip install fails</strong></summary>
+
+```bash
+# Update pip
+pip install --upgrade pip
+
+# Install build dependencies
+sudo apt install python3-dev build-essential
+
+# Retry installation
+pip install -e .
+```
+</details>
+
+---
+
+## Project Status
+
+> **Alpha Release** - Cortex is under active development. APIs may change.
 
 ### Completed
-- [x] Natural language to apt translation
-- [x] Dry-run mode (preview commands before execution)
-- [x] Firejail sandboxing with security controls
-- [x] Transaction history with rollback
-- [x] Rich terminal UI with CX branding
-- [x] Interactive setup wizard (`cortex wizard`)
-- [x] Local LLM fallback (Ollama support)
-- [x] Multi-provider support (Claude, GPT-4, Ollama)
-- [x] Input validation and security checks
-- [x] System status command (`cortex status`)
+- [x] Natural language to package resolution
+- [x] Claude and OpenAI integration
+- [x] Installation history and rollback
+- [x] User preferences (YAML-backed)
+- [x] Hardware detection (GPU/CPU/Memory)
+- [x] Firejail sandboxing
+- [x] Dry-run preview mode
 
 ### In Progress
-- [ ] Hardware detection (GPU, CPU, RAM)
-- [ ] Interactive fuzzy search (fzf integration)
-- [ ] One-liner install script
+- [ ] Conflict resolution UI
+- [ ] Multi-step orchestration
+- [ ] Ollama local model support
+- [ ] MCP server integration
+- [ ] Snap/Flatpak support
 
 ### Planned
-- [ ] Offline mode with semantic caching
-- [ ] System snapshot integration (Timeshift/Snapper)
-- [ ] Web dashboard
-- [ ] Package dependency visualization
+- [ ] Fedora/RHEL support
+- [ ] Arch Linux support
+- [ ] Web UI dashboard
+- [ ] VS Code extension
 
-See the [open issues](https://github.com/cortexlinux/cortex/issues) for a full list of proposed features and known issues.
+See [ROADMAP.md](docs/ROADMAP.md) for the full development roadmap.
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+---
 
-<!-- CONTRIBUTING -->
 ## Contributing
 
-Contributions make the open source community amazing. Any contributions you make are **greatly appreciated**.
+We welcome contributions of all kinds!
 
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+### Ways to Contribute
 
-See `CONTRIBUTING.md` for detailed guidelines.
+- **Code**: Python, Linux kernel optimizations
+- **Documentation**: Guides, tutorials, API docs
+- **Testing**: Bug reports, test coverage
+- **Design**: UI/UX improvements
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+### Bounty Program
 
-<!-- BOUNTIES -->
-## Bounties
+We offer bounties for merged PRs:
 
-We pay contributors for merged PRs. 💰
+| Tier | Reward | Examples |
+|------|--------|----------|
+| Small | $25 | Bug fixes, typos, minor features |
+| Medium | $50-100 | New features, significant improvements |
+| Large | $150-200 | Major features, security fixes |
 
-| Tier | Current | After Funding |
-|------|---------|---------------|
-| Quick fix | $25 | +$25 bonus |
-| Small feature | $50 | +$50 bonus |
-| Medium feature | $75-100 | +$75-100 bonus |
-| Large feature | $150-175 | +$150-175 bonus |
+See issues labeled [`bounty`](https://github.com/cortexlinux/cortex/labels/bounty) for available tasks.
 
-**Early contributors get double** — when we close funding, all previous bounties receive a matching bonus.
+### Getting Started
 
-See issues labeled [`bounty`](https://github.com/cortexlinux/cortex/labels/bounty) to get started.
+```bash
+# Fork and clone
+git clone https://github.com/YOUR_USERNAME/cortex.git
+cd cortex
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+# Setup development environment
+python3 -m venv venv
+source venv/bin/activate
+pip install -e ".[dev]"
 
-<!-- LICENSE -->
+# Install pre-commit hooks
+pre-commit install
+
+# Run tests
+pytest tests/ -v
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+
+---
+
+## Community
+
+- **Discord**: [discord.gg/uCqHvxjU83](https://discord.gg/uCqHvxjU83)
+- **Discussions**: [GitHub Discussions](https://github.com/cortexlinux/cortex/discussions)
+- **Email**: mike@cortexlinux.com
+- **Twitter**: [@cortexlinux](https://twitter.com/cortexlinux)
+
+### Support
+
+- **Bug Reports**: [GitHub Issues](https://github.com/cortexlinux/cortex/issues)
+- **Feature Requests**: [GitHub Discussions](https://github.com/cortexlinux/cortex/discussions/categories/ideas)
+- **Security Issues**: security@cortexlinux.com
+
+---
+
 ## License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+Apache 2.0 - See [LICENSE](LICENSE) for details.
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+---
 
-<!-- CONTACT -->
-## Contact
-
-Mike Morgan - [@mikejmorgan_ai](https://twitter.com/mikejmorgan_ai)
-
-Project Link: [https://github.com/cortexlinux/cortex](https://github.com/cortexlinux/cortex)
-
-Discord: [https://discord.gg/cortexlinux](https://discord.gg/uCqHvxjU83)
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- ACKNOWLEDGEMENTS -->
-## Acknowledgements
-
-* [Anthropic Claude](https://anthropic.com) - AI backbone
-* [LangChain](https://langchain.com) - LLM orchestration
-* [Rich](https://github.com/Textualize/rich) - Terminal formatting
-* [Firejail](https://firejail.wordpress.com) - Sandboxing
-* [Best-README-Template](https://github.com/othneildrew/Best-README-Template) - This README structure
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- MARKDOWN LINKS & IMAGES -->
-[contributors-shield]: https://img.shields.io/github/contributors/cortexlinux/cortex.svg?style=for-the-badge
-[contributors-url]: https://github.com/cortexlinux/cortex/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/cortexlinux/cortex.svg?style=for-the-badge
-[forks-url]: https://github.com/cortexlinux/cortex/network/members
-[stars-shield]: https://img.shields.io/github/stars/cortexlinux/cortex.svg?style=for-the-badge
-[stars-url]: https://github.com/cortexlinux/cortex/stargazers
-[issues-shield]: https://img.shields.io/github/issues/cortexlinux/cortex.svg?style=for-the-badge
-[issues-url]: https://github.com/cortexlinux/cortex/issues
-[license-shield]: https://img.shields.io/github/license/cortexlinux/cortex.svg?style=for-the-badge
-[license-url]: https://github.com/cortexlinux/cortex/blob/main/LICENSE
-[discord-shield]: https://img.shields.io/discord/1234567890?style=for-the-badge&logo=discord&logoColor=white
-[discord-url]: https://discord.gg/uCqHvxjU83
-[product-screenshot]: images/screenshot.png
-[Python-badge]: https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white
-[Python-url]: https://python.org
-[Ubuntu-badge]: https://img.shields.io/badge/Ubuntu-E95420?style=for-the-badge&logo=ubuntu&logoColor=white
-[Ubuntu-url]: https://ubuntu.com
-[Claude-badge]: https://img.shields.io/badge/Claude-191919?style=for-the-badge&logo=anthropic&logoColor=white
-[Claude-url]: https://anthropic.com
-[LangChain-badge]: https://img.shields.io/badge/LangChain-121212?style=for-the-badge&logo=chainlink&logoColor=white
-[LangChain-url]: https://langchain.com
+<p align="center">
+  <sub>Built with love by the Cortex team and contributors worldwide.</sub>
+</p>
