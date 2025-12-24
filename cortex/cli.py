@@ -10,9 +10,12 @@ from cortex.ask import AskHandler
 from cortex.branding import VERSION, console, cx_header, cx_print, show_banner
 from cortex.coordinator import InstallationCoordinator, StepStatus
 from cortex.demo import run_demo
+
 from cortex.env_manager import EnvironmentManager, get_env_manager
 
 from cortex.env_manager import EnvironmentManager, get_env_manager
+
+
 
 from cortex.first_run_wizard import FirstRunWizard
 
@@ -734,11 +737,12 @@ class CortexCLI:
         """Interactive setup wizard for API key configuration"""
         show_banner()
         console.print()
-        cx_print("Welcome to Cortex Setup Wizard!", "success")
-        console.print()
-        # (Simplified for brevity - keeps existing logic)
-        cx_print("Please export your API key in your shell profile.", "info")
-        return 0
+        
+        # Run the actual first-run wizard
+        wizard = FirstRunWizard(interactive=True)
+        success = wizard.run()
+        
+        return 0 if success else 1
 
     def env(self, args: argparse.Namespace) -> int:
         """Handle environment variable management commands."""
