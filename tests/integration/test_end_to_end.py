@@ -17,8 +17,8 @@ BASE_ENV = {
     "PYTHONPATH": "/workspace",
     "PYTHONDONTWRITEBYTECODE": "1",
 }
-PIP_BOOTSTRAP = "python -m pip install --quiet --upgrade pip setuptools && python -m pip install --quiet --no-cache-dir -r /workspace/requirements.txt"
-PIP_BOOTSTRAP_DEV = "python -m pip install --quiet --upgrade pip setuptools && python -m pip install --quiet --no-cache-dir -r /workspace/requirements.txt -r /workspace/requirements-dev.txt"
+PIP_BOOTSTRAP = "python -m pip install --quiet --upgrade pip setuptools --root-user-action=ignore && python -m pip install --quiet --no-cache-dir --root-user-action=ignore -r /workspace/requirements.txt"
+PIP_BOOTSTRAP_DEV = "python -m pip install --quiet --upgrade pip setuptools --root-user-action=ignore && python -m pip install --quiet --no-cache-dir --root-user-action=ignore -r /workspace/requirements.txt -r /workspace/requirements-dev.txt"
 
 
 @unittest.skipUnless(docker_available(), "Docker is required for integration tests")
