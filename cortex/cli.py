@@ -294,6 +294,38 @@ class CortexCLI:
         doctor = SystemDoctor()
         return doctor.run_checks()
 
+    def script(self, args: argparse.Namespace) -> int:
+        """Handle cortex script commands"""
+        try:
+            from cortex.script_gen import ScriptGenerator
+
+            generator = ScriptGenerator()
+
+            if args.script_action == "generate":
+                generator.generate(
+                    filename=args.filename,
+                    stack=args.stack,
+                    format=args.format,
+                    dry_run=args.dry_run,
+                )
+                return 0
+
+            elif args.script_action == "test":
+                generator.test(filename=args.filename, sandbox=args.sandbox)
+                return 0
+
+            elif args.script_action == "history":
+                limit = args.limit if hasattr(args, "limit") else 10
+                generator.show_history(limit=limit)
+                return 0
+
+        except FileNotFoundError:
+            console.print(f"[red]✗ Script file not found: {args.filename}[/red]")
+            return 1
+        except Exception as e:
+            console.print(f"[red]✗ Script command failed: {str(e)}[/red]")
+            return 1
+
     def install(
         self,
         software: str,
@@ -774,6 +806,11 @@ def show_rich_help():
     table.add_row("cache stats", "Show LLM cache statistics")
     table.add_row("stack <name>", "Install the stack")
     table.add_row("doctor", "System health check")
+    table.add_row(
+        "script generate <file_name> --stack <stack-name>", "Generate installation scripts"
+    )
+    table.add_row("script test <file_name>", "Validate script syntax")
+    table.add_row("script history", "View generation history")
 
     console.print(table)
     console.print()
@@ -829,6 +866,46 @@ def main():
 
     # doctor command
     doctor_parser = subparsers.add_parser("doctor", help="Run system health check")
+
+    # script generator command
+    script_parser = subparsers.add_parser(
+        "script", help="Generate installation scripts", aliases=["scripts"]
+    )
+    script_subs = script_parser.add_subparsers(dest="script_action", required=True)
+
+    # cortex script generate
+    generate_parser = script_subs.add_parser("generate", help="Generate installation script")
+    generate_parser.add_argument("filename", help="Output script filename (e.g., docker-setup.sh)")
+    generate_parser.add_argument(
+        "--stack",
+        "-s",
+        default="docker",
+        choices=["docker", "python", "nodejs", "ollama"],
+        help="Stack to install (default: docker)",
+    )
+    generate_parser.add_argument(
+        "--format",
+        "-f",
+        default="bash",
+        choices=["bash", "ansible"],
+        help="Output format (default: bash)",
+    )
+    generate_parser.add_argument(
+        "--dry-run", action="store_true", help="Preview script without writing to file"
+    )
+
+    # cortex script test
+    test_parser = script_subs.add_parser("test", help="Test generated script syntax")
+    test_parser.add_argument("filename", help="Script file to validate")
+    test_parser.add_argument(
+        "--sandbox", action="store_true", default=True, help="Run in sandbox mode (default: True)"
+    )
+
+    # cortex script history
+    history_parser = script_subs.add_parser("history", help="Show script generation history")
+    history_parser.add_argument(
+        "--limit", "-l", type=int, default=10, help="Number of entries to show (default: 10)"
+    )
 
     # Install command
     install_parser = subparsers.add_parser("install", help="Install software")
@@ -934,6 +1011,8 @@ def main():
             return cli.stack(args)
         elif args.command == "doctor":
             return cli.doctor()
+        elif args.command == "script":
+            return cli.script(args)
         elif args.command == "cache":
             if getattr(args, "cache_action", None) == "stats":
                 return cli.cache_stats()
