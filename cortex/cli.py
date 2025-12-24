@@ -747,37 +747,208 @@ class CortexCLI:
         cx_print("Please export your API key in your shell profile.", "info")
         return 0
 
+    def snapshot(self, args: argparse.Namespace) -> int:
+        """Handle snapshot commands (create/list/restore/show/delete)."""
+        from cortex.snapshot_manager import SnapshotManager
+
+        manager = SnapshotManager()
+
+        if not args.snapshot_action:
+            self._print_error(
+                "Please specify a snapshot action: create, list, show, restore, or delete"
+            )
+            self._print_error("Run 'cortex snapshot --help' for usage information")
+            return 1
+
+        if args.snapshot_action == "create":
+            success, snapshot_id, message = manager.create_snapshot(args.description or "")
+            if success:
+                cx_print(f"✅ {message}", "success")
+                return 0
+            else:
+                self._print_error(message)
+                return 1
+
+        elif args.snapshot_action == "list":
+            snapshots = manager.list_snapshots()
+            if not snapshots:
+                cx_print("No snapshots found.", "info")
+                return 0
+
+            cx_print("\n📸 Available Snapshots:\n", "info")
+            print(f"{'ID':<24} {'Date':<20} {'Packages':<12} {'Description'}")
+            print("=" * 99)
+
+            for snapshot in snapshots:
+                date = snapshot.timestamp[:19].replace("T", " ")
+                pkg_count = sum(len(pkgs) for pkgs in snapshot.packages.values())
+                desc = snapshot.description[:40] if snapshot.description else "(no description)"
+                print(f"{snapshot.id:<24} {date:<20} {pkg_count:<12} {desc}")
+            return 0
+
+        elif args.snapshot_action == "show":
+            snapshot = manager.get_snapshot(args.snapshot_id)
+            if not snapshot:
+                self._print_error(f"Snapshot not found: {args.snapshot_id}")
+                return 1
+
+            cx_print(f"\nSnapshot Details: {snapshot.id}", "info")
+            print("=" * 80)
+            print(f"Timestamp: {snapshot.timestamp}")
+            print(f"Description: {snapshot.description or '(no description)'}")
+            print("\nSystem Info:")
+            for key, value in snapshot.system_info.items():
+                print(f"  {key}: {value}")
+            print("\nPackages:")
+            for source, packages in snapshot.packages.items():
+                print(f"  {source.upper()}: {len(packages)} packages")
+            return 0
+
+        elif args.snapshot_action == "restore":
+            success, message, commands = manager.restore_snapshot(
+                args.snapshot_id, dry_run=args.dry_run
+            )
+
+            if args.dry_run:
+                cx_print(f"\n🔍 Dry-run: {message}", "info")
+                if commands:
+                    print("\nCommands to execute:")
+                    for cmd in commands:
+                        print(f"  {cmd}")
+            else:
+                if success:
+                    cx_print(f"✅ {message}", "success")
+                else:
+                    self._print_error(message)
+                    if commands:
+                        print("\nFailed commands:")
+                        for cmd in commands:
+                            print(f"  {cmd}")
+                    return 1
+            return 0
+
+        elif args.snapshot_action == "delete":
+            success, message = manager.delete_snapshot(args.snapshot_id)
+            if success:
+                cx_print(f"✅ {message}", "success")
+                return 0
+            else:
+                self._print_error(message)
+                return 1
+
+        return 1
+
 
 def show_rich_help():
     """Display beautifully formatted help using Rich"""
     from rich.table import Table
+    from rich.panel import Panel
 
     show_banner(show_version=True)
     console.print()
 
-    console.print("[bold]AI-powered package manager for Linux[/bold]")
-    console.print("[dim]Just tell Cortex what you want to install.[/dim]")
+    console.print("[bold cyan]AI-powered package manager for Linux[/bold cyan]")
+    console.print("[dim]Natural language package management with system snapshots and rollbacks[/dim]")
     console.print()
 
-    # Commands table
-    table = Table(show_header=True, header_style="bold cyan", box=None)
-    table.add_column("Command", style="green")
-    table.add_column("Description")
+    # Main Commands table
+    table = Table(show_header=True, header_style="bold cyan", box=None, padding=(0, 2))
+    table.add_column("Command", style="green", width=25)
+    table.add_column("Description", style="white")
 
-    table.add_row("demo", "See Cortex in action")
-    table.add_row("wizard", "Configure API key")
-    table.add_row("status", "System status")
-    table.add_row("install <pkg>", "Install software")
-    table.add_row("history", "View history")
-    table.add_row("rollback <id>", "Undo installation")
-    table.add_row("notify", "Manage desktop notifications")  # Added this line
-    table.add_row("cache stats", "Show LLM cache statistics")
-    table.add_row("stack <name>", "Install the stack")
-    table.add_row("doctor", "System health check")
+    table.add_row(
+        "[bold]cortex install <pkg>[/bold]",
+        "Install software using natural language\n"
+        "[dim]Flags: --execute, --dry-run, --parallel[/dim]"
+    )
+    table.add_row(
+        "[bold]cortex stack <name>[/bold]",
+        "Install pre-built package stacks (ml, webdev, devops, data)\n"
+        "[dim]Flags: --list, --describe <name>, --dry-run[/dim]"
+    )
+    table.add_row(
+        "[bold]cortex snapshot[/bold]",
+        "Manage system snapshots for safe rollbacks\n"
+        "[dim]Actions: create, list, show <id>, restore <id>, delete <id>[/dim]"
+    )
+    table.add_row(
+        "[bold]cortex history[/bold]",
+        "View installation history and details\n"
+        "[dim]Flags: --limit <n>, --status <success|failed> <id>[/dim]"
+    )
+    table.add_row(
+        "[bold]cortex rollback <id>[/bold]",
+        "Undo an installation by history ID\n"
+        "[dim]Flags: --dry-run[/dim]"
+    )
 
-    console.print(table)
+    console.print(Panel(table, title="[bold]Core Commands[/bold]", border_style="cyan"))
     console.print()
-    console.print("[dim]Learn more: https://cortexlinux.com/docs[/dim]")
+
+    # Utility Commands table
+    util_table = Table(show_header=True, header_style="bold yellow", box=None, padding=(0, 2))
+    util_table.add_column("Command", style="green", width=25)
+    util_table.add_column("Description", style="white")
+
+    util_table.add_row("[bold]cortex doctor[/bold]", "Run comprehensive system health check")
+    util_table.add_row("[bold]cortex status[/bold]", "Show current system status and configuration")
+    util_table.add_row("[bold]cortex wizard[/bold]", "Interactive setup for API keys and configuration")
+    util_table.add_row("[bold]cortex demo[/bold]", "See Cortex capabilities with example commands")
+    
+    console.print(Panel(util_table, title="[bold]Utility Commands[/bold]", border_style="yellow"))
+    console.print()
+
+    # Configuration Commands table
+    config_table = Table(show_header=True, header_style="bold magenta", box=None, padding=(0, 2))
+    config_table.add_column("Command", style="green", width=25)
+    config_table.add_column("Description", style="white")
+
+    config_table.add_row(
+        "[bold]cortex check-pref [key][/bold]",
+        "Check current preferences or specific key"
+    )
+    config_table.add_row(
+        "[bold]cortex edit-pref[/bold]",
+        "Modify preferences\n"
+        "[dim]Actions: set, add, delete, list, validate[/dim]"
+    )
+    config_table.add_row(
+        "[bold]cortex notify[/bold]",
+        "Manage desktop notifications\n"
+        "[dim]Actions: config, enable, disable, dnd, send[/dim]"
+    )
+    config_table.add_row(
+        "[bold]cortex cache stats[/bold]",
+        "Show LLM response cache statistics"
+    )
+
+    console.print(Panel(config_table, title="[bold]Configuration Commands[/bold]", border_style="magenta"))
+    console.print()
+
+    # Global Flags
+    flags_table = Table(show_header=False, box=None, padding=(0, 2))
+    flags_table.add_column("Flag", style="cyan", width=20)
+    flags_table.add_column("Description", style="white")
+
+    flags_table.add_row("[bold]--verbose, -v[/bold]", "Show detailed debug output")
+    flags_table.add_row("[bold]--offline[/bold]", "Use cached responses only (no network)")
+    flags_table.add_row("[bold]--version, -V[/bold]", "Show version number")
+    flags_table.add_row("[bold]--help, -h[/bold]", "Show this help message")
+
+    console.print(Panel(flags_table, title="[bold]Global Flags[/bold]", border_style="blue"))
+    console.print()
+
+    # Examples
+    console.print("[bold underline]Examples:[/bold underline]")
+    console.print("  [green]cortex install nginx[/green]              [dim]# Install nginx with AI guidance[/dim]")
+    console.print("  [green]cortex stack ml-cpu --dry-run[/green]    [dim]# Preview ML stack installation[/dim]")
+    console.print("  [green]cortex snapshot create 'Pre-update'[/green] [dim]# Create system snapshot[/dim]")
+    console.print("  [green]cortex history --limit 10[/green]        [dim]# Show last 10 installations[/dim]")
+    console.print("  [green]cortex doctor[/green]                    [dim]# Run system diagnostics[/dim]")
+    console.print()
+
+    console.print("[dim]Documentation: https://cortexlinux.com/docs[/dim]")
+    console.print("[dim]Discord: https://discord.gg/uCqHvxjU83[/dim]")
 
 
 def shell_suggest(text: str) -> int:
@@ -805,7 +976,16 @@ def main():
 
     parser = argparse.ArgumentParser(
         prog="cortex",
-        description="AI-powered Linux command interpreter",
+        description="Cortex Linux - AI-powered package manager with natural language interface\n"
+                    "Install packages, manage stacks, create system snapshots, and rollback changes.",
+        epilog="Examples:\n"
+               "  cortex install nginx                    Install nginx with AI guidance\n"
+               "  cortex stack ml-cpu --dry-run          Preview ML stack installation\n"
+               "  cortex snapshot create 'Pre-update'    Create system snapshot\n"
+               "  cortex history --limit 10              Show last 10 installations\n"
+               "  cortex doctor                          Run system diagnostics\n\n"
+               "Documentation: https://cortexlinux.com/docs\n"
+               "Discord: https://discord.gg/uCqHvxjU83",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
@@ -819,22 +999,42 @@ def main():
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Demo command
-    demo_parser = subparsers.add_parser("demo", help="See Cortex in action")
+    demo_parser = subparsers.add_parser(
+        "demo",
+        help="Interactive demonstration of Cortex features",
+        description="See example installations and learn how to use Cortex effectively."
+    )
 
     # Wizard command
-    wizard_parser = subparsers.add_parser("wizard", help="Configure API key interactively")
+    wizard_parser = subparsers.add_parser(
+        "wizard",
+        help="Interactive setup wizard",
+        description="Configure API keys (Anthropic/OpenAI) and initial preferences step-by-step."
+    )
 
     # Status command
-    status_parser = subparsers.add_parser("status", help="Show system status")
+    status_parser = subparsers.add_parser(
+        "status",
+        help="Show system status and configuration",
+        description="Display Cortex configuration, API keys, cache stats, and system info."
+    )
 
     # doctor command
-    doctor_parser = subparsers.add_parser("doctor", help="Run system health check")
+    doctor_parser = subparsers.add_parser(
+        "doctor",
+        help="Run comprehensive system diagnostics",
+        description="Check dependencies, API connectivity, permissions, and system compatibility."
+    )
 
     # Install command
-    install_parser = subparsers.add_parser("install", help="Install software")
-    install_parser.add_argument("software", type=str, help="Software to install")
-    install_parser.add_argument("--execute", action="store_true", help="Execute commands")
-    install_parser.add_argument("--dry-run", action="store_true", help="Show commands only")
+    install_parser = subparsers.add_parser(
+        "install",
+        help="Install software using natural language",
+        description="Install packages with AI-powered dependency resolution and hardware detection."
+    )
+    install_parser.add_argument("software", type=str, help="Software name or description (e.g., 'nginx', 'python web server')")
+    install_parser.add_argument("--execute", action="store_true", help="Execute installation commands immediately")
+    install_parser.add_argument("--dry-run", action="store_true", help="Preview commands without executing")
     install_parser.add_argument(
         "--parallel",
         action="store_true",
@@ -842,24 +1042,40 @@ def main():
     )
 
     # History command
-    history_parser = subparsers.add_parser("history", help="View history")
-    history_parser.add_argument("--limit", type=int, default=20)
-    history_parser.add_argument("--status", choices=["success", "failed"])
-    history_parser.add_argument("show_id", nargs="?")
+    history_parser = subparsers.add_parser(
+        "history",
+        help="View installation history",
+        description="Display past installations with status, timestamps, and package details."
+    )
+    history_parser.add_argument("--limit", type=int, default=20, help="Number of records to show (default: 20)")
+    history_parser.add_argument("--status", choices=["success", "failed"], help="Filter by installation status")
+    history_parser.add_argument("show_id", nargs="?", help="Show detailed info for specific installation ID")
 
     # Rollback command
-    rollback_parser = subparsers.add_parser("rollback", help="Rollback installation")
-    rollback_parser.add_argument("id", help="Installation ID")
-    rollback_parser.add_argument("--dry-run", action="store_true")
+    rollback_parser = subparsers.add_parser(
+        "rollback",
+        help="Undo a previous installation",
+        description="Revert an installation by removing packages that were added."
+    )
+    rollback_parser.add_argument("id", help="Installation ID from history")
+    rollback_parser.add_argument("--dry-run", action="store_true", help="Preview rollback actions without executing")
 
     # Preferences commands
-    check_pref_parser = subparsers.add_parser("check-pref", help="Check preferences")
-    check_pref_parser.add_argument("key", nargs="?")
+    check_pref_parser = subparsers.add_parser(
+        "check-pref",
+        help="View current preferences",
+        description="Display all preferences or check a specific preference key."
+    )
+    check_pref_parser.add_argument("key", nargs="?", help="Optional: specific preference key to check")
 
-    edit_pref_parser = subparsers.add_parser("edit-pref", help="Edit preferences")
-    edit_pref_parser.add_argument("action", choices=["set", "add", "delete", "list", "validate"])
-    edit_pref_parser.add_argument("key", nargs="?")
-    edit_pref_parser.add_argument("value", nargs="?")
+    edit_pref_parser = subparsers.add_parser(
+        "edit-pref",
+        help="Modify preferences",
+        description="Set, add, delete, or validate preference values."
+    )
+    edit_pref_parser.add_argument("action", choices=["set", "add", "delete", "list", "validate"], help="Action to perform")
+    edit_pref_parser.add_argument("key", nargs="?", help="Preference key (e.g., 'install.auto_confirm')")
+    edit_pref_parser.add_argument("value", nargs="?", help="New value for the preference")
 
     # --- New Notify Command ---
     notify_parser = subparsers.add_parser("notify", help="Manage desktop notifications")
@@ -881,20 +1097,68 @@ def main():
     # --------------------------
 
     # Stack command
-    stack_parser = subparsers.add_parser("stack", help="Manage pre-built package stacks")
+    stack_parser = subparsers.add_parser(
+        "stack",
+        help="Install pre-built package stacks",
+        description="Install curated package collections for ML, web development, DevOps, and data science."
+    )
     stack_parser.add_argument(
-        "name", nargs="?", help="Stack name to install (ml, ml-cpu, webdev, devops, data)"
+        "name", nargs="?", help="Stack name: ml, ml-cpu, webdev, devops, data"
     )
     stack_group = stack_parser.add_mutually_exclusive_group()
-    stack_group.add_argument("--list", "-l", action="store_true", help="List all available stacks")
-    stack_group.add_argument("--describe", "-d", metavar="STACK", help="Show details about a stack")
+    stack_group.add_argument("--list", "-l", action="store_true", help="List all available stacks with descriptions")
+    stack_group.add_argument("--describe", "-d", metavar="STACK", help="Show detailed information about a specific stack")
     stack_parser.add_argument(
-        "--dry-run", action="store_true", help="Show what would be installed (requires stack name)"
+        "--dry-run", action="store_true", help="Preview stack contents without installing (requires stack name)"
     )
-    # Cache commands
-    cache_parser = subparsers.add_parser("cache", help="Cache operations")
-    cache_subs = cache_parser.add_subparsers(dest="cache_action", help="Cache actions")
-    cache_subs.add_parser("stats", help="Show cache statistics")
+
+    # Snapshot commands
+    snapshot_parser = subparsers.add_parser(
+        "snapshot",
+        help="Manage system snapshots for safe rollbacks",
+        description="Create, restore, and manage system snapshots of installed packages (APT, pip, npm)."
+    )
+    snapshot_subs = snapshot_parser.add_subparsers(dest="snapshot_action", help="Snapshot operations")
+
+    # Create snapshot
+    create_snap = snapshot_subs.add_parser(
+        "create",
+        help="Create a new system snapshot",
+        description="Capture current state of all installed packages (APT, pip, npm)."
+    )
+    create_snap.add_argument("description", nargs="?", default="", help="Optional description (e.g., 'Before major update')")
+
+    # List snapshots
+    snapshot_subs.add_parser(
+        "list",
+        help="List all snapshots",
+        description="Show all available snapshots with timestamps and package counts."
+    )
+
+    # Show snapshot details
+    show_snap = snapshot_subs.add_parser(
+        "show",
+        help="Show detailed snapshot information",
+        description="Display complete snapshot contents including all packages and versions."
+    )
+    show_snap.add_argument("snapshot_id", help="Snapshot ID (format: YYYYMMDD_HHMMSS_xxxxxxxx)")
+
+    # Restore snapshot
+    restore_snap = snapshot_subs.add_parser(
+        "restore",
+        help="Restore system to a previous snapshot",
+        description="Install/remove packages to match snapshot state. Creates automatic backup first."
+    )
+    restore_snap.add_argument("snapshot_id", help="Snapshot ID to restore")
+    restore_snap.add_argument("--dry-run", action="store_true", help="Preview restore actions without executing")
+
+    # Delete snapshot
+    delete_snap = snapshot_subs.add_parser(
+        "delete",
+        help="Delete a snapshot",
+        description="Permanently remove a snapshot from disk."
+    )
+    delete_snap.add_argument("snapshot_id", help="Snapshot ID to delete")
 
     args = parser.parse_args()
 
@@ -939,6 +1203,8 @@ def main():
                 return cli.cache_stats()
             parser.print_help()
             return 1
+        elif args.command == "snapshot":
+            return cli.snapshot(args)
         else:
             parser.print_help()
             return 1

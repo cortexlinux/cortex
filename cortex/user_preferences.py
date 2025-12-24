@@ -80,6 +80,18 @@ class PackageSettings:
 
 
 @dataclass
+class SnapshotSettings:
+    """Snapshot and rollback preferences"""
+
+    retention_limit: int = 10  # Maximum number of snapshots to keep
+    auto_snapshot: bool = True  # Create snapshot before major changes
+    compression_enabled: bool = False  # Compress snapshot data
+    include_apt: bool = True  # Include APT packages
+    include_pip: bool = True  # Include PIP packages
+    include_npm: bool = True  # Include NPM packages
+
+
+@dataclass
 class UserPreferences:
     """Complete user preferences"""
 
@@ -88,6 +100,7 @@ class UserPreferences:
     auto_update: AutoUpdateSettings = field(default_factory=AutoUpdateSettings)
     ai: AISettings = field(default_factory=AISettings)
     packages: PackageSettings = field(default_factory=PackageSettings)
+    snapshots: SnapshotSettings = field(default_factory=SnapshotSettings)
     theme: str = "default"
     language: str = "en"
     timezone: str = "UTC"
