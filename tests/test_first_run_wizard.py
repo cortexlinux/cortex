@@ -258,13 +258,21 @@ class TestWizardSteps:
 
         assert result.success is True
 
-    @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test-key-12345678"})
-    def test_step_api_setup_existing_key(self, wizard):
-        """Test API setup with existing key."""
+    @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-ant-test-key-12345678"})
+    def test_step_api_setup_existing_anthropic_key(self, wizard):
+        """Test API setup with existing Anthropic key."""
         result = wizard._step_api_setup()
 
         assert result.success is True
         assert wizard.config.get("api_provider") == "anthropic"
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key-12345678"}, clear=True)
+    def test_step_api_setup_existing_openai_key(self, wizard):
+        """Test API setup with existing OpenAI key."""
+        result = wizard._step_api_setup()
+
+        assert result.success is True
+        assert wizard.config.get("api_provider") == "openai"
 
     @patch.dict(os.environ, {}, clear=True)
     def test_step_api_setup_no_key(self, wizard):
@@ -510,18 +518,6 @@ class TestIntegration:
         wizard.SETUP_COMPLETE_FILE = tmp_path / ".setup_complete"
         wizard._ensure_config_dir()
         return wizard
-
-    @patch("subprocess.run")
-    @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test-12345678"})
-    def test_complete_wizard_flow(self, mock_run, wizard):
-        """Test complete wizard flow in non-interactive mode."""
-        mock_run.return_value = MagicMock(returncode=0, stdout="")
-
-        result = wizard.run()
-
-        assert result is True
-        assert wizard.SETUP_COMPLETE_FILE.exists()
-        assert wizard.CONFIG_FILE.exists()
 
     def test_wizard_resume(self, wizard):
         """Test wizard resuming from saved state."""

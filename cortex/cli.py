@@ -11,6 +11,7 @@ from cortex.branding import VERSION, console, cx_header, cx_print, show_banner
 from cortex.coordinator import InstallationCoordinator, StepStatus
 from cortex.demo import run_demo
 from cortex.env_manager import EnvironmentManager, get_env_manager
+from cortex.first_run_wizard import FirstRunWizard
 from cortex.installation_history import InstallationHistory, InstallationStatus, InstallationType
 from cortex.llm.interpreter import CommandInterpreter
 from cortex.network_config import NetworkConfig
@@ -46,24 +47,38 @@ class CortexCLI:
         if self.verbose:
             console.print(f"[dim][DEBUG] {message}[/dim]")
 
-    def _get_api_key(self) -> str | None:
-        # Check if using Ollama or Fake provider (no API key needed)
-        provider = self._get_provider()
+    def _get_api_key_for_provider(self, provider: str) -> str | None:
+        """Get API key for a specific provider."""
         if provider == "ollama":
-            self._debug("Using Ollama (no API key required)")
-            return "ollama-local"  # Placeholder for Ollama
+            return "ollama-local"
         if provider == "fake":
-            self._debug("Using Fake provider for testing")
-            return "fake-key"  # Placeholder for Fake provider
+            return "fake-key"
+        if provider == "claude":
+            key = os.environ.get("ANTHROPIC_API_KEY")
+            if key and key.strip().startswith("sk-ant-"):
+                return key.strip()
+        elif provider == "openai":
+            key = os.environ.get("OPENAI_API_KEY")
+            if key and key.strip().startswith("sk-"):
+                return key.strip()
+        return None
 
-        is_valid, detected_provider, error = validate_api_key()
-        if not is_valid:
-            self._print_error(error)
-            cx_print("Run [bold]cortex wizard[/bold] to configure your API key.", "info")
-            cx_print("Or use [bold]CORTEX_PROVIDER=ollama[/bold] for offline mode.", "info")
-            return None
-        api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY")
-        return api_key
+    def _get_api_key(self) -> str | None:
+        """Get API key for the current provider."""
+        provider = self._get_provider()
+        key = self._get_api_key_for_provider(provider)
+        if key:
+            return key
+        # If provider is ollama or no key is set, always fallback to ollama-local
+        if provider == "ollama" or not (
+            os.environ.get("OPENAI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+        ):
+            return "ollama-local"
+        # Otherwise, prompt user for setup
+        self._print_error("No valid API key found.")
+        cx_print("Run [bold]cortex wizard[/bold] to configure your API key.", "info")
+        cx_print("Or use [bold]CORTEX_PROVIDER=ollama[/bold] for offline mode.", "info")
+        return None
 
     def _get_provider(self) -> str:
         # Check environment variable for explicit provider choice
@@ -77,7 +92,7 @@ class CortexCLI:
         elif os.environ.get("OPENAI_API_KEY"):
             return "openai"
 
-        # Fallback to Ollama for offline mode
+        # No API keys available - default to Ollama for offline mode
         return "ollama"
 
     def _print_status(self, emoji: str, message: str):
@@ -335,6 +350,7 @@ class CortexCLI:
         execute: bool = False,
         dry_run: bool = False,
         parallel: bool = False,
+        forced_provider: str | None = None,
     ):
         # Validate input first
         is_valid, error = validate_install_request(software)
@@ -355,43 +371,57 @@ class CortexCLI:
                 "pip3 install jupyter numpy pandas"
             )
 
-        api_key = self._get_api_key()
-        if not api_key:
+        # Try providers in order
+        initial_provider = forced_provider or self._get_provider()
+        providers_to_try = [initial_provider]
+        if initial_provider in ["claude", "openai"]:
+            other_provider = "openai" if initial_provider == "claude" else "claude"
+            if self._get_api_key_for_provider(other_provider):
+                providers_to_try.append(other_provider)
+
+        commands = None
+        provider = None  # noqa: F841 - assigned in loop
+        api_key = None
+        history = InstallationHistory()
+        start_time = datetime.now()
+        for try_provider in providers_to_try:
+            try:
+                try_api_key = self._get_api_key_for_provider(try_provider) or "dummy-key"
+                self._debug(f"Trying provider: {try_provider}")
+                interpreter = CommandInterpreter(
+                    api_key=try_api_key, provider=try_provider, offline=self.offline
+                )
+
+                self._print_status("🧠", "Understanding request...")
+
+                self._print_status("📦", "Planning installation...")
+
+                for _ in range(10):
+                    self._animate_spinner("Analyzing system requirements...")
+                self._clear_line()
+
+                commands = interpreter.parse(f"install {software}")
+
+                if commands:
+                    provider = try_provider
+                    api_key = try_api_key
+                    break
+                else:
+                    self._debug(f"No commands generated with {try_provider}")
+            except (RuntimeError, Exception) as e:
+                self._debug(f"API call failed with {try_provider}: {e}")
+                continue
+
+        if not commands:
+            self._print_error(
+                "No commands generated with any available provider. Please try again with a different request."
+            )
             return 1
 
-        provider = self._get_provider()
-        self._debug(f"Using provider: {provider}")
-        self._debug(f"API key: {api_key[:10]}...{api_key[-4:]}")
-
-        # Initialize installation history
-        history = InstallationHistory()
-        install_id = None
-        start_time = datetime.now()
-
         try:
-            self._print_status("🧠", "Understanding request...")
-
-            interpreter = CommandInterpreter(
-                api_key=api_key, provider=provider, offline=self.offline
-            )
-
-            self._print_status("📦", "Planning installation...")
-
-            for _ in range(10):
-                self._animate_spinner("Analyzing system requirements...")
-            self._clear_line()
-
-            commands = interpreter.parse(f"install {software}")
-
-            if not commands:
-                self._print_error(
-                    "No commands generated. Please try again with a different request."
-                )
-                return 1
-
+            install_id = None
             # Extract packages from commands for tracking
             packages = history._extract_packages_from_commands(commands)
-
             # Record installation start
             if execute or dry_run:
                 install_id = history.record_installation(
@@ -831,14 +861,15 @@ class CortexCLI:
         """Interactive setup wizard for API key configuration"""
         show_banner()
         console.print()
-        cx_print("Welcome to Cortex Setup Wizard!", "success")
-        console.print()
-        # (Simplified for brevity - keeps existing logic)
-        cx_print("Please export your API key in your shell profile.", "info")
-        return 0
+        # Run the actual first-run wizard
+        wizard = FirstRunWizard(interactive=True)
+        success = wizard.run()
+        return 0 if success else 1
 
     def env(self, args: argparse.Namespace) -> int:
         """Handle environment variable management commands."""
+        import sys
+
         env_mgr = get_env_manager()
 
         # Handle subcommand routing
@@ -874,15 +905,8 @@ class CortexCLI:
             else:
                 self._print_error(f"Unknown env subcommand: {action}")
                 return 1
-        except (ValueError, OSError) as e:
-            self._print_error(f"Environment operation failed: {e}")
-            return 1
         except Exception as e:
-            self._print_error(f"Unexpected error: {e}")
-            if self.verbose:
-                import traceback
-
-                traceback.print_exc()
+            self._print_error(f"Environment operation failed: {e}")
             return 1
 
     def _env_set(self, env_mgr: EnvironmentManager, args: argparse.Namespace) -> int:
@@ -915,8 +939,7 @@ class CortexCLI:
             return 1
         except ImportError as e:
             self._print_error(str(e))
-            if "cryptography" in str(e).lower():
-                cx_print("Install with: pip install cryptography", "info")
+            cx_print("Install with: pip install cryptography", "info")
             return 1
 
     def _env_get(self, env_mgr: EnvironmentManager, args: argparse.Namespace) -> int:
@@ -1047,8 +1070,7 @@ class CortexCLI:
             else:
                 cx_print("No variables imported", "info")
 
-            # Return success (0) even with partial errors - some vars imported successfully
-            return 0
+            return 0 if not errors else 1
 
         except FileNotFoundError:
             self._print_error(f"File not found: {input_file}")
@@ -1221,6 +1243,7 @@ def show_rich_help():
     table.add_row("rollback <id>", "Undo installation")
     table.add_row("notify", "Manage desktop notifications")
     table.add_row("env", "Manage environment variables")
+    table.add_row("notify", "Manage desktop notifications")
     table.add_row("cache stats", "Show LLM cache statistics")
     table.add_row("stack <name>", "Install the stack")
     table.add_row("doctor", "System health check")
@@ -1510,6 +1533,8 @@ def main():
                 return cli.cache_stats()
             parser.print_help()
             return 1
+        elif args.command == "env":
+            return cli.env(args)
         elif args.command == "env":
             return cli.env(args)
         else:

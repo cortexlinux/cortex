@@ -65,15 +65,17 @@ class TestCortexCLI(unittest.TestCase):
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-openai-key-123"}, clear=True)
     @patch("cortex.cli.CommandInterpreter")
-    def test_install_dry_run(self, mock_interpreter_class):
-        mock_interpreter = Mock()
-        mock_interpreter.parse.return_value = ["apt update", "apt install docker"]
-        mock_interpreter_class.return_value = mock_interpreter
+    def test_install_dry_run(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test-openai-key-123")
+        with patch("cortex.cli.CommandInterpreter") as mock_interpreter_class:
+            mock_interpreter = Mock()
+            mock_interpreter.parse.return_value = ["apt update", "apt install docker"]
+            mock_interpreter_class.return_value = mock_interpreter
 
-        result = self.cli.install("docker", dry_run=True)
+            result = self.cli.install("docker", dry_run=True)
 
-        self.assertEqual(result, 0)
-        mock_interpreter.parse.assert_called_once_with("install docker")
+            self.assertEqual(result, 0)
+            mock_interpreter.parse.assert_called_once_with("install docker")
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-openai-key-123"}, clear=True)
     @patch("cortex.cli.CommandInterpreter")
