@@ -367,7 +367,7 @@ class CortexCLI:
                 providers_to_try.append(other_provider)
 
         commands = None
-        provider = None
+        provider = None  # noqa: F841 - assigned in loop
         api_key = None
         history = InstallationHistory()
         start_time = datetime.now()
