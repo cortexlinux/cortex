@@ -94,23 +94,24 @@ cd cortex
 python3 -m venv venv
 source venv/bin/activate
 
-# 3. Install Cortex
-pip install -e .
+# 3. Upgrade pip and tools
+pip install --upgrade pip setuptools wheel
 
-# The setup will run automatically when you first use cortex
-# You'll be prompted to select which Ollama model to download
+# 4. Install Cortex with interactive setup
+python setup.py develop
 
-# 4. (Optional) Configure cloud API key for fallback
-echo 'ANTHROPIC_API_KEY=your-key-here' > .env
-
-# 5. Verify installation and trigger setup
-cortex --version
-
-# 6. Check Ollama status and installed models
-ollama list
+# During installation, you'll be prompted to install Ollama (local AI)
+# Choose 'y' for offline/private AI, or 'n' to use cloud providers
 ```
 
-> **🎉 No API Keys Required!** Cortex automatically sets up Ollama on first use for local, privacy-first LLM inference. You'll be prompted to select which model to download (codellama:7b recommended). Cloud API keys are optional fallbacks.
+### Optional: Configure Cloud Providers
+
+```bash
+# Only needed if you skipped Ollama or want cloud fallback
+echo 'ANTHROPIC_API_KEY=your-key-here' > .env
+# OR
+echo 'OPENAI_API_KEY=your-key-here' > .env
+```
 
 ### First Run
 
@@ -121,6 +122,9 @@ cortex install nginx --dry-run
 
 # Actually install
 cortex install nginx --execute
+
+# Check Ollama status and installed models
+ollama list
 ```
 
 ---
