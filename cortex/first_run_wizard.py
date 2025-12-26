@@ -759,21 +759,22 @@ Cortex is ready to use! Here are some things to try:
             return default
 
     def _save_env_var(self, name: str, value: str):
-        """Save environment variable to shell config."""
-        shell = os.environ.get("SHELL", "/bin/bash")
-        shell_name = os.path.basename(shell)
-        config_file = self._get_shell_config(shell_name)
+        """Set environment variable for current session and show how to persist it.
 
-        export_line = f'\nexport {name}="{value}"\n'  # nosec - intentional user config storage
+        To avoid storing sensitive data in clear text on disk, this method no longer
+        appends the value to shell configuration files. Instead, it sets the variable
+        for the current process and prints the export command so the user can add it
+        manually if they choose.
+        """
+        # Set for current session only
+        os.environ[name] = value
 
-        try:
-            with open(config_file, "a") as f:
-                f.write(export_line)
-
-            # Also set for current session
-            os.environ[name] = value
-        except Exception as e:
-            logger.warning(f"Could not save env var: {e}")
+        # Show user how to persist it without doing so automatically
+        export_line = f'export {name}="{value}"'
+        print(
+            f"\nTo persist this setting, add the following line to your shell config "
+            f"(e.g. ~/.bashrc or ~/.zshrc):\n  {export_line}\n"
+        )
 
 
 # Convenience functions
