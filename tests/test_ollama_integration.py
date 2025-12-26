@@ -159,7 +159,7 @@ def test_stats_tracking():
         print(f"   Ollama tokens: {stats['providers']['ollama']['tokens']}")
 
         print("   ✓ Stats tracking works")
-        assert stats['providers']['ollama']['cost_usd'] == 0.0  # Ollama is free
+        assert stats["providers"]["ollama"]["cost_usd"] == 0.0  # Ollama is free
 
     except Exception as e:
         print(f"   ✗ Error testing stats: {e}")
