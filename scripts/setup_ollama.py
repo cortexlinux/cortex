@@ -359,6 +359,7 @@ def configure_cortex(model_name: str) -> bool:
             with open(config_file) as f:
                 config = json.load(f)
         except Exception:
+            # If the existing config cannot be read (e.g., corrupted JSON), ignore it and start fresh.
             pass
 
     # Update config
