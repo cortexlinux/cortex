@@ -927,7 +927,7 @@ def main():
     )
 
     # doctor command
-    doctor_parser = subparsers.add_parser(
+    subparsers.add_parser(
         "doctor",
         help="Run comprehensive system diagnostics",
         description="Check dependencies, API connectivity, permissions, and system compatibility."
