@@ -10,8 +10,7 @@ This document provides a comprehensive reference for all commands available in t
 | `cortex install <pkg>` | Install software |
 | `cortex demo` | See Cortex in action |
 | `cortex wizard` | Configure API key |
-| `cortex status` | Show system status |
-| `cortex doctor` | Run system health check |
+| `cortex status` | Show comprehensive system status and health checks |
 | `cortex history` | View installation history |
 | `cortex rollback <id>` | Undo an installation |
 | `cortex stack <name>` | Install a pre-built package stack |
@@ -102,7 +101,7 @@ cortex wizard
 
 ### `cortex status`
 
-Show current system status including API provider configuration and security features.
+Show comprehensive system status and run health checks to diagnose potential issues.
 
 **Usage:**
 ```bash
@@ -110,27 +109,30 @@ cortex status
 ```
 
 **Output includes:**
-- Configured API provider
-- Firejail availability (sandboxing)
-- Environment configuration status
 
----
+**System Configuration:**
+- Configured API provider (Claude, OpenAI, or Ollama)
+- Security features (Firejail availability)
 
-### `cortex doctor`
+**Python & Dependencies:**
+- Python version compatibility
+- Required package installation status
 
-Run comprehensive system health checks to diagnose potential issues.
+**GPU & Acceleration:**
+- GPU driver detection (NVIDIA/AMD)
+- CUDA/ROCm availability
 
-**Usage:**
-```bash
-cortex doctor
-```
+**AI & Services:**
+- Ollama installation and running status
 
-**Checks performed:**
-- API key validation
-- Network connectivity
-- Package manager availability
-- Security tool status (Firejail)
-- Python environment health
+**System Resources:**
+- Available disk space
+- System memory (RAM)
+
+**Exit codes:**
+- `0`: All checks passed, system is healthy
+- `1`: Warnings found, system can operate but has recommendations
+- `2`: Critical failures found, system may not work properly
 
 ---
 
@@ -381,13 +383,10 @@ cortex install nginx --dry-run
 # 1. Run the setup wizard
 cortex wizard
 
-# 2. Check system status
+# 2. Check system status and run health checks
 cortex status
 
-# 3. Run health check
-cortex doctor
-
-# 4. Try a dry-run installation
+# 3. Try a dry-run installation
 cortex install nginx --dry-run
 ```
 
