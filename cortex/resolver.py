@@ -48,8 +48,8 @@ class DependencyResolver:
 
         # Parse semantic version constraints
         try:
-            spec_a = semantic_version.SimpleSpec(version_a)
-            spec_b = semantic_version.SimpleSpec(version_b)
+            semantic_version.SimpleSpec(version_a)
+            semantic_version.SimpleSpec(version_b)
             # TODO: Compute intersection: compatible_spec = spec_a & spec_b
             # TODO: Find highest compatible version that satisfies both specs
         except ValueError as e:
