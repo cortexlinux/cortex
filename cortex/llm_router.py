@@ -4,11 +4,12 @@ LLM Router for Cortex Linux
 Routes requests to the most appropriate LLM based on task type.
 
 Supports:
+- Ollama (Local) - Privacy-first, offline-capable, no API keys needed
 - Claude API (Anthropic) - Best for natural language, chat, requirement parsing
 - Kimi K2 API (Moonshot) - Best for system operations, debugging, tool use
 
 Author: Cortex Linux Team
-License: Modified MIT License
+License: Apache 2.0
 """
 
 import asyncio
@@ -23,6 +24,8 @@ from typing import Any
 
 from anthropic import Anthropic, AsyncAnthropic
 from openai import AsyncOpenAI, OpenAI
+
+from cortex.providers.ollama_provider import OllamaProvider
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -45,6 +48,7 @@ class TaskType(Enum):
 class LLMProvider(Enum):
     """Supported LLM providers."""
 
+    OLLAMA = "ollama"  # Local LLM via Ollama
     CLAUDE = "claude"
     KIMI_K2 = "kimi_k2"
 
@@ -87,6 +91,10 @@ class LLMRouter:
 
     # Cost per 1M tokens (estimated, update with actual pricing)
     COSTS = {
+        LLMProvider.OLLAMA: {
+            "input": 0.0,  # Free - runs locally
+            "output": 0.0,  # Free - runs locally
+        },
         LLMProvider.CLAUDE: {
             "input": 3.0,  # $3 per 1M input tokens
             "output": 15.0,  # $15 per 1M output tokens
@@ -98,24 +106,27 @@ class LLMRouter:
     }
 
     # Routing rules: TaskType → Preferred LLM
+    # Default to Ollama for privacy and offline capability
+    # Falls back to cloud providers if Ollama unavailable
     ROUTING_RULES = {
-        TaskType.USER_CHAT: LLMProvider.CLAUDE,
-        TaskType.REQUIREMENT_PARSING: LLMProvider.CLAUDE,
-        TaskType.SYSTEM_OPERATION: LLMProvider.KIMI_K2,
-        TaskType.ERROR_DEBUGGING: LLMProvider.KIMI_K2,
-        TaskType.CODE_GENERATION: LLMProvider.KIMI_K2,
-        TaskType.DEPENDENCY_RESOLUTION: LLMProvider.KIMI_K2,
-        TaskType.CONFIGURATION: LLMProvider.KIMI_K2,
-        TaskType.TOOL_EXECUTION: LLMProvider.KIMI_K2,
+        TaskType.USER_CHAT: LLMProvider.OLLAMA,
+        TaskType.REQUIREMENT_PARSING: LLMProvider.OLLAMA,
+        TaskType.SYSTEM_OPERATION: LLMProvider.OLLAMA,
+        TaskType.ERROR_DEBUGGING: LLMProvider.OLLAMA,
+        TaskType.CODE_GENERATION: LLMProvider.OLLAMA,
+        TaskType.DEPENDENCY_RESOLUTION: LLMProvider.OLLAMA,
+        TaskType.CONFIGURATION: LLMProvider.OLLAMA,
+        TaskType.TOOL_EXECUTION: LLMProvider.OLLAMA,
     }
 
     def __init__(
         self,
         claude_api_key: str | None = None,
         kimi_api_key: str | None = None,
-        default_provider: LLMProvider = LLMProvider.CLAUDE,
+        default_provider: LLMProvider = LLMProvider.OLLAMA,
         enable_fallback: bool = True,
         track_costs: bool = True,
+        prefer_local: bool = True,
     ):
         """
         Initialize LLM Router.
@@ -126,12 +137,41 @@ class LLMRouter:
             default_provider: Fallback provider if routing fails
             enable_fallback: Try alternate LLM if primary fails
             track_costs: Track token usage and costs
+            prefer_local: Prefer Ollama over cloud providers when available
         """
         self.claude_api_key = claude_api_key or os.getenv("ANTHROPIC_API_KEY")
         self.kimi_api_key = kimi_api_key or os.getenv("MOONSHOT_API_KEY")
         self.default_provider = default_provider
         self.enable_fallback = enable_fallback
         self.track_costs = track_costs
+        self.prefer_local = prefer_local
+
+        # Initialize Ollama provider
+        self.ollama_client = None
+        self.ollama_has_models = False
+        try:
+            # Initialize without auto-pull during setup to avoid long delays
+            ollama_temp = OllamaProvider(auto_pull=False)
+            if ollama_temp.is_installed():
+                logger.info("✅ Ollama provider initialized (local, privacy-first)")
+                # Try to ensure service is running and model is available
+                if ollama_temp.is_running() or ollama_temp.start_service():
+                    model = ollama_temp.select_best_model()
+                    if model:
+                        logger.info(f"✅ Using local model: {model}")
+                        self.ollama_client = ollama_temp
+                        self.ollama_has_models = True
+                    else:
+                        logger.warning("⚠️  Ollama running but no models available")
+                        logger.info(
+                            "💡 Run 'cortex-setup-ollama' or 'ollama pull <model>' to download a model"
+                        )
+                else:
+                    logger.warning("⚠️  Ollama installed but service not running")
+            else:
+                logger.info("ℹ️  Ollama not installed - will use cloud providers")
+        except Exception as e:
+            logger.warning(f"⚠️  Ollama initialization failed: {e}")
 
         # Initialize clients (sync)
         self.claude_client = None
@@ -167,9 +207,26 @@ class LLMRouter:
         self.total_cost_usd = 0.0
         self.request_count = 0
         self.provider_stats = {
+            LLMProvider.OLLAMA: {"requests": 0, "tokens": 0, "cost": 0.0},
             LLMProvider.CLAUDE: {"requests": 0, "tokens": 0, "cost": 0.0},
             LLMProvider.KIMI_K2: {"requests": 0, "tokens": 0, "cost": 0.0},
         }
+
+        # Check if we have ANY usable LLM
+        if not self.ollama_has_models and not self.claude_client and not self.kimi_client:
+            error_msg = (
+                "\n❌ No LLM providers available!\n\n"
+                "Cortex needs at least one of the following:\n"
+                "  1. Local Ollama with a model installed:\n"
+                "     → Run: cortex-setup-ollama\n"
+                "     → Or: ollama pull codellama:7b\n\n"
+                "  2. Cloud API key configured:\n"
+                "     → Set ANTHROPIC_API_KEY in .env file\n"
+                "     → Or: export ANTHROPIC_API_KEY=your-key\n\n"
+                "For more help: https://github.com/cortexlinux/cortex\n"
+            )
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
 
     def route_task(
         self, task_type: TaskType, force_provider: LLMProvider | None = None
@@ -195,16 +252,33 @@ class LLMRouter:
         # Use routing rules
         provider = self.ROUTING_RULES.get(task_type, self.default_provider)
 
-        # Check if preferred provider is available
+        # Check if preferred provider is available (with smart fallback)
+        if provider == LLMProvider.OLLAMA and not self.ollama_has_models:
+            # Ollama unavailable or no models, fall back to cloud providers
+            if self.claude_client and self.enable_fallback:
+                logger.warning("Ollama unavailable, falling back to Claude")
+                provider = LLMProvider.CLAUDE
+            elif self.kimi_client and self.enable_fallback:
+                logger.warning("Ollama unavailable, falling back to Kimi K2")
+                provider = LLMProvider.KIMI_K2
+            else:
+                raise RuntimeError("No LLM providers available")
+
         if provider == LLMProvider.CLAUDE and not self.claude_client:
-            if self.kimi_client and self.enable_fallback:
+            if self.ollama_has_models and self.enable_fallback:
+                logger.warning("Claude unavailable, falling back to Ollama")
+                provider = LLMProvider.OLLAMA
+            elif self.kimi_client and self.enable_fallback:
                 logger.warning("Claude unavailable, falling back to Kimi K2")
                 provider = LLMProvider.KIMI_K2
             else:
                 raise RuntimeError("Claude API not configured and no fallback available")
 
         if provider == LLMProvider.KIMI_K2 and not self.kimi_client:
-            if self.claude_client and self.enable_fallback:
+            if self.ollama_has_models and self.enable_fallback:
+                logger.warning("Kimi K2 unavailable, falling back to Ollama")
+                provider = LLMProvider.OLLAMA
+            elif self.claude_client and self.enable_fallback:
                 logger.warning("Kimi K2 unavailable, falling back to Claude")
                 provider = LLMProvider.CLAUDE
             else:
@@ -224,6 +298,7 @@ class LLMRouter:
         temperature: float = 0.7,
         max_tokens: int = 4096,
         tools: list[dict] | None = None,
+        _attempted_providers: set[LLMProvider] | None = None,
     ) -> LLMResponse:
         """
         Generate completion using the most appropriate LLM.
@@ -235,18 +310,43 @@ class LLMRouter:
             temperature: Sampling temperature
             max_tokens: Maximum response length
             tools: Tool definitions for function calling
+            _attempted_providers: Internal - tracks providers tried (prevents infinite loop)
 
         Returns:
             LLMResponse with content and metadata
         """
         start_time = time.time()
 
+        # Track attempted providers to prevent infinite recursion
+        if _attempted_providers is None:
+            _attempted_providers = set()
+
         # Route to appropriate LLM
         routing = self.route_task(task_type, force_provider)
         logger.info(f"🧭 Routing: {routing.reasoning}")
 
+        # Check if we've already tried this provider (prevent infinite loop)
+        if routing.provider in _attempted_providers:
+            available_providers = []
+            if self.ollama_has_models:
+                available_providers.append("Ollama (local)")
+            if self.claude_client:
+                available_providers.append("Claude")
+            if self.kimi_client:
+                available_providers.append("Kimi K2")
+
+            raise RuntimeError(
+                f"All available LLM providers have been attempted and failed.\n"
+                f"Available providers: {', '.join(available_providers) if available_providers else 'None'}\n"
+                f"Please check your configuration and try again."
+            )
+
+        _attempted_providers.add(routing.provider)
+
         try:
-            if routing.provider == LLMProvider.CLAUDE:
+            if routing.provider == LLMProvider.OLLAMA:
+                response = self._complete_ollama(messages, temperature, max_tokens)
+            elif routing.provider == LLMProvider.CLAUDE:
                 response = self._complete_claude(messages, temperature, max_tokens, tools)
             else:  # KIMI_K2
                 response = self._complete_kimi(messages, temperature, max_tokens, tools)
@@ -264,23 +364,88 @@ class LLMRouter:
 
             # Try fallback if enabled
             if self.enable_fallback:
-                fallback_provider = (
-                    LLMProvider.KIMI_K2
-                    if routing.provider == LLMProvider.CLAUDE
-                    else LLMProvider.CLAUDE
-                )
-                logger.info(f"🔄 Attempting fallback to {fallback_provider.value}")
+                # Smart fallback priority: Local → Cloud
+                if routing.provider == LLMProvider.OLLAMA:
+                    fallback_provider = (
+                        LLMProvider.CLAUDE
+                        if self.claude_client
+                        else LLMProvider.KIMI_K2 if self.kimi_client else None
+                    )
+                elif routing.provider == LLMProvider.CLAUDE:
+                    fallback_provider = (
+                        LLMProvider.OLLAMA
+                        if self.ollama_has_models
+                        else LLMProvider.KIMI_K2 if self.kimi_client else None
+                    )
+                else:  # KIMI_K2
+                    fallback_provider = (
+                        LLMProvider.OLLAMA
+                        if self.ollama_has_models
+                        else LLMProvider.CLAUDE if self.claude_client else None
+                    )
 
-                return self.complete(
-                    messages=messages,
-                    task_type=task_type,
-                    force_provider=fallback_provider,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    tools=tools,
-                )
+                if fallback_provider:
+                    logger.info(f"🔄 Attempting fallback to {fallback_provider.value}")
+
+                    return self.complete(
+                        messages=messages,
+                        task_type=task_type,
+                        force_provider=fallback_provider,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        tools=tools,
+                        _attempted_providers=_attempted_providers,
+                    )
+                else:
+                    raise RuntimeError("No fallback provider available")
             else:
                 raise
+
+    def _complete_ollama(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float,
+        max_tokens: int,
+    ) -> LLMResponse:
+        """
+        Complete using Ollama local LLM.
+
+        Args:
+            messages: Chat messages
+            temperature: Sampling temperature
+            max_tokens: Max response tokens
+
+        Returns:
+            LLMResponse with standardized format
+        """
+        if not self.ollama_client:
+            raise RuntimeError("Ollama client not initialized")
+
+        start_time = time.time()
+
+        response_data = self.ollama_client.complete(
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=False,
+        )
+
+        content = response_data.get("response", "")
+        model = response_data.get("model", "unknown")
+
+        # Ollama doesn't provide token counts in the same way
+        # Estimate based on response length
+        tokens_used = len(content.split()) * 1.3  # Rough estimate
+
+        return LLMResponse(
+            content=content,
+            provider=LLMProvider.OLLAMA,
+            model=model,
+            tokens_used=int(tokens_used),
+            cost_usd=0.0,  # Local models are free
+            latency_seconds=time.time() - start_time,
+            raw_response=response_data,
+        )
 
     def _complete_claude(
         self,

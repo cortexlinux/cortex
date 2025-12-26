@@ -2,6 +2,30 @@ cortex_version: 0.2.0
 exported_at: '2025-11-14T14:23:15.123456'
 os: ubuntu-24.04
 
+# LLM Configuration
+llm:
+  # Prefer local Ollama for privacy and offline use
+  prefer_local: true
+  
+  # Ollama settings (local LLM)
+  ollama:
+    enabled: true
+    base_url: http://localhost:11434
+    preferred_models:
+      - deepseek-coder-v2:16b
+      - codellama:13b
+      - llama3:8b
+    auto_pull: true
+  
+  # Cloud providers (optional fallbacks)
+  claude:
+    enabled: false
+    # Set ANTHROPIC_API_KEY environment variable if using
+  
+  kimi_k2:
+    enabled: false
+    # Set MOONSHOT_API_KEY environment variable if using
+
 hardware:
   cpu:
     model: AMD Ryzen 9 5950X 16-Core Processor

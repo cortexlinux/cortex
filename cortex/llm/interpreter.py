@@ -62,7 +62,7 @@ class CommandInterpreter:
             elif self.provider == APIProvider.CLAUDE:
                 self.model = "claude-sonnet-4-20250514"
             elif self.provider == APIProvider.OLLAMA:
-                self.model = "llama3.2"  # Default Ollama model
+                self.model = "codellama:7b"  # Default Ollama model
             elif self.provider == APIProvider.FAKE:
                 self.model = "fake"  # Fake provider doesn't use a real model
 
@@ -143,33 +143,46 @@ Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.i
 
     def _call_ollama(self, user_input: str) -> list[str]:
         """Call local Ollama instance for offline/local inference"""
-        import urllib.error
-        import urllib.request
-
         try:
-            url = f"{self.ollama_url}/api/generate"
-            prompt = f"{self._get_system_prompt()}\n\nUser request: {user_input}"
+            from cortex.providers.ollama_provider import OllamaProvider
 
-            data = json.dumps(
-                {
-                    "model": self.model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {"temperature": 0.3},
-                }
-            ).encode("utf-8")
+            # Initialize Ollama provider without auto-pull to avoid long waits
+            ollama = OllamaProvider(base_url=self.ollama_url, auto_pull=False)
 
-            req = urllib.request.Request(
-                url, data=data, headers={"Content-Type": "application/json"}
+            # Ensure service and model are available
+            if not ollama.is_running():
+                if not ollama.start_service():
+                    raise RuntimeError(
+                        "Failed to start Ollama service. "
+                        "Please run 'cortex-setup-ollama' or 'ollama serve'"
+                    )
+
+            model = ollama.select_best_model()
+            if not model:
+                raise RuntimeError(
+                    "No Ollama models available.\n"
+                    "Please run one of the following:\n"
+                    "  • cortex-setup-ollama (recommended)\n"
+                    "  • ollama pull codellama:7b\n"
+                    "  • ollama pull llama3:8b\n"
+                    "\nOr set an API key:\n"
+                    "  • export ANTHROPIC_API_KEY=your-key"
+                )
+
+            # Create messages with system prompt
+            messages = [
+                {"role": "system", "content": self._get_system_prompt()},
+                {"role": "user", "content": user_input},
+            ]
+
+            # Generate completion
+            response = ollama.complete(
+                messages=messages, model=model, temperature=0.3, max_tokens=1000, stream=False
             )
 
-            with urllib.request.urlopen(req, timeout=60) as response:
-                result = json.loads(response.read().decode("utf-8"))
-                content = result.get("response", "").strip()
-                return self._parse_commands(content)
+            content = response.get("response", "").strip()
+            return self._parse_commands(content)
 
-        except urllib.error.URLError as e:
-            raise RuntimeError(f"Ollama not available at {self.ollama_url}: {str(e)}")
         except Exception as e:
             raise RuntimeError(f"Ollama API call failed: {str(e)}")
 
@@ -190,10 +203,52 @@ Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.i
 
     def _parse_commands(self, content: str) -> list[str]:
         try:
-            if content.startswith("```json"):
+            # Remove markdown code blocks
+            if "```json" in content:
                 content = content.split("```json")[1].split("```")[0].strip()
-            elif content.startswith("```"):
-                content = content.split("```")[1].split("```")[0].strip()
+            elif "```" in content:
+                # Extract content between first pair of ```
+                parts = content.split("```")
+                if len(parts) >= 3:
+                    content = parts[1].strip()
+
+            # Remove any leading/trailing whitespace and newlines
+            content = content.strip()
+
+            # Try to find JSON object/array in the content
+            # Look for { or [ at the start
+            start_idx = -1
+            for i, char in enumerate(content):
+                if char in ["{", "["]:
+                    start_idx = i
+                    break
+
+            if start_idx > 0:
+                content = content[start_idx:]
+
+            # Find the matching closing bracket
+            if content.startswith("{"):
+                # Find matching }
+                brace_count = 0
+                for i, char in enumerate(content):
+                    if char == "{":
+                        brace_count += 1
+                    elif char == "}":
+                        brace_count -= 1
+                        if brace_count == 0:
+                            content = content[: i + 1]
+                            break
+            elif content.startswith("["):
+                # Find matching ]
+                bracket_count = 0
+                for i, char in enumerate(content):
+                    if char == "[":
+                        bracket_count += 1
+                    elif char == "]":
+                        bracket_count -= 1
+                        if bracket_count == 0:
+                            content = content[: i + 1]
+                            break
 
             data = json.loads(content)
             commands = data.get("commands", [])
@@ -203,6 +258,10 @@ Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.i
 
             return [cmd for cmd in commands if cmd and isinstance(cmd, str)]
         except (json.JSONDecodeError, ValueError) as e:
+            # Log the problematic content for debugging
+            import logging
+
+            logging.error(f"Failed to parse LLM response. Content: {content[:500]}")
             raise ValueError(f"Failed to parse LLM response: {str(e)}")
 
     def _validate_commands(self, commands: list[str]) -> list[str]:

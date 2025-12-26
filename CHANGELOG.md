@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **🚀 Ollama Integration - Local LLM Support**
+  - Privacy-first local LLM inference via Ollama
+  - Zero-cost, offline-capable package management
+  - No API keys required for basic usage
+  - Auto-installation and setup during `pip install`
+  - Smart model selection (prefers code-focused models)
+  - Streaming response support
+  - Automatic fallback to Claude/OpenAI when local models unavailable
+  - New `OllamaProvider` class in `cortex/providers/ollama_provider.py`
+  - Setup script `scripts/setup_ollama.py` for automated installation
+  - Comprehensive documentation in `docs/OLLAMA_INTEGRATION.md`
+  - Example usage in `examples/ollama_demo.py`
+  - Test suite in `tests/test_ollama_integration.py`
+  - Updated LLM router to prioritize local models
+  - CLI command `cortex-setup-ollama` for manual setup
+
 - Comprehensive code assessment (ASSESSMENT.md)
 - Detailed improvement roadmap (ROADMAP.md)
 - Enhanced contribution guidelines (CONTRIBUTING.md)
@@ -15,8 +31,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - This CHANGELOG file
 
 ### Changed
-- Updated README with proper installation instructions
-- Standardized Python version requirement to 3.10+
+- **LLM Router** now defaults to Ollama for all tasks (privacy-first)
+- Updated routing priority: Ollama → Claude → Kimi K2 → OpenAI
+- API keys now optional (only needed for cloud fallback)
+- Updated README with Ollama quickstart and features
+- Enhanced sample configuration with LLM provider settings
+- Modified `setup.py` to trigger Ollama installation post-install
+- Updated Python version requirement to 3.10+
 - Improved documentation structure
 
 ### Fixed
@@ -24,6 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - (Pending) CI/CD pipeline test directory path
 
 ### Security
+- Enhanced privacy with 100% local LLM processing option
+- Zero data transmission to cloud when using Ollama
+- No API key exposure risk for basic usage
 - (Pending) Added additional dangerous command patterns to sandbox
 
 ---
