@@ -46,8 +46,8 @@ class CortexDemo:
             intro_text = """
 Cortex is an AI-powered universal package manager that:
 
+  • 🧠 [cyan]Understands natural language[/cyan] - No exact syntax needed
   • 🔍 [cyan]Plans before installing[/cyan] - Shows you what it will do first
-    • 🧠 [cyan]Understands natural language[/cyan] - No exact syntax needed
   • 🔒 [cyan]Checks hardware compatibility[/cyan] - Prevents bad installs
   • 📦 [cyan]Works with all package managers[/cyan] - apt, brew, npm, pip...
   • 🎯 [cyan]Smart stacks[/cyan] - Pre-configured tool bundles
@@ -65,14 +65,11 @@ Cortex is an AI-powered universal package manager that:
             # Detect hardware for smart demos
             self.hw = detect_hardware()
 
-            # Run all sections
+            # Run all sections (now consolidated to 3)
             sections = [
-                ("Smart Installation with Planning", self._section_smart_install),
-                ("Hardware-Aware Intelligence", self._section_hardware_aware),
-                ("AI Natural Language", self._section_ai_features),
-                ("Smart Stacks", self._section_stacks),
-                ("History & Safety", self._section_history),
-                ("Rollback Protection", self._section_rollback),
+                ("AI Intelligence & Understanding", self._section_ai_intelligence),
+                ("Smart Stacks & Workflows", self._section_smart_stacks),
+                ("History & Safety Features", self._section_history_safety),
             ]
 
             for i, (name, section_func) in enumerate(sections, 1):
@@ -184,10 +181,58 @@ Cortex is an AI-powered universal package manager that:
                 f"   To rollback: [cyan]cortex rollback {self.installation_id}[/cyan]\n"
             )
 
-    def _section_smart_install(self) -> bool:
-        """Section 1: Smart installation with planning"""
-        self.console.print("[bold cyan]📦 Smart Installation with Planning[/bold cyan]\n")
+    def _section_ai_intelligence(self) -> bool:
+        """Section 1: AI Intelligence - NLP, Planning, and Hardware Awareness"""
+        self.console.print("[bold cyan]🧠 AI Intelligence & Understanding[/bold cyan]\n")
 
+        # Part 1: Natural Language Understanding
+        self.console.print("[bold]Part 1: Natural Language Understanding[/bold]")
+        self.console.print(
+            "Cortex understands what you [italic]mean[/italic], not just exact syntax."
+        )
+        self.console.print("Ask questions in plain English:\n")
+
+        if not self._prompt_command('cortex ask "I need tools for Python web development"'):
+            return False
+
+        # Simulate AI response
+        with self.console.status("[cyan]CX[/cyan] Understanding your request...", spinner="dots"):
+            time.sleep(1.0)
+        with self.console.status("[cyan]CX[/cyan] Analyzing requirements...", spinner="dots"):
+            time.sleep(1.2)
+
+        self.console.print(" [cyan]CX[/cyan]  [green]✓[/green] [dim]Recommendations ready[/dim]\n")
+        time.sleep(0.5)
+
+        # Show AI response
+        response = """For Python web development on your system, here are the essential tools:
+
+[bold]Web Frameworks:[/bold]
+  • [cyan]FastAPI[/cyan] - Modern, fast framework with automatic API documentation
+  • [cyan]Flask[/cyan] - Lightweight, flexible microframework
+  • [cyan]Django[/cyan] - Full-featured framework with ORM and admin interface
+
+[bold]Development Tools:[/bold]
+  • [cyan]uvicorn[/cyan] - ASGI server for FastAPI
+  • [cyan]gunicorn[/cyan] - WSGI server for production
+  • [cyan]python3-venv[/cyan] - Virtual environments
+
+Install a complete stack with: [cyan]cortex stack webdev[/cyan]
+        """
+
+        self.console.print(Panel(response, border_style="cyan", title="AI Response"))
+        self.console.print()
+
+        self.console.print("[bold green]💡 Key Feature:[/bold green]")
+        self.console.print(
+            "Cortex's AI [bold]understands intent[/bold] and provides smart recommendations.\n"
+        )
+
+        if not self._wait_for_user():
+            return False
+
+        # Part 2: Smart Planning
+        self.console.print("\n[bold]Part 2: Transparent Planning[/bold]")
         self.console.print("Let's install Docker and Node.js together.")
         self.console.print("[dim]Cortex will show you the plan before executing anything.[/dim]")
 
@@ -199,21 +244,17 @@ Cortex is an AI-powered universal package manager that:
             'cortex install "docker nodejs"', ["docker.io", "nodejs"], show_execution=False
         )
 
-        self.console.print("[bold green]🔒 Key Feature: Transparency & Safety[/bold green]")
+        self.console.print("[bold green]🔒 Transparency & Safety:[/bold green]")
         self.console.print(
             "Cortex [bold]shows you exactly what it will do[/bold] before making any changes."
         )
         self.console.print("[dim]No surprises, no unwanted modifications to your system.[/dim]\n")
 
-        self.console.print("\n[cyan]💡 Tip:[/cyan] Use quotes when installing multiple packages:")
-        self.console.print('   [dim]cortex install "package1 package2 package3"[/dim]\n')
+        if not self._wait_for_user():
+            return False
 
-        return self._wait_for_user()
-
-    def _section_hardware_aware(self) -> bool:
-        """Section 2: Hardware-aware intelligence"""
-        self.console.print("[bold cyan]🔍 Hardware-Aware Intelligence[/bold cyan]\n")
-
+        # Part 3: Hardware-Aware Intelligence
+        self.console.print("\n[bold]Part 3: Hardware-Aware Intelligence[/bold]")
         self.console.print(
             "Cortex detects your hardware and prevents incompatible installations.\n"
         )
@@ -321,59 +362,8 @@ Cortex is an AI-powered universal package manager that:
 
         return self._wait_for_user()
 
-    def _section_ai_features(self) -> bool:
-        """Section 3: AI natural language"""
-        self.console.print("[bold cyan]🤖 AI Natural Language Understanding[/bold cyan]\n")
-
-        self.console.print(
-            "Cortex understands what you [italic]mean[/italic], not just exact syntax."
-        )
-        self.console.print("Ask questions in plain English:\n")
-
-        if not self._prompt_command('cortex ask "I need tools for Python web development"'):
-            return False
-
-        # Simulate AI response
-        with self.console.status("[cyan]CX[/cyan] Understanding your request...", spinner="dots"):
-            time.sleep(1.0)
-        with self.console.status("[cyan]CX[/cyan] Analyzing requirements...", spinner="dots"):
-            time.sleep(1.2)
-
-        self.console.print(" [cyan]CX[/cyan]  [green]✓[/green] [dim]Recommendations ready[/dim]\n")
-        time.sleep(0.5)
-
-        # Show AI response
-        response = """For Python web development on your system, here are the essential tools:
-
-[bold]Web Frameworks:[/bold]
-  • [cyan]FastAPI[/cyan] - Modern, fast framework with automatic API documentation
-  • [cyan]Flask[/cyan] - Lightweight, flexible microframework
-  • [cyan]Django[/cyan] - Full-featured framework with ORM and admin interface
-
-[bold]Development Tools:[/bold]
-  • [cyan]uvicorn[/cyan] - ASGI server for FastAPI
-  • [cyan]gunicorn[/cyan] - WSGI server for production
-  • [cyan]python3-venv[/cyan] - Virtual environments
-
-[bold]Database Tools:[/bold]
-  • [cyan]PostgreSQL[/cyan] - Robust relational database
-  • [cyan]SQLAlchemy[/cyan] - Python SQL toolkit and ORM
-
-Install a complete stack with: [cyan]cortex stack webdev[/cyan]
-        """
-
-        self.console.print(Panel(response, border_style="cyan", title="AI Response"))
-        self.console.print()
-
-        self.console.print("[bold green]💡 Key Feature:[/bold green]")
-        self.console.print(
-            "Cortex's AI [bold]understands intent[/bold] and provides smart recommendations.\n"
-        )
-
-        return self._wait_for_user()
-
-    def _section_stacks(self) -> bool:
-        """Section 4: Smart stacks"""
+    def _section_smart_stacks(self) -> bool:
+        """Section 2: Smart Stacks & Complete Workflows"""
         self.console.print("[bold cyan]📚 Smart Stacks - Complete Workflows[/bold cyan]\n")
 
         self.console.print("Stacks are pre-configured bundles of tools for common workflows.")
@@ -428,12 +418,17 @@ Install a complete stack with: [cyan]cortex stack webdev[/cyan]
             "One command sets up your [bold]entire development environment[/bold].\n"
         )
 
+        self.console.print("\n[cyan]💡 Tip:[/cyan] Create custom stacks for your team's workflow!")
+        self.console.print('   [dim]cortex stack create "mystack" package1 package2...[/dim]\n')
+
         return self._wait_for_user()
 
-    def _section_history(self) -> bool:
-        """Section 5: History tracking"""
-        self.console.print("[bold cyan]📜 Installation History & Tracking[/bold cyan]\n")
+    def _section_history_safety(self) -> bool:
+        """Section 3: History Tracking & Safety Features"""
+        self.console.print("[bold cyan]🔒 History & Safety Features[/bold cyan]\n")
 
+        # Part 1: Installation History
+        self.console.print("[bold]Part 1: Installation History[/bold]")
         self.console.print("Cortex keeps a complete record of all installations.")
         self.console.print("Review what you've installed anytime:\n")
 
@@ -466,17 +461,16 @@ Install a complete stack with: [cyan]cortex stack webdev[/cyan]
         self.console.print(history_table)
         self.console.print()
 
-        self.console.print("[bold green]💡 Safety Feature:[/bold green]")
+        self.console.print("[bold green]💡 Tracking Feature:[/bold green]")
         self.console.print(
             "Every installation is tracked. You can [bold]review or undo[/bold] any operation.\n"
         )
 
-        return self._wait_for_user()
+        if not self._wait_for_user():
+            return False
 
-    def _section_rollback(self) -> bool:
-        """Section 6: Rollback functionality"""
-        self.console.print("[bold cyan]🔄 Safe Rollback - Undo Anything[/bold cyan]\n")
-
+        # Part 2: Rollback Functionality
+        self.console.print("\n[bold]Part 2: Safe Rollback[/bold]")
         self.console.print("Made a mistake? Installed something wrong?")
         self.console.print("Cortex can [bold]roll back any installation[/bold].\n")
 
@@ -546,9 +540,9 @@ Install a complete stack with: [cyan]cortex stack webdev[/cyan]
         summary = """
 [bold]What You've Learned:[/bold]
 
+  ✓ [cyan]AI-Powered Understanding[/cyan] - Natural language queries
   ✓ [cyan]Transparent Planning[/cyan] - See commands before execution
   ✓ [cyan]Hardware-Aware[/cyan] - Prevents incompatible installations
-  ✓ [cyan]AI-Powered[/cyan] - Understands natural language queries
   ✓ [cyan]Smart Stacks[/cyan] - Complete workflows in one command
   ✓ [cyan]Full History[/cyan] - Track every installation
   ✓ [cyan]Safe Rollback[/cyan] - Undo anything, anytime
