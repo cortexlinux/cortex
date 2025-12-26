@@ -948,7 +948,7 @@ class CortexCLI:
                 if hw.min_storage_mb:
                     print(f"     - Minimum storage: {hw.min_storage_mb}MB")
                 if hw.requires_gpu:
-                    gpu_info = f"Required"
+                    gpu_info = "Required"
                     if hw.gpu_vendor:
                         gpu_info += f" ({hw.gpu_vendor})"
                     print(f"     - GPU: {gpu_info}")
