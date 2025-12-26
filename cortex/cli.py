@@ -291,13 +291,6 @@ class CortexCLI:
         console.print(f"Installed {len(packages)} packages")
         return 0
 
-    # Run system health checks
-    def doctor(self):
-        from cortex.doctor import SystemDoctor
-
-        doctor = SystemDoctor()
-        return doctor.run_checks()
-
     def ask(self, question: str) -> int:
         """Answer a natural language question about the system."""
         api_key = self._get_api_key()
@@ -794,37 +787,14 @@ class CortexCLI:
             return 1
 
     def status(self):
-        """Show system status including security features"""
-        import shutil
+        """Show comprehensive system status and run health checks"""
+        from cortex.doctor import SystemDoctor
 
-        show_banner(show_version=True)
-        console.print()
-
-        cx_header("System Status")
-
-        # Check API key
-        is_valid, provider, _ = validate_api_key()
-        if is_valid:
-            cx_print(f"API Provider: [bold]{provider}[/bold]", "success")
-        else:
-            # Check for Ollama
-            ollama_provider = os.environ.get("CORTEX_PROVIDER", "").lower()
-            if ollama_provider == "ollama":
-                cx_print("API Provider: [bold]Ollama (local)[/bold]", "success")
-            else:
-                cx_print("API Provider: [bold]Not configured[/bold]", "warning")
-                cx_print("  Run: cortex wizard", "info")
-
-        # Check Firejail
-        firejail_path = shutil.which("firejail")
-        if firejail_path:
-            cx_print(f"Firejail: [bold]Available[/bold] ({firejail_path})", "success")
-        else:
-            cx_print("Firejail: [bold]Not installed[/bold]", "warning")
-            cx_print("  Install: sudo apt-get install firejail", "info")
-
-        console.print()
-        return 0
+        # Run the comprehensive system health checks
+        # This now includes all functionality from the old status command
+        # plus all the detailed health checks from doctor
+        doctor = SystemDoctor()
+        return doctor.run_checks()
 
     def wizard(self):
         """Interactive setup wizard for API key configuration"""
@@ -1298,11 +1268,10 @@ def main():
     # Wizard command
     wizard_parser = subparsers.add_parser("wizard", help="Configure API key interactively")
 
-    # Status command
-    status_parser = subparsers.add_parser("status", help="Show system status")
-
-    # doctor command
-    doctor_parser = subparsers.add_parser("doctor", help="Run system health check")
+    # Status command (includes comprehensive health checks)
+    status_parser = subparsers.add_parser(
+        "status", help="Show comprehensive system status and health checks"
+    )
 
     # Ask command
     ask_parser = subparsers.add_parser("ask", help="Ask a question about your system")
@@ -1503,8 +1472,6 @@ def main():
             return cli.notify(args)
         elif args.command == "stack":
             return cli.stack(args)
-        elif args.command == "doctor":
-            return cli.doctor()
         elif args.command == "cache":
             if getattr(args, "cache_action", None) == "stats":
                 return cli.cache_stats()
