@@ -215,7 +215,7 @@ class CortexCLI:
             return 1
 
     def _handle_stack_list(self, manager: StackManager) -> int:
-        """List all available stacks."""
+        """List all available stacks (legacy simple stacks)."""
         stacks = manager.list_stacks()
         cx_print("\n📦 Available Stacks:\n", "info")
         for stack in stacks:
@@ -224,17 +224,18 @@ class CortexCLI:
             console.print(f"    {stack.get('name', 'Unnamed Stack')}")
             console.print(f"    {stack.get('description', 'No description')}")
             console.print(f"    [dim]({pkg_count} packages)[/dim]\n")
-        cx_print("Use: cortex stack <name> to install a stack", "info")
+        cx_print("Use: cortex install --stack <name> --execute to install", "info")
         return 0
 
     def _handle_stack_describe(self, manager: StackManager, stack_id: str) -> int:
-        """Describe a specific stack."""
+        """Describe a specific stack (legacy simple stacks)."""
         stack = manager.find_stack(stack_id)
         if not stack:
-            self._print_error(f"Stack '{stack_id}' not found. Use --list to see available stacks.")
+            self._print_error(f"Stack '{stack_id}' not found. Use 'cortex stack list' to see available stacks.")
             return 1
         description = manager.describe_stack(stack_id)
         console.print(description)
+        cx_print(f"\nTo install: cortex install --stack {stack_id} --execute", "info")
         return 0
 
     def _handle_stack_install(self, manager: StackManager, args: argparse.Namespace) -> int:
@@ -335,11 +336,11 @@ class CortexCLI:
         software: str,
         execute: bool = False,
         dry_run: bool = False,
-        template: str | None = None,
+        stack: str | None = None,
         parallel: bool = False,
     ):
-        # Validate input first (only if not using template)
-        if not template:
+        # Validate input first (only if not using stack)
+        if not stack:
             is_valid, error = validate_install_request(software)
             if not is_valid:
                 self._print_error(error)
@@ -372,9 +373,9 @@ class CortexCLI:
         start_time = datetime.now()
 
         try:
-            # If template is specified, use template system
-            if template:
-                return self._install_from_template(template, execute, dry_run)
+            # If stack is specified, use stack/template system
+            if stack:
+                return self._install_from_stack(stack, execute, dry_run)
             # Otherwise, use LLM-based installation
             self._print_status("🧠", "Understanding request...")
 
@@ -694,8 +695,8 @@ class CortexCLI:
                 traceback.print_exc()
             return 1
 
-    def _install_from_template(self, template_name: str, execute: bool, dry_run: bool):
-        """Install from a template."""
+    def _install_from_stack(self, stack_name: str, execute: bool, dry_run: bool):
+        """Install from a stack (template)."""
         history = InstallationHistory()
         install_id = None
         start_time = datetime.now()
@@ -703,19 +704,19 @@ class CortexCLI:
         try:
             template_manager = TemplateManager()
 
-            self._print_status("[*]", f"Loading template: {template_name}...")
-            template = template_manager.load_template(template_name)
+            self._print_status("[*]", f"Loading stack: {stack_name}...")
+            template = template_manager.load_template(stack_name)
 
             if not template:
-                self._print_error(f"Template '{template_name}' not found")
-                self._print_status("[*]", "Available templates:")
+                self._print_error(f"Stack '{stack_name}' not found")
+                self._print_status("[*]", "Available stacks:")
                 templates = template_manager.list_templates()
                 for name, info in templates.items():
                     print(f"  - {name}: {info['description']}")
                 return 1
 
-            # Display template info
-            print(f"\n{template.name} Template:")
+            # Display stack info
+            print(f"\n{template.name} Stack:")
             print(f"   {template.description}")
             print("\n   Packages:")
             for pkg in template.packages:
@@ -864,7 +865,7 @@ class CortexCLI:
                     return 1
             else:
                 print("\nTo execute these commands, run with --execute flag")
-                print(f"Example: cortex install --template {template_name} --execute")
+                print(f"Example: cortex install --stack {stack_name} --execute")
 
             return 0
 
@@ -879,17 +880,17 @@ class CortexCLI:
             self._print_error(f"Unexpected error: {str(e)}")
             return 1
 
-    def template_list(self):
-        """List all available templates."""
+    def stack_list(self):
+        """List all available stacks."""
         try:
             template_manager = TemplateManager()
             templates = template_manager.list_templates()
 
             if not templates:
-                print("No templates found.")
+                print("No stacks found.")
                 return 0
 
-            print("\nAvailable Templates:")
+            print("\nAvailable Stacks:")
             print("=" * 80)
             print(f"{'Name':<20} {'Version':<12} {'Type':<12} {'Description':<35}")
             print("=" * 80)
@@ -902,16 +903,80 @@ class CortexCLI:
                 )
                 print(f"{name:<20} {info['version']:<12} {info['type']:<12} {desc:<35}")
 
-            print(f"\nTotal: {len(templates)} templates")
+            print(f"\nTotal: {len(templates)} stacks")
+            print("\nTo install a stack:")
+            print("  cortex install --stack <name> --dry-run    # Preview")
+            print("  cortex install --stack <name> --execute    # Install")
             return 0
         except Exception as e:
-            self._print_error(f"Failed to list templates: {str(e)}")
+            self._print_error(f"Failed to list stacks: {str(e)}")
             return 1
 
-    def template_create(self, name: str, interactive: bool = True):
-        """Create a new template interactively."""
+    def stack_describe(self, name: str):
+        """Show detailed information about a stack."""
         try:
-            print(f"\n[*] Creating template: {name}")
+            template_manager = TemplateManager()
+            template = template_manager.load_template(name)
+
+            if not template:
+                self._print_error(f"Stack '{name}' not found")
+                print("\nAvailable stacks:")
+                templates = template_manager.list_templates()
+                for stack_name in sorted(templates.keys()):
+                    print(f"  - {stack_name}")
+                return 1
+
+            # Display stack details
+            print(f"\n📦 Stack: {template.name}")
+            print(f"   {template.description}")
+            print(f"   Version: {template.version}")
+            if template.author:
+                print(f"   Author: {template.author}")
+
+            print("\n   Packages:")
+            for pkg in template.packages:
+                print(f"     - {pkg}")
+
+            # Show hardware requirements if present
+            if template.hardware_requirements:
+                hw = template.hardware_requirements
+                print("\n   Hardware Requirements:")
+                if hw.min_ram_mb:
+                    print(f"     - Minimum RAM: {hw.min_ram_mb}MB")
+                if hw.min_cores:
+                    print(f"     - Minimum CPU cores: {hw.min_cores}")
+                if hw.min_storage_mb:
+                    print(f"     - Minimum storage: {hw.min_storage_mb}MB")
+                if hw.requires_gpu:
+                    gpu_info = f"Required"
+                    if hw.gpu_vendor:
+                        gpu_info += f" ({hw.gpu_vendor})"
+                    print(f"     - GPU: {gpu_info}")
+                if hw.requires_cuda:
+                    cuda_info = "Required"
+                    if hw.min_cuda_version:
+                        cuda_info += f" (>= {hw.min_cuda_version})"
+                    print(f"     - CUDA: {cuda_info}")
+
+            # Show verification commands if present
+            if template.verification_commands:
+                print("\n   Verification commands:")
+                for cmd in template.verification_commands:
+                    print(f"     $ {cmd}")
+
+            print("\n   To install this stack:")
+            print(f"     cortex install --stack {name} --dry-run    # Preview")
+            print(f"     cortex install --stack {name} --execute    # Install")
+
+            return 0
+        except Exception as e:
+            self._print_error(f"Failed to describe stack: {str(e)}")
+            return 1
+
+    def stack_create(self, name: str, interactive: bool = True):
+        """Create a new stack interactively."""
+        try:
+            print(f"\n[*] Creating stack: {name}")
 
             if interactive:
                 description = input("Description: ").strip()
@@ -930,7 +995,7 @@ class CortexCLI:
                         break
                     packages.append(pkg)
 
-                # Create template
+                # Create stack template
                 from cortex.templates import HardwareRequirements, Template
 
                 template = Template(
@@ -959,40 +1024,40 @@ class CortexCLI:
                         return 1
                     template.hardware_requirements = hw_req
 
-                # Save template
+                # Save stack
                 template_manager = TemplateManager()
                 template_path = template_manager.save_template(template, name)
 
-                self._print_success(f"Template '{name}' created successfully!")
+                self._print_success(f"Stack '{name}' created successfully!")
                 print(f"  Saved to: {template_path}")
                 return 0
             else:
-                self._print_error("Non-interactive template creation not yet supported")
+                self._print_error("Non-interactive stack creation not yet supported")
                 return 1
 
         except Exception as e:
-            self._print_error(f"Failed to create template: {str(e)}")
+            self._print_error(f"Failed to create stack: {str(e)}")
             return 1
 
-    def template_import(self, file_path: str, name: str | None = None):
-        """Import a template from a file."""
+    def stack_import(self, file_path: str, name: str | None = None):
+        """Import a stack from a file."""
         try:
             template_manager = TemplateManager()
             template = template_manager.import_template(file_path, name)
 
-            # Save to user templates
+            # Save to user stacks
             save_name = name or template.name
             template_path = template_manager.save_template(template, save_name)
 
-            self._print_success(f"Template '{save_name}' imported successfully!")
+            self._print_success(f"Stack '{save_name}' imported successfully!")
             print(f"  Saved to: {template_path}")
             return 0
         except Exception as e:
-            self._print_error(f"Failed to import template: {str(e)}")
+            self._print_error(f"Failed to import stack: {str(e)}")
             return 1
 
-    def template_export(self, name: str, file_path: str, format: str = "yaml"):
-        """Export a template to a file."""
+    def stack_export(self, name: str, file_path: str, format: str = "yaml"):
+        """Export a stack to a file."""
         try:
             template_manager = TemplateManager()
             template_format = (
@@ -1000,11 +1065,11 @@ class CortexCLI:
             )
             export_path = template_manager.export_template(name, file_path, template_format)
 
-            self._print_success(f"Template '{name}' exported successfully!")
+            self._print_success(f"Stack '{name}' exported successfully!")
             print(f"  Saved to: {export_path}")
             return 0
         except Exception as e:
-            self._print_error(f"Failed to export template: {str(e)}")
+            self._print_error(f"Failed to export stack: {str(e)}")
             return 1
 
     def _get_prefs_manager(self):
@@ -1517,20 +1582,26 @@ def show_rich_help():
     table.add_column("Command", style="green")
     table.add_column("Description")
 
+    table.add_row("install <pkg>", "Install software using natural language")
+    table.add_row("install --stack <name>", "Install a pre-configured stack")
+    table.add_row("stack list", "List available stacks")
+    table.add_row("stack create <name>", "Create a custom stack")
+    table.add_row("stack export/import", "Share stacks with others")
     table.add_row("ask <question>", "Ask about your system")
-    table.add_row("demo", "See Cortex in action")
-    table.add_row("wizard", "Configure API key")
-    table.add_row("status", "System status")
-    table.add_row("install <pkg>", "Install software")
-    table.add_row("history", "View history")
-    table.add_row("rollback <id>", "Undo installation")
-    table.add_row("notify", "Manage desktop notifications")
-    table.add_row("env", "Manage environment variables")
-    table.add_row("cache stats", "Show LLM cache statistics")
-    table.add_row("stack <name>", "Install the stack")
+    table.add_row("history", "View installation history")
+    table.add_row("rollback <id>", "Undo an installation")
     table.add_row("doctor", "System health check")
+    table.add_row("status", "Show system status")
+    table.add_row("env", "Manage environment variables")
+    table.add_row("wizard", "Configure API key")
 
     console.print(table)
+    console.print()
+
+    console.print("[bold cyan]Quick Examples:[/bold cyan]")
+    console.print("  cortex install docker --execute")
+    console.print("  cortex install --stack lamp --dry-run")
+    console.print("  cortex stack list")
     console.print()
     console.print("[dim]Learn more: https://cortexlinux.com/docs[/dim]")
 
@@ -1587,27 +1658,33 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # Natural language installation
   cortex install docker
   cortex install docker --execute
   cortex install "python 3.11 with pip"
   cortex install nginx --dry-run
-  cortex install --template lamp --execute
-  cortex template list
-  cortex template create my-stack
-  cortex template import template.yaml
-  cortex template export lamp my-template.yaml
+
+  # Stack-based installation
+  cortex install --stack lamp --dry-run     # Preview LAMP stack
+  cortex install --stack lamp --execute     # Install LAMP stack
+  cortex install --stack ml-ai --execute    # Install ML/AI stack
+
+  # Stack management
+  cortex stack list                         # List all stacks
+  cortex stack describe lamp                # Show stack details
+  cortex stack create my-stack              # Create custom stack
+  cortex stack export lamp my-lamp.yaml     # Export for sharing
+  cortex stack import my-lamp.yaml          # Import a stack
+
+  # History and rollback
   cortex history
   cortex history show <id>
   cortex rollback <id>
-  cortex check-pref
-  cortex check-pref ai.model
-  cortex edit-pref set ai.model gpt-4
-  cortex edit-pref delete theme
-  cortex edit-pref reset-all
 
 Environment Variables:
   OPENAI_API_KEY      OpenAI API key for GPT-4
   ANTHROPIC_API_KEY   Anthropic API key for Claude
+  CORTEX_PROVIDER     LLM provider (claude, openai, ollama)
         """,
     )
 
@@ -1638,14 +1715,40 @@ Environment Variables:
 
     # Install command
     install_parser = subparsers.add_parser(
-        "install", help="Install software using natural language or template"
+        "install",
+        help="Install software using natural language or stack",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="""Install software packages using natural language or pre-configured stacks.
+
+Cortex uses AI to understand your installation requests and generates
+the appropriate commands for your system.""",
+        epilog="""
+Examples:
+  # Natural language installation
+  cortex install docker
+  cortex install "python 3.11 with pip"
+  cortex install nginx --dry-run
+  cortex install docker --execute
+
+  # Stack-based installation (pre-configured bundles)
+  cortex install --stack lamp --dry-run    # Preview LAMP stack
+  cortex install --stack lamp --execute    # Install LAMP stack
+  cortex install --stack mern --execute    # Install MERN stack
+  cortex install --stack ml-ai --execute   # Install ML/AI stack
+
+Available stacks: lamp, mean, mern, ml-ai, devops
+Use 'cortex stack list' to see all available stacks.
+""",
     )
     install_group = install_parser.add_mutually_exclusive_group(required=True)
     install_group.add_argument(
         "software", type=str, nargs="?", help="Software to install (natural language)"
     )
     install_group.add_argument(
-        "--template", type=str, help="Install from template (e.g., lamp, mean, mern)"
+        "--stack",
+        type=str,
+        metavar="NAME",
+        help="Install from a pre-configured stack (e.g., lamp, mean, mern, ml-ai, devops)",
     )
     install_parser.add_argument(
         "--execute", action="store_true", help="Execute the generated commands"
@@ -1700,36 +1803,149 @@ Environment Variables:
     send_parser.add_argument("--actions", nargs="*", help="Action buttons")
     # --------------------------
 
-    # Template commands
-    template_parser = subparsers.add_parser("template", help="Manage installation templates")
+    # Template commands - DEPRECATED: Use 'cortex stack' instead
+    # Kept for backward compatibility, redirects to stack commands
+    template_parser = subparsers.add_parser(
+        "template",
+        help="[DEPRECATED] Use 'cortex stack' instead",
+        description="DEPRECATED: This command has been renamed to 'cortex stack'.\n"
+        "Please use 'cortex stack list', 'cortex stack create', etc.",
+    )
     template_subs = template_parser.add_subparsers(dest="template_action", help="Template actions")
-    template_subs.add_parser("list", help="List all available templates")
+    template_subs.add_parser("list", help="[DEPRECATED] Use 'cortex stack list'")
 
-    template_create_parser = template_subs.add_parser("create", help="Create a new template")
+    template_create_parser = template_subs.add_parser(
+        "create", help="[DEPRECATED] Use 'cortex stack create'"
+    )
     template_create_parser.add_argument("name", help="Template name")
 
-    template_import_parser = template_subs.add_parser("import", help="Import a template from file")
+    template_import_parser = template_subs.add_parser(
+        "import", help="[DEPRECATED] Use 'cortex stack import'"
+    )
     template_import_parser.add_argument("file_path", help="Path to template file")
     template_import_parser.add_argument("--name", help="Override template name")
 
-    template_export_parser = template_subs.add_parser("export", help="Export a template to file")
+    template_export_parser = template_subs.add_parser(
+        "export", help="[DEPRECATED] Use 'cortex stack export'"
+    )
     template_export_parser.add_argument("name", help="Template name")
     template_export_parser.add_argument("file_path", help="Output file path")
     template_export_parser.add_argument(
         "--format", choices=["yaml", "json"], default="yaml", help="Export format"
     )
 
-    # Stack command
-    stack_parser = subparsers.add_parser("stack", help="Manage pre-built package stacks")
-    stack_parser.add_argument(
-        "name", nargs="?", help="Stack name to install (ml, ml-cpu, webdev, devops, data)"
+    # Stack command - enhanced with create/import/export subcommands
+    stack_parser = subparsers.add_parser(
+        "stack",
+        help="Manage installation stacks for common development environments",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="""Manage installation stacks for common development environments.
+
+Stacks are pre-configured bundles of packages and tools that can be installed
+together. Cortex provides built-in stacks for common use cases and supports
+custom stack creation.""",
+        epilog="""
+Examples:
+  # List all available stacks
+  cortex stack list
+
+  # Show details about a specific stack
+  cortex stack describe lamp
+
+  # Install a stack (use install command)
+  cortex install --stack lamp --dry-run    # Preview first
+  cortex install --stack lamp --execute    # Install
+
+  # Create a custom stack interactively
+  cortex stack create my-dev-stack
+
+  # Export a stack to share with others
+  cortex stack export lamp my-lamp.yaml
+
+  # Import a stack from a file
+  cortex stack import my-lamp.yaml
+  cortex stack import my-lamp.yaml --name custom-lamp
+
+Built-in stacks:
+  lamp    - Linux, Apache, MySQL, PHP web server stack
+  mean    - MongoDB, Express.js, Angular, Node.js
+  mern    - MongoDB, Express.js, React, Node.js
+  ml-ai   - Machine Learning with Python, TensorFlow, PyTorch
+  devops  - Docker, Kubernetes, Terraform, Ansible
+
+Use 'cortex stack list' for a complete list with descriptions.
+""",
     )
-    stack_group = stack_parser.add_mutually_exclusive_group()
-    stack_group.add_argument("--list", "-l", action="store_true", help="List all available stacks")
-    stack_group.add_argument("--describe", "-d", metavar="STACK", help="Show details about a stack")
-    stack_parser.add_argument(
-        "--dry-run", action="store_true", help="Show what would be installed (requires stack name)"
+    stack_subs = stack_parser.add_subparsers(dest="stack_action", help="Stack actions")
+
+    # stack list
+    stack_list_parser = stack_subs.add_parser(
+        "list",
+        help="List all available stacks",
+        description="Display all available stacks with their versions and descriptions.",
+        epilog="""
+Examples:
+  cortex stack list
+""",
     )
+
+    # stack describe <name>
+    stack_describe_parser = stack_subs.add_parser(
+        "describe",
+        help="Show detailed information about a stack",
+        description="Display detailed information about a specific stack including packages and requirements.",
+        epilog="""
+Examples:
+  cortex stack describe lamp
+  cortex stack describe ml-ai
+""",
+    )
+    stack_describe_parser.add_argument("name", help="Stack name to describe")
+
+    # stack create <name>
+    stack_create_parser = stack_subs.add_parser(
+        "create",
+        help="Create a new custom stack interactively",
+        description="Create a new custom stack with packages and hardware requirements.",
+        epilog="""
+Examples:
+  cortex stack create my-web-stack
+  cortex stack create ml-custom
+""",
+    )
+    stack_create_parser.add_argument("name", help="Name for the new stack")
+
+    # stack import <file> [--name NAME]
+    stack_import_parser = stack_subs.add_parser(
+        "import",
+        help="Import a stack from a YAML/JSON file",
+        description="Import a stack definition from a YAML or JSON file.",
+        epilog="""
+Examples:
+  cortex stack import my-stack.yaml
+  cortex stack import team-stack.json --name my-team-stack
+""",
+    )
+    stack_import_parser.add_argument("file_path", help="Path to stack file (YAML or JSON)")
+    stack_import_parser.add_argument("--name", help="Override the stack name")
+
+    # stack export <name> <file> [--format FORMAT]
+    stack_export_parser = stack_subs.add_parser(
+        "export",
+        help="Export a stack to a file for sharing",
+        description="Export a stack definition to a YAML or JSON file.",
+        epilog="""
+Examples:
+  cortex stack export lamp my-lamp.yaml
+  cortex stack export ml-ai ml-stack.json --format json
+""",
+    )
+    stack_export_parser.add_argument("name", help="Stack name to export")
+    stack_export_parser.add_argument("file_path", help="Output file path")
+    stack_export_parser.add_argument(
+        "--format", choices=["yaml", "json"], default="yaml", help="Export format (default: yaml)"
+    )
+
     # Cache commands
     cache_parser = subparsers.add_parser("cache", help="Cache operations")
     cache_subs = cache_parser.add_subparsers(dest="cache_action", help="Cache actions")
@@ -1846,9 +2062,9 @@ Environment Variables:
         elif args.command == "ask":
             return cli.ask(args.question)
         elif args.command == "install":
-            if args.template:
+            if args.stack:
                 return cli.install(
-                    "", execute=args.execute, dry_run=args.dry_run, template=args.template
+                    "", execute=args.execute, dry_run=args.dry_run, stack=args.stack
                 )
             else:
                 # software is guaranteed to be set due to mutually_exclusive_group(required=True)
@@ -1863,15 +2079,24 @@ Environment Variables:
         elif args.command == "rollback":
             return cli.rollback(args.id, dry_run=args.dry_run)
         elif args.command == "template":
+            # DEPRECATED: Redirect to stack commands with warning
+            cx_print(
+                "⚠️  'cortex template' is deprecated. Use 'cortex stack' instead.", "warning"
+            )
             if args.template_action == "list":
-                return cli.template_list()
+                cx_print("   Use: cortex stack list", "info")
+                return cli.stack_list()
             elif args.template_action == "create":
-                return cli.template_create(args.name)
+                cx_print(f"   Use: cortex stack create {args.name}", "info")
+                return cli.stack_create(args.name)
             elif args.template_action == "import":
-                return cli.template_import(args.file_path, args.name)
+                cx_print(f"   Use: cortex stack import {args.file_path}", "info")
+                return cli.stack_import(args.file_path, args.name)
             elif args.template_action == "export":
-                return cli.template_export(args.name, args.file_path, args.format)
+                cx_print(f"   Use: cortex stack export {args.name} {args.file_path}", "info")
+                return cli.stack_export(args.name, args.file_path, args.format)
             else:
+                cx_print("   Use: cortex stack --help", "info")
                 parser.print_help()
                 return 1
         elif args.command == "check-pref":
@@ -1882,7 +2107,35 @@ Environment Variables:
         elif args.command == "notify":
             return cli.notify(args)
         elif args.command == "stack":
-            return cli.stack(args)
+            # Handle subcommands (list, describe, create, import, export)
+            stack_action = getattr(args, "stack_action", None)
+            if stack_action == "list":
+                return cli.stack_list()
+            elif stack_action == "describe":
+                return cli.stack_describe(args.name)
+            elif stack_action == "create":
+                return cli.stack_create(args.name)
+            elif stack_action == "import":
+                return cli.stack_import(args.file_path, getattr(args, "name", None))
+            elif stack_action == "export":
+                return cli.stack_export(args.name, args.file_path, args.format)
+            else:
+                # No subcommand - show help and list stacks
+                cx_print("Use 'cortex stack <command>' to manage stacks.", "info")
+                cx_print("", "info")
+                cx_print("Commands:", "info")
+                cx_print("  list      - List all available stacks", "info")
+                cx_print("  describe  - Show details about a stack", "info")
+                cx_print("  create    - Create a new custom stack", "info")
+                cx_print("  import    - Import a stack from file", "info")
+                cx_print("  export    - Export a stack to file", "info")
+                cx_print("", "info")
+                cx_print("To install a stack, use:", "info")
+                cx_print("  cortex install --stack <name> --dry-run", "info")
+                cx_print("  cortex install --stack <name> --execute", "info")
+                cx_print("", "info")
+                cx_print("Run 'cortex stack --help' for more information.", "info")
+                return 0
         elif args.command == "doctor":
             return cli.doctor()
         elif args.command == "cache":

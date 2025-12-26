@@ -1,55 +1,57 @@
-# Installation Templates Guide
+# Installation Stacks Guide
 
-Cortex Linux provides a powerful template system for installing common development stacks and software bundles. Templates are pre-configured installation definitions that can be shared, customized, and reused.
+Cortex Linux provides a powerful stack system for installing common development environments and software bundles. Stacks are pre-configured installation definitions that can be shared, customized, and reused.
 
 ## Overview
 
-Templates allow you to:
-- Install complete development stacks with a single command
+Stacks allow you to:
+- Install complete development environments with a single command
 - Share installation configurations with your team
-- Create custom templates for your specific needs
+- Create custom stacks for your specific needs
 - Validate hardware compatibility before installation
-- Export and import templates for easy sharing
+- Export and import stacks for easy sharing
 
 ## Quick Start
 
-### Installing from a Template
+### Installing from a Stack
 
 ```bash
-# List available templates
-cortex template list
+# List available stacks
+cortex stack list
+
+# Install LAMP stack (preview first)
+cortex install --stack lamp --dry-run
 
 # Install LAMP stack
-cortex install --template lamp --execute
+cortex install --stack lamp --execute
 
-# Install MEAN stack (dry run first)
-cortex install --template mean --dry-run
-cortex install --template mean --execute
+# Install MEAN stack
+cortex install --stack mean --execute
 ```
 
-### Creating a Custom Template
+### Creating a Custom Stack
 
 ```bash
-# Create a new template interactively
-cortex template create my-stack
+# Create a new stack interactively
+cortex stack create my-stack
 
-# Import a template from file
-cortex template import my-template.yaml
+# Import a stack from file
+cortex stack import my-stack.yaml
 
-# Export a template
-cortex template export lamp my-lamp-template.yaml
+# Export a stack
+cortex stack export lamp my-lamp-stack.yaml
 ```
 
-## Built-in Templates
+## Built-in Stacks
 
-Cortex Linux comes with 5+ pre-built templates:
+Cortex Linux comes with 5+ pre-built stacks:
 
 ### 1. LAMP Stack
 
 Linux, Apache, MySQL, PHP stack for traditional web development.
 
 ```bash
-cortex install --template lamp --execute
+cortex install --stack lamp --execute
 ```
 
 **Packages:**
@@ -72,7 +74,7 @@ cortex install --template lamp --execute
 MongoDB, Express.js, Angular, Node.js stack for modern web applications.
 
 ```bash
-cortex install --template mean --execute
+cortex install --stack mean --execute
 ```
 
 **Packages:**
@@ -91,7 +93,7 @@ cortex install --template mean --execute
 MongoDB, Express.js, React, Node.js stack for full-stack JavaScript development.
 
 ```bash
-cortex install --template mern --execute
+cortex install --stack mern --execute
 ```
 
 **Packages:**
@@ -110,7 +112,7 @@ cortex install --template mern --execute
 Machine Learning and Artificial Intelligence development stack.
 
 ```bash
-cortex install --template ml-ai --execute
+cortex install --stack ml-ai --execute
 ```
 
 **Packages:**
@@ -132,7 +134,7 @@ cortex install --template ml-ai --execute
 Complete DevOps toolchain with containerization and infrastructure tools.
 
 ```bash
-cortex install --template devops --execute
+cortex install --stack devops --execute
 ```
 
 **Packages:**
@@ -148,9 +150,9 @@ cortex install --template devops --execute
 - Minimum CPU cores: 4
 - Minimum storage: 20GB
 
-## Template Format
+## Stack Format
 
-Templates are defined in YAML or JSON format. Here's the structure:
+Stacks are defined in YAML or JSON format. Here's the structure:
 
 ### YAML Format
 
@@ -229,17 +231,17 @@ metadata:
 }
 ```
 
-## Template Fields
+## Stack Fields
 
 ### Required Fields
 
-- **name**: Template name (string)
-- **description**: Template description (string)
-- **version**: Template version (string, e.g., "1.0.0")
+- **name**: Stack name (string)
+- **description**: Stack description (string)
+- **version**: Stack version (string, e.g., "1.0.0")
 
 ### Optional Fields
 
-- **author**: Template author (string)
+- **author**: Stack author (string)
 - **packages**: List of package names (array of strings)
 - **steps**: Installation steps (array of step objects)
 - **hardware_requirements**: Hardware requirements (object)
@@ -266,12 +268,12 @@ Each step can have:
 - **requires_cuda**: Whether CUDA is required (boolean)
 - **min_cuda_version**: Minimum CUDA version (string, e.g., "11.0")
 
-## Creating Custom Templates
+## Creating Custom Stacks
 
 ### Interactive Creation
 
 ```bash
-cortex template create my-stack
+cortex stack create my-stack
 ```
 
 This will prompt you for:
@@ -295,29 +297,29 @@ packages:
   - docker
 ```
 
-2. Import the template:
+2. Import the stack:
 
 ```bash
-cortex template import my-template.yaml
+cortex stack import my-stack.yaml
 ```
 
-3. Use the template:
+3. Use the stack:
 
 ```bash
-cortex install --template my-custom-stack --execute
+cortex install --stack my-custom-stack --execute
 ```
 
-## Template Management
+## Stack Management
 
-### Listing Templates
+### Listing Stacks
 
 ```bash
-cortex template list
+cortex stack list
 ```
 
 Output:
 ```
-📋 Available Templates:
+📋 Available Stacks:
 ================================================================================
 Name                 Version       Type         Description                          
 ================================================================================
@@ -327,37 +329,69 @@ mean                 1.0.0         built-in     MongoDB, Express.js, Angular...
 mern                 1.0.0         built-in     MongoDB, Express.js, React...
 ml-ai                1.0.0         built-in     Machine Learning and AI...
 
-Total: 5 templates
+Total: 5 stacks
+
+To install a stack:
+  cortex install --stack <name> --dry-run    # Preview
+  cortex install --stack <name> --execute    # Install
 ```
 
-### Exporting Templates
+### Describing Stacks
+
+```bash
+cortex stack describe lamp
+```
+
+Output:
+```
+📦 Stack: LAMP Stack
+   Linux, Apache, MySQL, PHP development stack
+   Version: 1.0.0
+
+   Packages:
+     - apache2
+     - mysql-server
+     - php
+     - phpmyadmin
+
+   Hardware Requirements:
+     - Minimum RAM: 1024MB
+     - Minimum CPU cores: 2
+     - Minimum storage: 5120MB
+
+   To install this stack:
+     cortex install --stack lamp --dry-run    # Preview
+     cortex install --stack lamp --execute    # Install
+```
+
+### Exporting Stacks
 
 ```bash
 # Export to YAML (default)
-cortex template export lamp my-lamp-template.yaml
+cortex stack export lamp my-lamp-stack.yaml
 
 # Export to JSON
-cortex template export lamp my-lamp-template.json --format json
+cortex stack export lamp my-lamp-stack.json --format json
 ```
 
-### Importing Templates
+### Importing Stacks
 
 ```bash
 # Import with original name
-cortex template import my-template.yaml
+cortex stack import my-stack.yaml
 
 # Import with custom name
-cortex template import my-template.yaml --name my-custom-name
+cortex stack import my-stack.yaml --name my-custom-name
 ```
 
 ## Hardware Compatibility
 
-Templates can specify hardware requirements. Cortex will check compatibility before installation:
+Stacks can specify hardware requirements. Cortex will check compatibility before installation:
 
 ```bash
-$ cortex install --template ml-ai --execute
+$ cortex install --stack ml-ai --execute
 
-📋 ML/AI Stack Template:
+📦 ML/AI Stack:
    Machine Learning and Artificial Intelligence development stack
 
    Packages:
@@ -371,9 +405,9 @@ $ cortex install --template ml-ai --execute
 ⚠️  Hardware requirements not met. Continue anyway? (y/N):
 ```
 
-## Template Validation
+## Stack Validation
 
-Templates are automatically validated before installation. Validation checks:
+Stacks are automatically validated before installation. Validation checks:
 
 - Required fields are present
 - At least packages or steps are defined
@@ -381,7 +415,7 @@ Templates are automatically validated before installation. Validation checks:
 - Hardware requirements are valid (non-negative values)
 - CUDA requirements are consistent with GPU requirements
 
-## Example Templates
+## Example Stacks
 
 ### Python Data Science Stack
 
@@ -459,9 +493,9 @@ post_install:
 
 ## Best Practices
 
-1. **Always test templates in dry-run mode first:**
+1. **Always test stacks in dry-run mode first:**
    ```bash
-   cortex install --template my-template --dry-run
+   cortex install --stack my-stack --dry-run
    ```
 
 2. **Specify hardware requirements** to help users understand system needs
@@ -472,22 +506,22 @@ post_install:
 
 5. **Use descriptive step descriptions** for better user experience
 
-6. **Version your templates** to track changes
+6. **Version your stacks** to track changes
 
 7. **Document post-installation steps** in post_install commands
 
 ## Troubleshooting
 
-### Template Not Found
+### Stack Not Found
 
-If a template is not found, check:
-- Template name is correct (use `cortex template list` to verify)
-- Template file exists in `~/.cortex/templates/` or built-in templates directory
+If a stack is not found, check:
+- Stack name is correct (use `cortex stack list` to verify)
+- Stack file exists in `~/.cortex/templates/` or built-in stacks directory
 - File extension is `.yaml`, `.yml`, or `.json`
 
 ### Validation Errors
 
-If template validation fails:
+If stack validation fails:
 - Check all required fields are present
 - Ensure at least packages or steps are defined
 - Verify hardware requirements are non-negative
@@ -498,12 +532,12 @@ If template validation fails:
 If hardware compatibility warnings appear:
 - Review the warnings carefully
 - Consider if the installation will work with your hardware
-- Some templates may work with less hardware but with reduced performance
+- Some stacks may work with less hardware but with reduced performance
 - You can proceed anyway if you understand the risks
 
-## Template Sharing
+## Stack Sharing
 
-Templates can be shared by:
+Stacks can be shared by:
 1. Exporting to a file
 2. Sharing the file via version control, email, or file sharing
 3. Importing on another system
@@ -511,13 +545,13 @@ Templates can be shared by:
 Example workflow:
 ```bash
 # On source system
-cortex template export my-stack my-stack.yaml
+cortex stack export my-stack my-stack.yaml
 
 # Share my-stack.yaml
 
 # On target system
-cortex template import my-stack.yaml
-cortex install --template my-stack --execute
+cortex stack import my-stack.yaml
+cortex install --stack my-stack --execute
 ```
 
 ## Advanced Usage
@@ -540,7 +574,7 @@ steps:
 
 ### Conditional Installation
 
-While templates don't support conditional logic directly, you can use shell commands:
+While stacks don't support conditional logic directly, you can use shell commands:
 
 ```yaml
 steps:
@@ -561,6 +595,20 @@ post_install:
   - systemctl enable myservice
   - echo "Service configured. Access at http://localhost:8080"
 ```
+
+## Migration from Templates
+
+If you were using the older `cortex template` commands, they have been renamed to `cortex stack`:
+
+| Old Command | New Command |
+|------------|-------------|
+| `cortex template list` | `cortex stack list` |
+| `cortex template create <name>` | `cortex stack create <name>` |
+| `cortex template import <file>` | `cortex stack import <file>` |
+| `cortex template export <name> <file>` | `cortex stack export <name> <file>` |
+| `cortex install --template <name>` | `cortex install --stack <name>` |
+
+The old `cortex template` commands still work but will show a deprecation warning.
 
 ## See Also
 
