@@ -913,7 +913,7 @@ def main():
     )
 
     # Wizard command
-    wizard_parser = subparsers.add_parser(
+    subparsers.add_parser(
         "wizard",
         help="Interactive setup wizard",
         description="Configure API keys (Anthropic/OpenAI) and initial preferences step-by-step."
