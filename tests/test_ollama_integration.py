@@ -23,6 +23,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from cortex.llm_router import LLMProvider, LLMRouter, TaskType
 
+# Mark all tests to skip if Ollama is not available
+pytestmark = pytest.mark.skipif(
+    not subprocess.run(["which", "ollama"], capture_output=True).returncode == 0,
+    reason="Ollama is not installed. Install with: python scripts/setup_ollama.py",
+)
+
 
 def check_ollama_installed():
     """Check if Ollama is installed."""
