@@ -252,16 +252,17 @@ class TestAskHandlerProviders(unittest.TestCase):
         self.assertEqual(handler.model, "test-model")
 
         # Clean up
-        if original_model:
+        if original_model is not None:
             os.environ["OLLAMA_MODEL"] = original_model
         else:
             os.environ.pop("OLLAMA_MODEL", None)
 
-        # Test that it reads from config or defaults
-        # (depends on ~/.cortex/config.json, so just verify it's not None)
-        handler2 = AskHandler(api_key="test", provider="ollama")
-        self.assertIsNotNone(handler2.model)
-        self.assertIsInstance(handler2.model, str)
+        # Test deterministic default behavior when no env var or config file exists.
+        # Point the home directory to a temporary location without ~/.cortex/config.json
+        with tempfile.TemporaryDirectory() as tmpdir, patch("os.path.expanduser", return_value=tmpdir):
+            handler2 = AskHandler(api_key="test", provider="ollama")
+            # When no env var and no config file exist, AskHandler should use its built-in default.
+            self.assertEqual(handler2.model, "llama3.2")
 
     def test_default_model_fake(self):
         """Test default model for fake provider."""
