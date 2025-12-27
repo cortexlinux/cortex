@@ -169,10 +169,34 @@ class AskHandler:
         elif self.provider == "claude":
             return "claude-sonnet-4-20250514"
         elif self.provider == "ollama":
-            return "llama3.2"
+            return self._get_ollama_model()
         elif self.provider == "fake":
             return "fake"
         return "gpt-4"
+
+    def _get_ollama_model(self) -> str:
+        """Get Ollama model from environment or config file."""
+        # Try environment variable first
+        env_model = os.environ.get("OLLAMA_MODEL")
+        if env_model:
+            return env_model
+
+        # Try config file
+        try:
+            from pathlib import Path
+
+            config_file = Path.home() / ".cortex" / "config.json"
+            if config_file.exists():
+                with open(config_file) as f:
+                    config = json.load(f)
+                    model = config.get("ollama_model")
+                    if model:
+                        return model
+        except Exception:
+            pass  # Ignore errors reading config
+
+        # Default to llama3.2
+        return "llama3.2"
 
     def _initialize_client(self):
         if self.provider == "openai":
