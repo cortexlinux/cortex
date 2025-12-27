@@ -386,14 +386,10 @@ Cortex uses AI to understand your commands. You can use:
             "4": "phi3",
         }
 
-        while True:
-            choice = input("\nEnter choice [1]: ").strip() or "1"
-            if choice in model_choices or choice == "5":
-                break
-            print("Invalid choice. Please enter a number between 1 and 5.")
+        choice = self._prompt("\nEnter choice [1]: ", default="1")
 
         if choice == "5":
-            model_name = input("Enter model name: ").strip() or "llama3.2"
+            model_name = self._prompt("Enter model name: ", default="llama3.2")
         else:
             model_name = model_choices[choice]
 
