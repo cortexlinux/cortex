@@ -30,7 +30,6 @@ class CortexCLI:
         self.spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         self.spinner_idx = 0
         self.verbose = verbose
-        self.offline = False
 
     def _debug(self, message: str):
         """Print debug info only in verbose mode"""
@@ -294,7 +293,6 @@ class CortexCLI:
             handler = AskHandler(
                 api_key=api_key,
                 provider=provider,
-                offline=self.offline,
             )
             answer = handler.ask(question)
             console.print(answer)
@@ -355,9 +353,7 @@ class CortexCLI:
         try:
             self._print_status("🧠", "Understanding request...")
 
-            interpreter = CommandInterpreter(
-                api_key=api_key, provider=provider, offline=self.offline
-            )
+            interpreter = CommandInterpreter(api_key=api_key, provider=provider)
 
             self._print_status("📦", "Planning installation...")
 
@@ -1154,9 +1150,6 @@ def main():
     # Global flags
     parser.add_argument("--version", "-V", action="version", version=f"cortex {VERSION}")
     parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
-    parser.add_argument(
-        "--offline", action="store_true", help="Use cached responses only (no network calls)"
-    )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -1329,7 +1322,6 @@ def main():
         return 0
 
     cli = CortexCLI(verbose=args.verbose)
-    cli.offline = bool(getattr(args, "offline", False))
 
     try:
         if args.command == "demo":
