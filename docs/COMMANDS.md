@@ -16,8 +16,6 @@ This document provides a comprehensive reference for all commands available in t
 | `cortex stack <name>` | Install a pre-built package stack |
 | `cortex cache stats` | Show LLM cache statistics |
 | `cortex notify` | Manage desktop notifications |
-| `cortex check-pref` | Check user preferences |
-| `cortex edit-pref` | Edit user preferences |
 
 ---
 
@@ -295,58 +293,6 @@ cortex notify dnd 22:00 08:00
 
 # Send test notification
 cortex notify send "Test message" --title "Test" --level normal
-```
-
----
-
-### `cortex check-pref`
-
-View user preferences and configuration.
-
-**Usage:**
-```bash
-cortex check-pref [key]
-```
-
-**Examples:**
-```bash
-# Show all preferences
-cortex check-pref
-
-# Show specific preference
-cortex check-pref default_provider
-```
-
----
-
-### `cortex edit-pref`
-
-Modify user preferences.
-
-**Usage:**
-```bash
-cortex edit-pref <action> [key] [value]
-```
-
-**Actions:**
-| Action | Description |
-|--------|-------------|
-| `set` | Set a preference value |
-| `add` | Add/update a preference |
-| `delete` | Remove a preference |
-| `list` | List all preferences |
-| `validate` | Validate current preferences |
-
-**Examples:**
-```bash
-# Set a preference
-cortex edit-pref set default_provider openai
-
-# List all preferences
-cortex edit-pref list
-
-# Validate preferences
-cortex edit-pref validate
 ```
 
 ---

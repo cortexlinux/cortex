@@ -136,9 +136,6 @@ cortex history
 
 # Rollback an installation
 cortex rollback <installation-id>
-
-# Check system preferences
-cortex check-pref
 ```
 
 ### Command Reference
@@ -150,7 +147,6 @@ cortex check-pref
 | `cortex install <query> --execute` | Execute the installation |
 | `cortex history` | View all past installations |
 | `cortex rollback <id>` | Undo a specific installation |
-| `cortex check-pref` | Display current preferences |
 | `cortex --version` | Show version information |
 | `cortex --help` | Display help message |
 
