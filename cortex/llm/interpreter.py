@@ -47,7 +47,8 @@ class CommandInterpreter:
             elif self.provider == APIProvider.CLAUDE:
                 self.model = "claude-sonnet-4-20250514"
             elif self.provider == APIProvider.OLLAMA:
-                self.model = "llama3.2"  # Default Ollama model
+                # Try to load model from config or environment
+                self.model = self._get_ollama_model()
             elif self.provider == APIProvider.FAKE:
                 self.model = "fake"  # Fake provider doesn't use a real model
 
@@ -55,6 +56,30 @@ class CommandInterpreter:
             self._initialize_client()
         else:
             self.client = None
+
+    def _get_ollama_model(self) -> str:
+        """Get Ollama model from config file or environment."""
+        # Try environment variable first
+        env_model = os.environ.get("OLLAMA_MODEL")
+        if env_model:
+            return env_model
+
+        # Try config file
+        try:
+            from pathlib import Path
+
+            config_file = Path.home() / ".cortex" / "config.json"
+            if config_file.exists():
+                with open(config_file) as f:
+                    config = json.load(f)
+                    model = config.get("ollama_model")
+                    if model:
+                        return model
+        except Exception:
+            pass  # Ignore errors reading config
+
+        # Default to llama3.2
+        return "llama3.2"
 
     def _get_ollama_model(self) -> str:
         """Get Ollama model from config file or environment."""
@@ -92,11 +117,37 @@ class CommandInterpreter:
             self.client = Anthropic(api_key=self.api_key)
 
         elif self.provider == APIProvider.OLLAMA:
-            self.ollama_url = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-            self.client = None
+            # Ollama uses OpenAI-compatible API
+            try:
+                from openai import OpenAI
 
+                ollama_base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+                self.client = OpenAI(
+                    api_key="ollama", base_url=f"{ollama_base_url}/v1"  # Dummy key, not used
+                )
+            except ImportError:
+                raise ImportError("OpenAI package not installed. Run: pip install openai")
         elif self.provider == APIProvider.FAKE:
             self.client = None
+
+    def _get_system_prompt(self, simplified: bool = False) -> str:
+        """Get system prompt for command interpretation.
+
+        Args:
+            simplified: If True, return a shorter prompt optimized for local models
+        """
+        if simplified:
+            return """You must respond with ONLY a JSON object. No explanations, no markdown, no code blocks.
+
+Format: {"commands": ["command1", "command2"]}
+
+Example input: install nginx
+Example output: {"commands": ["sudo apt update", "sudo apt install -y nginx"]}
+
+Rules:
+- Use apt for Ubuntu packages
+- Add sudo for system commands
+- Return ONLY the JSON object"""
 
     def _get_system_prompt(self, simplified: bool = False) -> str:
         """Get system prompt for command interpretation.
@@ -222,21 +273,6 @@ Respond with ONLY this JSON format (no explanations):
         content = re.sub(r"\s+\]", "]", content)
         content = re.sub(r",\s*([}\]])", r"\1", content)  # Remove trailing commas
         return content.strip()
-
-    def _call_fake(self, user_input: str) -> list[str]:
-        """Return predefined fake commands from environment for testing."""
-        fake_commands_env = os.environ.get("CORTEX_FAKE_COMMANDS")
-        if not fake_commands_env:
-            raise RuntimeError("CORTEX_FAKE_COMMANDS environment variable not set")
-
-        try:
-            data = json.loads(fake_commands_env)
-            commands = data.get("commands", [])
-            if not isinstance(commands, list):
-                raise ValueError("Commands must be a list in CORTEX_FAKE_COMMANDS")
-            return [cmd for cmd in commands if cmd and isinstance(cmd, str)]
-        except json.JSONDecodeError as e:
-            raise RuntimeError(f"Failed to parse CORTEX_FAKE_COMMANDS: {str(e)}")
 
     def _parse_commands(self, content: str) -> list[str]:
         try:

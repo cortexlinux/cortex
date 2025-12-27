@@ -956,19 +956,7 @@ async def diagnose_errors_parallel(
             print(f"{error}: {diagnosis.content}")
     """
     system_prompt = (
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-        "You are a Linux system debugging expert. " "Analyze error messages and provide solutions."
-=======
         "You are a Linux system debugging expert. Analyze error messages and provide solutions."
->>>>>>> 2d6f42c (fix: resolve ruff lint errors and PEP8 issues)
-=======
-        "You are a Linux system debugging expert. Analyze error messages and provide solutions."
->>>>>>> db7af80 (Refactor system prompt in diagnose_errors_parallel and simplify connection pool timeout test)
-=======
-        "You are a Linux system debugging expert. " "Analyze error messages and provide solutions."
->>>>>>> main
     )
     if context:
         system_prompt += f"\n\nSystem context: {context}"
