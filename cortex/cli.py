@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any
 
 from cortex.ask import AskHandler
+from cortex.suggestions.package_suggester import suggest_alternatives
 from cortex.branding import VERSION, console, cx_header, cx_print, show_banner
 from cortex.coordinator import InstallationCoordinator, StepStatus
 from cortex.demo import run_demo
@@ -26,6 +27,24 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 class CortexCLI:
+    def changelog(self, package: str) -> int:
+        from cortex.changelog.fetchers import fetch_changelog
+        from cortex.changelog.parser import parse_changelog
+        from cortex.changelog.formatter import format_changelog
+
+        entries = fetch_changelog(package)
+
+        if not entries:
+            self._print_error(f"No changelog found for package: {package}")
+            return 1
+
+        for entry in entries:
+            parsed = parse_changelog(entry)
+            print(format_changelog(parsed))
+            print()
+
+        return 0
+
     def __init__(self, verbose: bool = False):
         self.spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         self.spinner_idx = 0
@@ -331,6 +350,7 @@ class CortexCLI:
         # which fail on modern Python. For the "pytorch-cpu jupyter numpy pandas"
         # combo, force a supported CPU-only PyTorch recipe instead.
         normalized = " ".join(software.split()).lower()
+        
 
         if normalized == "pytorch-cpu jupyter numpy pandas":
             software = (
@@ -339,13 +359,21 @@ class CortexCLI:
                 "pip3 install jupyter numpy pandas"
             )
 
-        api_key = self._get_api_key()
-        if not api_key:
-            return 1
+        # Try normal parse only after suggestion fallback
 
+
+        # Determine provider and API key
         provider = self._get_provider()
+        api_key = self._get_api_key()
+
+        # 🔒 Prevent Ollama connection if not running
+        if provider == "ollama" and not self.offline:
+            self.offline = True
+
         self._debug(f"Using provider: {provider}")
-        self._debug(f"API key: {api_key[:10]}...{api_key[-4:]}")
+        if api_key:
+            self._debug(f"API key: {api_key[:10]}...{api_key[-4:]}")
+
 
         # Initialize installation history
         history = InstallationHistory()
@@ -368,10 +396,25 @@ class CortexCLI:
             commands = interpreter.parse(f"install {software}")
 
             if not commands:
-                self._print_error(
-                    "No commands generated. Please try again with a different request."
-                )
+                self._print_error(f"Package '{software}' not found")
+
+                # Smart suggestions (LLM optional, fallback safe)
+                try:
+                    suggestions = suggest_alternatives(
+                        software,
+                        llm_complete=lambda prompt: interpreter.complete(prompt),
+                    )
+                except Exception:
+                    suggestions = suggest_alternatives(software)
+
+                if suggestions:
+                    cx_print("💡 Did you mean:", "info")
+                    for i, s in enumerate(suggestions, 1):
+                        print(f"  {i}. {s}")
+
                 return 1
+
+
 
             # Extract packages from commands for tracking
             packages = history._extract_packages_from_commands(commands)
@@ -1093,6 +1136,8 @@ def show_rich_help():
     table.add_row("cache stats", "Show LLM cache statistics")
     table.add_row("stack <name>", "Install the stack")
     table.add_row("doctor", "System health check")
+    table.add_row("changelog <pkg>", "View package changelogs")
+
 
     console.print(table)
     console.print()
@@ -1182,6 +1227,14 @@ def main():
         "--parallel",
         action="store_true",
         help="Enable parallel execution for multi-step installs",
+    )
+    changelog_parser = subparsers.add_parser(
+        "changelog",
+        help="View package changelogs"
+    )
+    changelog_parser.add_argument(
+        "package",
+        help="Package name (e.g. docker)"
     )
 
     # History command
@@ -1338,8 +1391,6 @@ def main():
             return cli.wizard()
         elif args.command == "status":
             return cli.status()
-        elif args.command == "ask":
-            return cli.ask(args.question)
         elif args.command == "install":
             return cli.install(
                 args.software,
