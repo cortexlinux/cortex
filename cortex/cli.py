@@ -30,6 +30,7 @@ class CortexCLI:
         self.spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         self.spinner_idx = 0
         self.verbose = verbose
+        self.role = "default"
         self.offline = False
 
     def _debug(self, message: str):

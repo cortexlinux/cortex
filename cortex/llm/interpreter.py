@@ -47,12 +47,14 @@ class CommandInterpreter:
             elif self.provider == APIProvider.CLAUDE:
                 self.model = "claude-sonnet-4-20250514"
             elif self.provider == APIProvider.OLLAMA:
-                # Try to load model from config or environment
-                self.model = self._get_ollama_model()
+                self.model = "llama3.2"  # Default Ollama model
             elif self.provider == APIProvider.FAKE:
                 self.model = "fake"  # Fake provider doesn't use a real model
 
-        self._initialize_client()
+        if self.provider != APIProvider.FAKE:
+            self._initialize_client()
+        else:
+            self.client = None
 
     def _get_ollama_model(self) -> str:
         """Get Ollama model from config file or environment."""
@@ -80,38 +82,22 @@ class CommandInterpreter:
 
     def _initialize_client(self):
         if self.provider == APIProvider.OPENAI:
-            try:
-                from openai import OpenAI
+            from openai import OpenAI
 
-                self.client = OpenAI(api_key=self.api_key)
-            except ImportError:
-                raise ImportError("OpenAI package not installed. Run: pip install openai")
+            self.client = OpenAI(api_key=self.api_key)
+
         elif self.provider == APIProvider.CLAUDE:
-            try:
-                from anthropic import Anthropic
+            from anthropic import Anthropic
 
-                self.client = Anthropic(api_key=self.api_key)
-            except ImportError:
-                raise ImportError("Anthropic package not installed. Run: pip install anthropic")
+            self.client = Anthropic(api_key=self.api_key)
+
         elif self.provider == APIProvider.OLLAMA:
-            # Ollama uses OpenAI-compatible API
-            try:
-                from openai import OpenAI
+            self.ollama_url = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+            self.client = None
 
-                ollama_base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
-                self.client = OpenAI(
-                    api_key="ollama", base_url=f"{ollama_base_url}/v1"  # Dummy key, not used
-                )
-            except ImportError:
-                raise ImportError("OpenAI package not installed. Run: pip install openai")
         elif self.provider == APIProvider.FAKE:
-            # Fake provider uses predefined commands from environment
-            self.client = None  # No client needed for fake provider
+            self.client = None
 
-<<<<<<< HEAD
-    def _get_system_prompt(self) -> str:
-        base_prompt = """You are a Linux system command expert. Convert natural language requests into safe, validated bash commands.
-=======
     def _get_system_prompt(self, simplified: bool = False) -> str:
         """Get system prompt for command interpretation.
 
@@ -132,7 +118,6 @@ Rules:
 - Return ONLY the JSON object"""
 
         return """You are a Linux system command expert. Convert natural language requests into safe, validated bash commands.
->>>>>>> 344b109 (Add Ollama integration with setup script, LLM router support, and comprehensive documentation)
 
 Rules:
 1. Return ONLY a JSON array of commands
@@ -148,10 +133,6 @@ Format:
 
 Example request: "install docker with nvidia support"
 Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.io", "sudo apt install -y nvidia-docker2", "sudo systemctl restart docker"]}"""
-
-        if getattr(self, "system_prompt", ""):
-            return f"{self.system_prompt}\n\n{base_prompt}"
-        return base_prompt
 
     def _call_openai(self, user_input: str) -> list[str]:
         try:
@@ -241,6 +222,21 @@ Respond with ONLY this JSON format (no explanations):
         content = re.sub(r"\s+\]", "]", content)
         content = re.sub(r",\s*([}\]])", r"\1", content)  # Remove trailing commas
         return content.strip()
+
+    def _call_fake(self, user_input: str) -> list[str]:
+        """Return predefined fake commands from environment for testing."""
+        fake_commands_env = os.environ.get("CORTEX_FAKE_COMMANDS")
+        if not fake_commands_env:
+            raise RuntimeError("CORTEX_FAKE_COMMANDS environment variable not set")
+
+        try:
+            data = json.loads(fake_commands_env)
+            commands = data.get("commands", [])
+            if not isinstance(commands, list):
+                raise ValueError("Commands must be a list in CORTEX_FAKE_COMMANDS")
+            return [cmd for cmd in commands if cmd and isinstance(cmd, str)]
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"Failed to parse CORTEX_FAKE_COMMANDS: {str(e)}")
 
     def _parse_commands(self, content: str) -> list[str]:
         try:
