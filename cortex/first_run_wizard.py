@@ -386,12 +386,16 @@ Cortex uses AI to understand your commands. You can use:
             "4": "phi3",
         }
 
-        choice = input("\nEnter choice [1]: ").strip() or "1"
+        while True:
+            choice = input("\nEnter choice [1]: ").strip() or "1"
+            if choice in model_choices or choice == "5":
+                break
+            print("Invalid choice. Please enter a number between 1 and 5.")
 
         if choice == "5":
             model_name = input("Enter model name: ").strip() or "llama3.2"
         else:
-            model_name = model_choices.get(choice, "llama3.2")
+            model_name = model_choices[choice]
 
         # Pull the selected model
         print(f"\nPulling {model_name} model (this may take a few minutes)...")
