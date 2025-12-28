@@ -23,7 +23,11 @@ from cortex.llm.interpreter import CommandInterpreter
 from cortex.network_config import NetworkConfig
 from cortex.notification_manager import NotificationManager
 from cortex.stack_manager import StackManager
-from cortex.user_preferences import PreferencesManager, format_preference_value
+from cortex.user_preferences import (
+    PreferencesManager,
+    format_preference_value,
+    print_all_preferences,
+)
 from cortex.validators import validate_api_key, validate_install_request
 
 # Suppress noisy log messages in normal operation
@@ -230,9 +234,7 @@ class CortexCLI:
             key_pipe = f"{ordered_a}|{ordered_b}"
 
             if key_colon in saved_resolutions or key_pipe in saved_resolutions:
-                preferred = saved_resolutions.get(key_colon) or saved_resolutions.get(
-                    key_pipe
-                )
+                preferred = saved_resolutions.get(key_colon) or saved_resolutions.get(key_pipe)
                 # Validate that preferred matches one of the packages
                 if preferred not in (pkg1, pkg2):
                     # Corrupted preference - fall through to interactive
@@ -241,9 +243,7 @@ class CortexCLI:
                     to_remove = pkg2 if preferred == pkg1 else pkg1
                     resolutions["remove"].append(to_remove)
                     print(f"\nConflict {i}: {pkg1} vs {pkg2}")
-                    print(
-                        f"  Using saved preference: Keep {preferred}, remove {to_remove}"
-                    )
+                    print(f"  Using saved preference: Keep {preferred}, remove {to_remove}")
                     continue
 
             print(f"\nConflict {i}: {pkg1} vs {pkg2}")
