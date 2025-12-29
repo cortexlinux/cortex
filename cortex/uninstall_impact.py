@@ -10,7 +10,6 @@ Analyzes impact before uninstalling packages, including:
 
 import json
 import logging
-import re
 import subprocess
 import threading
 from dataclasses import asdict, dataclass, field
