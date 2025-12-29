@@ -236,9 +236,7 @@ class WizardState:
                 else datetime.now()
             ),
             completed_at=(
-                datetime.fromisoformat(data["completed_at"])
-                if data.get("completed_at")
-                else None
+                datetime.fromisoformat(data["completed_at"]) if data.get("completed_at") else None
             ),
         )
 
@@ -452,11 +450,15 @@ class FirstRunWizard:
         provider = provider_map.get(choice)
 
         if not provider:
-            print(f"Invalid choice. Please enter a number between {valid_choices[0]} and {valid_choices[-1]}.")
+            print(
+                f"Invalid choice. Please enter a number between {valid_choices[0]} and {valid_choices[-1]}."
+            )
             return False
 
         if provider == "skip_reconfig":
-            print(f"\n✓ Keeping current provider: {provider_names.get(current_provider, current_provider)}")
+            print(
+                f"\n✓ Keeping current provider: {provider_names.get(current_provider, current_provider)}"
+            )
             self.mark_setup_complete()
             return True
 
@@ -465,7 +467,9 @@ class FirstRunWizard:
 
             if existing_key:
                 print("\n✓ Existing Anthropic API key found in .env file.")
-                replace = self._prompt("Do you want to replace it with a new key? [y/N]: ", default="n")
+                replace = self._prompt(
+                    "Do you want to replace it with a new key? [y/N]: ", default="n"
+                )
                 if replace.strip().lower() in ("y", "yes"):
                     key = self._prompt_for_api_key("anthropic")
                     if key is None:
@@ -501,7 +505,9 @@ class FirstRunWizard:
                 from cortex.cli import CortexCLI
 
                 cli = CortexCLI()
-                result = cli.install(random_example, execute=False, dry_run=True, forced_provider="claude")
+                result = cli.install(
+                    random_example, execute=False, dry_run=True, forced_provider="claude"
+                )
                 if result != 0:
                     print("\n❌ Dry run failed. Please check your API key and network.")
                     return False
@@ -515,7 +521,9 @@ class FirstRunWizard:
 
             if existing_key:
                 print("\n✓ Existing OpenAI API key found in .env file.")
-                replace = self._prompt("Do you want to replace it with a new key? [y/N]: ", default="n")
+                replace = self._prompt(
+                    "Do you want to replace it with a new key? [y/N]: ", default="n"
+                )
                 if replace.strip().lower() in ("y", "yes"):
                     key = self._prompt_for_api_key("openai")
                     if key is None:
@@ -551,7 +559,9 @@ class FirstRunWizard:
                 from cortex.cli import CortexCLI
 
                 cli = CortexCLI()
-                result = cli.install(random_example, execute=False, dry_run=True, forced_provider="openai")
+                result = cli.install(
+                    random_example, execute=False, dry_run=True, forced_provider="openai"
+                )
                 if result != 0:
                     print("\n❌ Dry run failed. Please check your API key and network.")
                     return False

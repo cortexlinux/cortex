@@ -28,9 +28,6 @@ def validate_anthropic_api_key(api_key: str) -> bool:
         return False
 
 
-
-
-
 def validate_openai_api_key(api_key: str) -> bool:
     """Validate OpenAI API key by making a minimal request."""
     try:
