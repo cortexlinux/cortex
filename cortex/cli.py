@@ -1576,7 +1576,6 @@ def main():
                 execute=args.execute,
                 dry_run=args.dry_run,
                 cascading=args.cascading,
-                orphans_only=args.orphans_only,
             )
         elif args.command == "history":
             return cli.history(limit=args.limit, status=args.status, show_id=args.show_id)
