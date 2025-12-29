@@ -6,6 +6,8 @@ import time
 from datetime import datetime
 from typing import Any
 
+from rich.markdown import Markdown
+
 from cortex.ask import AskHandler
 from cortex.branding import VERSION, console, cx_header, cx_print, show_banner
 from cortex.coordinator import InstallationCoordinator, StepStatus
@@ -297,7 +299,8 @@ class CortexCLI:
                 offline=self.offline,
             )
             answer = handler.ask(question)
-            console.print(answer)
+            # Render as markdown for proper formatting in terminal
+            console.print(Markdown(answer))
             return 0
         except ImportError as e:
             # Provide a helpful message if provider SDK is missing

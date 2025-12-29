@@ -1,15 +1,19 @@
 """Natural language query interface for Cortex.
 
 Handles user questions about installed packages, configurations,
-and system state using LLM with semantic caching.
+and system state using LLM with semantic caching. Also provides
+educational content and tracks learning progress.
 """
 
 import json
 import os
 import platform
+import re
 import shutil
 import sqlite3
 import subprocess
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 
@@ -132,6 +136,134 @@ class SystemInfoGatherer:
         }
 
 
+class LearningTracker:
+    """Tracks educational topics the user has explored."""
+
+    PROGRESS_FILE = Path.home() / ".cortex" / "learning_history.json"
+
+    # Patterns that indicate educational questions
+    EDUCATIONAL_PATTERNS = [
+        r"^explain\b",
+        r"^teach\s+me\b",
+        r"^what\s+is\b",
+        r"^what\s+are\b",
+        r"^how\s+does\b",
+        r"^how\s+do\b",
+        r"^how\s+to\b",
+        r"\bbest\s+practices?\b",
+        r"^tutorial\b",
+        r"^guide\s+to\b",
+        r"^learn\s+about\b",
+        r"^introduction\s+to\b",
+        r"^basics\s+of\b",
+    ]
+
+    def __init__(self):
+        """Initialize the learning tracker."""
+        self._compiled_patterns = [
+            re.compile(p, re.IGNORECASE) for p in self.EDUCATIONAL_PATTERNS
+        ]
+
+    def is_educational_query(self, question: str) -> bool:
+        """Determine if a question is educational in nature."""
+        for pattern in self._compiled_patterns:
+            if pattern.search(question):
+                return True
+        return False
+
+    def extract_topic(self, question: str) -> str:
+        """Extract the main topic from an educational question."""
+        # Remove common prefixes
+        topic = question.lower()
+        prefixes_to_remove = [
+            r"^explain\s+",
+            r"^teach\s+me\s+about\s+",
+            r"^teach\s+me\s+",
+            r"^what\s+is\s+",
+            r"^what\s+are\s+",
+            r"^how\s+does\s+",
+            r"^how\s+do\s+",
+            r"^how\s+to\s+",
+            r"^tutorial\s+on\s+",
+            r"^guide\s+to\s+",
+            r"^learn\s+about\s+",
+            r"^introduction\s+to\s+",
+            r"^basics\s+of\s+",
+            r"^best\s+practices\s+for\s+",
+        ]
+        for prefix in prefixes_to_remove:
+            topic = re.sub(prefix, "", topic, flags=re.IGNORECASE)
+
+        # Clean up and truncate
+        topic = topic.strip("? ").strip()
+        # Take first 50 chars as topic identifier
+        if len(topic) > 50:
+            topic = topic[:50].rsplit(" ", 1)[0]
+        return topic
+
+    def record_topic(self, question: str) -> None:
+        """Record that the user explored an educational topic."""
+        if not self.is_educational_query(question):
+            return
+
+        topic = self.extract_topic(question)
+        if not topic:
+            return
+
+        history = self._load_history()
+
+        # Update or add topic
+        if topic in history["topics"]:
+            history["topics"][topic]["count"] += 1
+            history["topics"][topic]["last_accessed"] = datetime.now().isoformat()
+        else:
+            history["topics"][topic] = {
+                "count": 1,
+                "first_accessed": datetime.now().isoformat(),
+                "last_accessed": datetime.now().isoformat(),
+            }
+
+        history["total_queries"] = history.get("total_queries", 0) + 1
+        self._save_history(history)
+
+    def get_history(self) -> dict[str, Any]:
+        """Get the learning history."""
+        return self._load_history()
+
+    def get_recent_topics(self, limit: int = 5) -> list[str]:
+        """Get recently explored topics."""
+        history = self._load_history()
+        topics = history.get("topics", {})
+
+        # Sort by last_accessed
+        sorted_topics = sorted(
+            topics.items(),
+            key=lambda x: x[1].get("last_accessed", ""),
+            reverse=True,
+        )
+        return [t[0] for t in sorted_topics[:limit]]
+
+    def _load_history(self) -> dict[str, Any]:
+        """Load learning history from file."""
+        if not self.PROGRESS_FILE.exists():
+            return {"topics": {}, "total_queries": 0}
+
+        try:
+            with open(self.PROGRESS_FILE, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return {"topics": {}, "total_queries": 0}
+
+    def _save_history(self, history: dict[str, Any]) -> None:
+        """Save learning history to file."""
+        try:
+            self.PROGRESS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.PROGRESS_FILE, "w") as f:
+                json.dump(history, f, indent=2)
+        except OSError:
+            pass  # Silently fail if we can't write
+
+
 class AskHandler:
     """Handles natural language questions about the system."""
 
@@ -155,6 +287,7 @@ class AskHandler:
         self.offline = offline
         self.model = model or self._default_model()
         self.info_gatherer = SystemInfoGatherer()
+        self.learning_tracker = LearningTracker()
 
         # Initialize cache
         try:
@@ -201,18 +334,63 @@ class AskHandler:
             raise ValueError(f"Unsupported provider: {self.provider}")
 
     def _get_system_prompt(self, context: dict[str, Any]) -> str:
-        return f"""You are a helpful Linux system assistant. Answer questions about the user's system clearly and concisely.
+        return f"""You are a helpful Linux system assistant and tutor. You help users with both system-specific questions AND educational queries about Linux, packages, and best practices.
 
 System Context:
 {json.dumps(context, indent=2)}
 
-Rules:
-1. Provide direct, human-readable answers
-2. Use the system context to give accurate information
+## Query Type Detection
+
+Automatically detect the type of question and respond appropriately:
+
+### Educational Questions (tutorials, explanations, learning)
+Triggered by questions like: "explain...", "teach me...", "how does X work", "what is...", "best practices for...", "tutorial on...", "learn about...", "guide to..."
+
+For educational questions:
+1. Provide structured, tutorial-style explanations
+2. Include practical code examples with proper formatting
+3. Highlight best practices and common pitfalls to avoid
+4. Break complex topics into digestible sections
+5. Use clear section labels and bullet points for readability
+6. Mention related topics the user might want to explore next
+7. Tailor examples to the user's system when relevant (e.g., use apt for Debian-based systems)
+
+### Diagnostic Questions (system-specific, troubleshooting)
+Triggered by questions about: current system state, "why is my...", "what packages...", "check my...", specific errors, system status
+
+For diagnostic questions:
+1. Analyze the provided system context
+2. Give specific, actionable answers
 3. Be concise but informative
 4. If you don't have enough information, say so clearly
-5. For package compatibility questions, consider the system's Python version and OS
-6. Return ONLY the answer text, no JSON or markdown formatting"""
+
+## Output Formatting Rules (CRITICAL - Follow exactly)
+1. NEVER use markdown headings (# or ##) - they render poorly in terminals
+2. For section titles, use **Bold Text** on its own line instead
+3. Use bullet points (-) for lists
+4. Use numbered lists (1. 2. 3.) for sequential steps
+5. Use triple backticks with language name for code blocks (```bash)
+6. Use *italic* sparingly for emphasis
+7. Keep lines under 100 characters when possible
+8. Add blank lines between sections for readability
+9. For tables, use simple text formatting, not markdown tables
+
+Example of good formatting:
+**Installation Steps**
+
+1. Update your package list:
+```bash
+sudo apt update
+```
+
+2. Install the package:
+```bash
+sudo apt install nginx
+```
+
+**Key Points**
+- Point one here
+- Point two here"""
 
     def _call_openai(self, question: str, system_prompt: str) -> str:
         response = self.client.chat.completions.create(
@@ -222,7 +400,7 @@ Rules:
                 {"role": "user", "content": question},
             ],
             temperature=0.3,
-            max_tokens=500,
+            max_tokens=2000,
         )
         # Defensive: content may be None or choices could be empty in edge cases
         try:
@@ -234,7 +412,7 @@ Rules:
     def _call_claude(self, question: str, system_prompt: str) -> str:
         response = self.client.messages.create(
             model=self.model,
-            max_tokens=500,
+            max_tokens=2000,
             temperature=0.3,
             system=system_prompt,
             messages=[{"role": "user", "content": question}],
@@ -344,4 +522,26 @@ Rules:
             except (OSError, sqlite3.Error):
                 pass  # Silently fail cache writes
 
+        # Track educational topics for learning history
+        self.learning_tracker.record_topic(question)
+
         return answer
+
+    def get_learning_history(self) -> dict[str, Any]:
+        """Get the user's learning history.
+
+        Returns:
+            Dictionary with topics explored and statistics
+        """
+        return self.learning_tracker.get_history()
+
+    def get_recent_topics(self, limit: int = 5) -> list[str]:
+        """Get recently explored educational topics.
+
+        Args:
+            limit: Maximum number of topics to return
+
+        Returns:
+            List of topic strings
+        """
+        return self.learning_tracker.get_recent_topics(limit)
