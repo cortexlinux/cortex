@@ -10,6 +10,8 @@ License: Apache 2.0
 
 import csv
 import logging
+import os
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Set
@@ -108,7 +110,7 @@ class FallbackHandler:
         This helps translator teams quickly identify gaps in translations.
         
         Args:
-            output_path: Path to write CSV (uses /tmp if None)
+            output_path: Path to write CSV (uses secure user temp dir if None)
             
         Returns:
             CSV content as string
@@ -122,7 +124,13 @@ class FallbackHandler:
             '''
         """
         if output_path is None:
-            output_path = Path("/tmp") / f"cortex_missing_translations_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            # Use secure user-specific temporary directory
+            # This avoids /tmp which is world-writable (security vulnerability)
+            temp_dir = Path(tempfile.gettempdir()) / f"cortex_{os.getuid()}"
+            temp_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+            
+            filename = f"cortex_missing_translations_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            output_path = temp_dir / filename
         
         # Build CSV content
         csv_lines = ["key,namespace"]
@@ -135,11 +143,17 @@ class FallbackHandler:
         
         csv_content = "\n".join(csv_lines)
         
-        # Write to file
+        # Write to file with secure permissions
         try:
-            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            
+            # Create file with secure permissions (owner read/write only)
             with open(output_path, "w", encoding="utf-8") as f:
                 f.write(csv_content)
+            
+            # Explicitly set file permissions to 0o600 (owner read/write only)
+            os.chmod(output_path, 0o600)
+            
             self.logger.info(f"Exported missing translations to: {output_path}")
         except Exception as e:
             self.logger.error(f"Failed to export missing translations: {e}")
