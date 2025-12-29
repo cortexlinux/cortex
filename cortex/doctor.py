@@ -356,8 +356,6 @@ class SystemDoctor:
         else:
             self._print_check(
                 "WARN",
-                "No API keys configured (required for cloud models)",
-                "Configure API key: export ANTHROPIC_API_KEY=sk-... or run 'cortex wizard'",
                 "Firejail not installed (sandboxing unavailable)",
                 "Install: sudo apt-get install firejail",
             )
