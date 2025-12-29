@@ -59,7 +59,9 @@ class CommandInterpreter:
             if self.provider == APIProvider.OPENAI:
                 self.model = "gpt-4"
             elif self.provider == APIProvider.CLAUDE:
-                self.model = "claude-sonnet-4-20250514"
+                # Check if user wants Haiku (faster, cheaper) via env variable
+                use_haiku = os.getenv("CORTEX_USE_HAIKU", "").lower() in ("1", "true", "yes")
+                self.model = "claude-3-5-haiku-20241022" if use_haiku else "claude-sonnet-4-20250514"
             elif self.provider == APIProvider.OLLAMA:
                 # Try to load model from config or environment
                 self.model = self._get_ollama_model()

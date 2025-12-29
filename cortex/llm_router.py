@@ -84,7 +84,13 @@ class LLMRouter:
     - Complex installs → Kimi K2 (superior agentic capabilities)
 
     Includes fallback logic if primary LLM fails.
-    """cortex/llm_router.py
+    """
+
+    # Available Claude models
+    CLAUDE_MODELS = {
+        "sonnet": "claude-sonnet-4-20250514",  # Most capable
+        "haiku": "claude-3-5-haiku-20241022",  # Fast and cost-effective
+    }
 
     # Cost per 1M tokens (estimated, update with actual pricing)
     COSTS = {
@@ -121,6 +127,7 @@ class LLMRouter:
         ollama_base_url: str | None = None,
         ollama_model: str | None = None,
         default_provider: LLMProvider = LLMProvider.CLAUDE,
+        claude_model: str = "haiku",
         enable_fallback: bool = True,
         track_costs: bool = True,
     ):
@@ -133,12 +140,14 @@ class LLMRouter:
             ollama_base_url: Ollama API base URL (defaults to http://localhost:11434)
             ollama_model: Ollama model to use (defaults to llama3.2)
             default_provider: Fallback provider if routing fails
+            claude_model: Claude model to use ("sonnet" or "haiku", defaults to "haiku")
             enable_fallback: Try alternate LLM if primary fails
             track_costs: Track token usage and costs
         """
         self.claude_api_key = claude_api_key or os.getenv("ANTHROPIC_API_KEY")
         self.kimi_api_key = kimi_api_key or os.getenv("MOONSHOT_API_KEY")
         self.default_provider = default_provider
+        self.claude_model = self.CLAUDE_MODELS.get(claude_model, self.CLAUDE_MODELS["haiku"])
         self.enable_fallback = enable_fallback
         self.track_costs = track_costs
 
