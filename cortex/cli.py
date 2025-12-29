@@ -524,6 +524,176 @@ class CortexCLI:
             self._print_error(f"Unexpected error: {str(e)}")
             return 1
 
+    def remove(
+        self,
+        software: str,
+        execute: bool = False,
+        dry_run: bool = False,
+        cascading: bool = False,
+        orphans_only: bool = False,
+    ) -> int:
+        """
+        Remove/uninstall packages with impact analysis.
+        
+        Args:
+            software: Package(s) to remove
+            execute: Execute removal commands
+            dry_run: Show what would be removed without executing
+            cascading: Remove dependent packages automatically
+            orphans_only: Only remove orphaned packages
+        """
+        from cortex.uninstall_impact import UninstallImpactAnalyzer
+
+        try:
+            analyzer = UninstallImpactAnalyzer()
+            
+            # Handle single or multiple packages
+            packages = [p.strip() for p in software.split() if p.strip()]
+            
+            if not packages:
+                self._print_error("No packages specified for removal")
+                return 1
+
+            # Analyze impact for all packages
+            analyses = []
+            for package in packages:
+                analysis = analyzer.analyze_uninstall_impact(package)
+                analyses.append(analysis)
+
+            # Display impact analysis
+            self._display_removal_impact(analyses, cascading, orphans_only)
+
+            # If only analysis (no execution)
+            if not execute and not dry_run:
+                print("\nTo execute removal, run with --execute flag")
+                print(f"Example: cortex remove {software} --execute")
+                return 0
+
+            # Check if removal is safe
+            has_critical = any(
+                a.severity in ["high", "critical"] for a in analyses
+            )
+            
+            if has_critical and not cascading:
+                self._print_error(
+                    "Cannot remove packages with high/critical impact without --cascading flag"
+                )
+                return 1
+
+            # Generate removal commands
+            commands = self._generate_removal_commands(packages, cascading)
+
+            if dry_run or not execute:
+                print("\nRemoval commands (dry run):")
+                for i, cmd in enumerate(commands, 1):
+                    print(f"  {i}. {cmd}")
+                if dry_run:
+                    print("\n(Dry run mode - commands not executed)")
+                return 0
+
+            if execute:
+                self._print_status("⚙️", f"Removing {software}...")
+                print("\nRemoving packages...")
+                
+                coordinator = InstallationCoordinator(
+                    commands=commands,
+                    descriptions=[f"Step {i+1}" for i in range(len(commands))],
+                    timeout=300,
+                    stop_on_error=True,
+                    progress_callback=lambda c, t, s: print(
+                        f"\n[{c}/{t}] ⏳ {s.description}\n  Command: {s.command}"
+                    ),
+                )
+
+                result = coordinator.execute()
+
+                if result.success:
+                    self._print_success(f"{software} removed successfully!")
+                    print(f"\nCompleted in {result.total_duration:.2f} seconds")
+                    return 0
+                else:
+                    self._print_error("Removal failed")
+                    if result.error_message:
+                        print(f"  Error: {result.error_message}", file=sys.stderr)
+                    return 1
+
+            return 0
+
+        except Exception as e:
+            self._print_error(f"Error during removal: {str(e)}")
+            return 1
+
+    def _display_removal_impact(
+        self, analyses: list, cascading: bool, orphans_only: bool
+    ) -> None:
+        """Display impact analysis for package removal"""
+        from rich.table import Table
+
+        print("\n⚠️  Impact Analysis:")
+        print("=" * 70)
+
+        for analysis in analyses:
+            pkg = analysis.package_name
+            
+            if not analysis.installed:
+                print(f"\n📦 {pkg}: [Not installed]")
+                continue
+
+            print(f"\n📦 {pkg} ({analysis.installed_version})")
+            print(f"   Severity: {analysis.severity.upper()}")
+            
+            # Directly dependent packages
+            if analysis.directly_depends:
+                print(f"\n   Directly depends on {pkg}:")
+                for dep in analysis.directly_depends[:5]:
+                    critical = " ⚠️ CRITICAL" if dep.critical else ""
+                    print(f"      • {dep.name}{critical}")
+                if len(analysis.directly_depends) > 5:
+                    print(f"      ... and {len(analysis.directly_depends) - 5} more")
+
+            # Services affected
+            if analysis.affected_services:
+                print(f"\n   Services affected:")
+                for svc in analysis.affected_services:
+                    critical = " ⚠️ CRITICAL" if svc.critical else ""
+                    print(f"      • {svc.service_name} ({svc.status}){critical}")
+
+            # Orphaned packages
+            if analysis.orphaned_packages:
+                print(f"\n   Would orphan: {', '.join(analysis.orphaned_packages[:3])}")
+
+        # Summary
+        total_affected = sum(len(a.directly_depends) for a in analyses)
+        total_services = sum(len(a.affected_services) for a in analyses)
+        
+        print(f"\n{'=' * 70}")
+        print(f"Would affect: {total_affected} packages, {total_services} services")
+
+        # Recommendations
+        print(f"\n💡 Recommendations:")
+        for analysis in analyses:
+            for rec in analysis.recommendations[:2]:
+                print(f"   {rec}")
+
+    def _generate_removal_commands(self, packages: list[str], cascading: bool) -> list[str]:
+        """Generate apt removal commands"""
+        commands = []
+        
+        pkg_list = " ".join(packages)
+        
+        if cascading:
+            # Remove with dependencies
+            commands.append(f"sudo apt-get remove -y --auto-remove {pkg_list}")
+        else:
+            # Simple removal
+            commands.append(f"sudo apt-get remove -y {pkg_list}")
+        
+        # Clean up
+        commands.append("sudo apt-get autoremove -y")
+        commands.append("sudo apt-get autoclean -y")
+        
+        return commands
+
     def cache_stats(self) -> int:
         try:
             from cortex.semantic_cache import SemanticCache
@@ -768,6 +938,7 @@ def show_rich_help():
     table.add_row("wizard", "Configure API key")
     table.add_row("status", "System status")
     table.add_row("install <pkg>", "Install software")
+    table.add_row("remove <pkg>", "Remove software with impact analysis")
     table.add_row("history", "View history")
     table.add_row("rollback <id>", "Undo installation")
     table.add_row("notify", "Manage desktop notifications")  # Added this line
@@ -839,6 +1010,22 @@ def main():
         "--parallel",
         action="store_true",
         help="Enable parallel execution for multi-step installs",
+    )
+
+    # Remove/Uninstall command
+    remove_parser = subparsers.add_parser("remove", help="Remove/uninstall packages with impact analysis")
+    remove_parser.add_argument("software", type=str, help="Package(s) to remove")
+    remove_parser.add_argument("--execute", action="store_true", help="Execute removal")
+    remove_parser.add_argument("--dry-run", action="store_true", help="Show what would be removed")
+    remove_parser.add_argument(
+        "--cascading",
+        action="store_true",
+        help="Remove dependent packages automatically",
+    )
+    remove_parser.add_argument(
+        "--orphans-only",
+        action="store_true",
+        help="Only remove orphaned packages",
     )
 
     # History command
@@ -918,6 +1105,14 @@ def main():
                 execute=args.execute,
                 dry_run=args.dry_run,
                 parallel=args.parallel,
+            )
+        elif args.command == "remove":
+            return cli.remove(
+                args.software,
+                execute=args.execute,
+                dry_run=args.dry_run,
+                cascading=args.cascading,
+                orphans_only=args.orphans_only,
             )
         elif args.command == "history":
             return cli.history(limit=args.limit, status=args.status, show_id=args.show_id)
