@@ -84,7 +84,7 @@ class LLMRouter:
     - Complex installs → Kimi K2 (superior agentic capabilities)
 
     Includes fallback logic if primary LLM fails.
-    """
+    """cortex/llm_router.py
 
     # Cost per 1M tokens (estimated, update with actual pricing)
     COSTS = {
