@@ -16,8 +16,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from cortex.ask import AskHandler
 from cortex.branding import VERSION, console, cx_header, cx_print, show_banner
-from cortex.coordinator import InstallationCoordinator, StepStatus
+from cortex.coordinator import InstallationCoordinator, InstallationStep, StepStatus
 from cortex.demo import run_demo
+from cortex.dependency_importer import (
+    DependencyImporter,
+    PackageEcosystem,
+    ParseResult,
+    format_package_list,
+)
 from cortex.env_manager import EnvironmentManager, get_env_manager
 from cortex.installation_history import InstallationHistory, InstallationStatus, InstallationType
 from cortex.llm.interpreter import CommandInterpreter
@@ -41,7 +47,6 @@ class CortexCLI:
         self.spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         self.spinner_idx = 0
         self.verbose = verbose
-        self.offline = False
 
     def _debug(self, message: str):
         """Print debug info only in verbose mode"""
@@ -292,6 +297,226 @@ class CortexCLI:
         console.print(f"Installed {len(packages)} packages")
         return 0
 
+    # --- Sandbox Commands (Docker-based package testing) ---
+    def sandbox(self, args: argparse.Namespace) -> int:
+        """Handle `cortex sandbox` commands for Docker-based package testing."""
+        from cortex.sandbox import (
+            DockerNotFoundError,
+            DockerSandbox,
+            SandboxAlreadyExistsError,
+            SandboxNotFoundError,
+            SandboxTestStatus,
+        )
+
+        action = getattr(args, "sandbox_action", None)
+
+        if not action:
+            cx_print("\n🐳 Docker Sandbox - Test packages safely before installing\n", "info")
+            console.print("Usage: cortex sandbox <command> [options]")
+            console.print("\nCommands:")
+            console.print("  create <name>              Create a sandbox environment")
+            console.print("  install <name> <package>   Install package in sandbox")
+            console.print("  test <name> [package]      Run tests in sandbox")
+            console.print("  promote <name> <package>   Install tested package on main system")
+            console.print("  cleanup <name>             Remove sandbox environment")
+            console.print("  list                       List all sandboxes")
+            console.print("  exec <name> <cmd...>       Execute command in sandbox")
+            console.print("\nExample workflow:")
+            console.print("  cortex sandbox create test-env")
+            console.print("  cortex sandbox install test-env nginx")
+            console.print("  cortex sandbox test test-env")
+            console.print("  cortex sandbox promote test-env nginx")
+            console.print("  cortex sandbox cleanup test-env")
+            return 0
+
+        try:
+            sandbox = DockerSandbox()
+
+            if action == "create":
+                return self._sandbox_create(sandbox, args)
+            elif action == "install":
+                return self._sandbox_install(sandbox, args)
+            elif action == "test":
+                return self._sandbox_test(sandbox, args)
+            elif action == "promote":
+                return self._sandbox_promote(sandbox, args)
+            elif action == "cleanup":
+                return self._sandbox_cleanup(sandbox, args)
+            elif action == "list":
+                return self._sandbox_list(sandbox)
+            elif action == "exec":
+                return self._sandbox_exec(sandbox, args)
+            else:
+                self._print_error(f"Unknown sandbox action: {action}")
+                return 1
+
+        except DockerNotFoundError as e:
+            self._print_error(str(e))
+            cx_print("Docker is required only for sandbox commands.", "info")
+            return 1
+        except SandboxNotFoundError as e:
+            self._print_error(str(e))
+            cx_print("Use 'cortex sandbox list' to see available sandboxes.", "info")
+            return 1
+        except SandboxAlreadyExistsError as e:
+            self._print_error(str(e))
+            return 1
+
+    def _sandbox_create(self, sandbox, args: argparse.Namespace) -> int:
+        """Create a new sandbox environment."""
+        name = args.name
+        image = getattr(args, "image", "ubuntu:22.04")
+
+        cx_print(f"Creating sandbox '{name}'...", "info")
+        result = sandbox.create(name, image=image)
+
+        if result.success:
+            cx_print(f"✓ Sandbox environment '{name}' created", "success")
+            console.print(f"  [dim]{result.stdout}[/dim]")
+            return 0
+        else:
+            self._print_error(result.message)
+            if result.stderr:
+                console.print(f"  [red]{result.stderr}[/red]")
+            return 1
+
+    def _sandbox_install(self, sandbox, args: argparse.Namespace) -> int:
+        """Install a package in sandbox."""
+        name = args.name
+        package = args.package
+
+        cx_print(f"Installing '{package}' in sandbox '{name}'...", "info")
+        result = sandbox.install(name, package)
+
+        if result.success:
+            cx_print(f"✓ {package} installed in sandbox", "success")
+            return 0
+        else:
+            self._print_error(result.message)
+            if result.stderr:
+                console.print(f"  [dim]{result.stderr[:500]}[/dim]")
+            return 1
+
+    def _sandbox_test(self, sandbox, args: argparse.Namespace) -> int:
+        """Run tests in sandbox."""
+        from cortex.sandbox import SandboxTestStatus
+
+        name = args.name
+        package = getattr(args, "package", None)
+
+        cx_print(f"Running tests in sandbox '{name}'...", "info")
+        result = sandbox.test(name, package)
+
+        console.print()
+        for test in result.test_results:
+            if test.result == SandboxTestStatus.PASSED:
+                console.print(f"   ✓  {test.name}")
+                if test.message:
+                    console.print(f"      [dim]{test.message[:80]}[/dim]")
+            elif test.result == SandboxTestStatus.FAILED:
+                console.print(f"   ✗  {test.name}")
+                if test.message:
+                    console.print(f"      [red]{test.message}[/red]")
+            else:
+                console.print(f"   ⊘  {test.name} [dim](skipped)[/dim]")
+
+        console.print()
+        if result.success:
+            cx_print("All tests passed", "success")
+            return 0
+        else:
+            self._print_error("Some tests failed")
+            return 1
+
+    def _sandbox_promote(self, sandbox, args: argparse.Namespace) -> int:
+        """Promote a tested package to main system."""
+        name = args.name
+        package = args.package
+        dry_run = getattr(args, "dry_run", False)
+        skip_confirm = getattr(args, "yes", False)
+
+        if dry_run:
+            result = sandbox.promote(name, package, dry_run=True)
+            cx_print(f"Would run: sudo apt-get install -y {package}", "info")
+            return 0
+
+        # Confirm with user unless -y flag
+        if not skip_confirm:
+            console.print(f"\nPromote '{package}' to main system? [Y/n]: ", end="")
+            try:
+                response = input().strip().lower()
+                if response and response not in ("y", "yes"):
+                    cx_print("Promotion cancelled", "warning")
+                    return 0
+            except (EOFError, KeyboardInterrupt):
+                console.print()
+                cx_print("Promotion cancelled", "warning")
+                return 0
+
+        cx_print(f"Installing '{package}' on main system...", "info")
+        result = sandbox.promote(name, package, dry_run=False)
+
+        if result.success:
+            cx_print(f"✓ {package} installed on main system", "success")
+            return 0
+        else:
+            self._print_error(result.message)
+            if result.stderr:
+                console.print(f"  [red]{result.stderr[:500]}[/red]")
+            return 1
+
+    def _sandbox_cleanup(self, sandbox, args: argparse.Namespace) -> int:
+        """Remove a sandbox environment."""
+        name = args.name
+        force = getattr(args, "force", False)
+
+        cx_print(f"Removing sandbox '{name}'...", "info")
+        result = sandbox.cleanup(name, force=force)
+
+        if result.success:
+            cx_print(f"✓ Sandbox '{name}' removed", "success")
+            return 0
+        else:
+            self._print_error(result.message)
+            return 1
+
+    def _sandbox_list(self, sandbox) -> int:
+        """List all sandbox environments."""
+        sandboxes = sandbox.list_sandboxes()
+
+        if not sandboxes:
+            cx_print("No sandbox environments found", "info")
+            cx_print("Create one with: cortex sandbox create <name>", "info")
+            return 0
+
+        cx_print("\n🐳 Sandbox Environments:\n", "info")
+        for sb in sandboxes:
+            status_icon = "🟢" if sb.state.value == "running" else "⚪"
+            console.print(f"  {status_icon} [green]{sb.name}[/green]")
+            console.print(f"      Image: {sb.image}")
+            console.print(f"      Created: {sb.created_at[:19]}")
+            if sb.packages:
+                console.print(f"      Packages: {', '.join(sb.packages)}")
+            console.print()
+
+        return 0
+
+    def _sandbox_exec(self, sandbox, args: argparse.Namespace) -> int:
+        """Execute command in sandbox."""
+        name = args.name
+        command = args.command
+
+        result = sandbox.exec_command(name, command)
+
+        if result.stdout:
+            console.print(result.stdout, end="")
+        if result.stderr:
+            console.print(result.stderr, style="red", end="")
+
+        return result.exit_code
+
+    # --- End Sandbox Commands ---
+
     def ask(self, question: str) -> int:
         """Answer a natural language question about the system."""
         api_key = self._get_api_key()
@@ -316,7 +541,6 @@ class CortexCLI:
             handler = AskHandler(
                 api_key=api_key,
                 provider=provider,
-                offline=self.offline,
             )
             answer = handler.ask(question)
             console.print(answer)
@@ -377,9 +601,7 @@ class CortexCLI:
         try:
             self._print_status("🧠", "Understanding request...")
 
-            interpreter = CommandInterpreter(
-                api_key=api_key, provider=provider, offline=self.offline
-            )
+            interpreter = CommandInterpreter(api_key=api_key, provider=provider)
 
             self._print_status("📦", "Planning installation...")
 
@@ -493,7 +715,7 @@ class CortexCLI:
                             print(f"  Error: {error_msg}", file=sys.stderr)
                         if install_id:
                             print(f"\n📝 Installation recorded (ID: {install_id})")
-                            print(f"   View details: cortex history show {install_id}")
+                            print(f"   View details: cortex history {install_id}")
                         return 1
 
                     except (ValueError, OSError) as e:
@@ -552,7 +774,7 @@ class CortexCLI:
                         print(f"  Error: {result.error_message}", file=sys.stderr)
                     if install_id:
                         print(f"\n📝 Installation recorded (ID: {install_id})")
-                        print(f"   View details: cortex history show {install_id}")
+                        print(f"   View details: cortex history {install_id}")
                     return 1
             else:
                 print("\nTo execute these commands, run with --execute flag")
@@ -1200,6 +1422,243 @@ class CortexCLI:
 
         return 0
 
+    # --- Import Dependencies Command ---
+    def import_deps(self, args: argparse.Namespace) -> int:
+        """Import and install dependencies from package manager files.
+
+        Supports: requirements.txt (Python), package.json (Node),
+                  Gemfile (Ruby), Cargo.toml (Rust), go.mod (Go)
+        """
+        file_path = getattr(args, "file", None)
+        scan_all = getattr(args, "all", False)
+        execute = getattr(args, "execute", False)
+        include_dev = getattr(args, "dev", False)
+
+        importer = DependencyImporter()
+
+        # Handle --all flag: scan directory for all dependency files
+        if scan_all:
+            return self._import_all(importer, execute, include_dev)
+
+        # Handle single file import
+        if not file_path:
+            self._print_error("Please specify a dependency file or use --all to scan directory")
+            cx_print("Usage: cortex import <file> [--execute] [--dev]", "info")
+            cx_print("       cortex import --all [--execute] [--dev]", "info")
+            return 1
+
+        return self._import_single_file(importer, file_path, execute, include_dev)
+
+    def _import_single_file(
+        self, importer: DependencyImporter, file_path: str, execute: bool, include_dev: bool
+    ) -> int:
+        """Import dependencies from a single file."""
+        result = importer.parse(file_path, include_dev=include_dev)
+
+        # Display parsing results
+        self._display_parse_result(result, include_dev)
+
+        if result.errors:
+            for error in result.errors:
+                self._print_error(error)
+            return 1
+
+        if not result.packages and not result.dev_packages:
+            cx_print("No packages found in file", "info")
+            return 0
+
+        # Get install command
+        install_cmd = importer.get_install_command(result.ecosystem, file_path)
+        if not install_cmd:
+            self._print_error(f"Unknown ecosystem: {result.ecosystem.value}")
+            return 1
+
+        # Dry run mode (default)
+        if not execute:
+            console.print(f"\n[bold]Install command:[/bold] {install_cmd}")
+            cx_print("\nTo install these packages, run with --execute flag", "info")
+            cx_print(f"Example: cortex import {file_path} --execute", "info")
+            return 0
+
+        # Execute mode - run the install command
+        return self._execute_install(install_cmd, result.ecosystem)
+
+    def _import_all(self, importer: DependencyImporter, execute: bool, include_dev: bool) -> int:
+        """Scan directory and import all dependency files."""
+        cx_print("Scanning directory...", "info")
+
+        results = importer.scan_directory(include_dev=include_dev)
+
+        if not results:
+            cx_print("No dependency files found in current directory", "info")
+            return 0
+
+        # Display all found files
+        total_packages = 0
+        total_dev_packages = 0
+
+        for file_path, result in results.items():
+            filename = os.path.basename(file_path)
+            if result.errors:
+                console.print(f"   [red]✗[/red]  {filename} (error: {result.errors[0]})")
+            else:
+                pkg_count = result.prod_count
+                dev_count = result.dev_count if include_dev else 0
+                total_packages += pkg_count
+                total_dev_packages += dev_count
+                dev_str = f" + {dev_count} dev" if dev_count > 0 else ""
+                console.print(f"   [green]✓[/green]  {filename} ({pkg_count} packages{dev_str})")
+
+        console.print()
+
+        if total_packages == 0 and total_dev_packages == 0:
+            cx_print("No packages found in dependency files", "info")
+            return 0
+
+        # Generate install commands
+        commands = importer.get_install_commands_for_results(results)
+
+        if not commands:
+            cx_print("No install commands generated", "info")
+            return 0
+
+        # Dry run mode (default)
+        if not execute:
+            console.print("[bold]Install commands:[/bold]")
+            for cmd_info in commands:
+                console.print(f"  • {cmd_info['command']}")
+            console.print()
+            cx_print("To install all packages, run with --execute flag", "info")
+            cx_print("Example: cortex import --all --execute", "info")
+            return 0
+
+        # Execute mode - confirm before installing
+        total = total_packages + total_dev_packages
+        confirm = input(f"\nInstall all {total} packages? [Y/n]: ")
+        if confirm.lower() not in ["", "y", "yes"]:
+            cx_print("Installation cancelled", "info")
+            return 0
+
+        # Execute all install commands
+        return self._execute_multi_install(commands)
+
+    def _display_parse_result(self, result: ParseResult, include_dev: bool) -> None:
+        """Display the parsed packages from a dependency file."""
+        ecosystem_names = {
+            PackageEcosystem.PYTHON: "Python",
+            PackageEcosystem.NODE: "Node",
+            PackageEcosystem.RUBY: "Ruby",
+            PackageEcosystem.RUST: "Rust",
+            PackageEcosystem.GO: "Go",
+        }
+
+        ecosystem_name = ecosystem_names.get(result.ecosystem, "Unknown")
+        filename = os.path.basename(result.file_path)
+
+        cx_print(f"\n📋 Found {result.prod_count} {ecosystem_name} packages", "info")
+
+        if result.packages:
+            console.print("\n[bold]Packages:[/bold]")
+            for pkg in result.packages[:15]:  # Show first 15
+                version_str = f" ({pkg.version})" if pkg.version else ""
+                console.print(f"  • {pkg.name}{version_str}")
+            if len(result.packages) > 15:
+                console.print(f"  [dim]... and {len(result.packages) - 15} more[/dim]")
+
+        if include_dev and result.dev_packages:
+            console.print(f"\n[bold]Dev packages:[/bold] ({result.dev_count})")
+            for pkg in result.dev_packages[:10]:
+                version_str = f" ({pkg.version})" if pkg.version else ""
+                console.print(f"  • {pkg.name}{version_str}")
+            if len(result.dev_packages) > 10:
+                console.print(f"  [dim]... and {len(result.dev_packages) - 10} more[/dim]")
+
+        if result.warnings:
+            console.print()
+            for warning in result.warnings:
+                cx_print(f"⚠ {warning}", "warning")
+
+    def _execute_install(self, command: str, ecosystem: PackageEcosystem) -> int:
+        """Execute a single install command."""
+        ecosystem_names = {
+            PackageEcosystem.PYTHON: "Python",
+            PackageEcosystem.NODE: "Node",
+            PackageEcosystem.RUBY: "Ruby",
+            PackageEcosystem.RUST: "Rust",
+            PackageEcosystem.GO: "Go",
+        }
+
+        ecosystem_name = ecosystem_names.get(ecosystem, "")
+        cx_print(f"\n✓ Installing {ecosystem_name} packages...", "success")
+
+        def progress_callback(current: int, total: int, step: InstallationStep) -> None:
+            status_emoji = "⏳"
+            if step.status == StepStatus.SUCCESS:
+                status_emoji = "✅"
+            elif step.status == StepStatus.FAILED:
+                status_emoji = "❌"
+            console.print(f"[{current}/{total}] {status_emoji} {step.description}")
+
+        coordinator = InstallationCoordinator(
+            commands=[command],
+            descriptions=[f"Install {ecosystem_name} packages"],
+            timeout=600,  # 10 minutes for package installation
+            stop_on_error=True,
+            progress_callback=progress_callback,
+        )
+
+        result = coordinator.execute()
+
+        if result.success:
+            self._print_success(f"{ecosystem_name} packages installed successfully!")
+            console.print(f"Completed in {result.total_duration:.2f} seconds")
+            return 0
+        else:
+            self._print_error("Installation failed")
+            if result.error_message:
+                console.print(f"Error: {result.error_message}", style="red")
+            return 1
+
+    def _execute_multi_install(self, commands: list[dict[str, str]]) -> int:
+        """Execute multiple install commands."""
+        all_commands = [cmd["command"] for cmd in commands]
+        all_descriptions = [cmd["description"] for cmd in commands]
+
+        def progress_callback(current: int, total: int, step: InstallationStep) -> None:
+            status_emoji = "⏳"
+            if step.status == StepStatus.SUCCESS:
+                status_emoji = "✅"
+            elif step.status == StepStatus.FAILED:
+                status_emoji = "❌"
+            console.print(f"\n[{current}/{total}] {status_emoji} {step.description}")
+            console.print(f"  Command: {step.command}")
+
+        coordinator = InstallationCoordinator(
+            commands=all_commands,
+            descriptions=all_descriptions,
+            timeout=600,
+            stop_on_error=True,
+            progress_callback=progress_callback,
+        )
+
+        console.print("\n[bold]Installing packages...[/bold]")
+        result = coordinator.execute()
+
+        if result.success:
+            self._print_success("\nAll packages installed successfully!")
+            console.print(f"Completed in {result.total_duration:.2f} seconds")
+            return 0
+        else:
+            if result.failed_step is not None:
+                self._print_error(f"\nInstallation failed at step {result.failed_step + 1}")
+            else:
+                self._print_error("\nInstallation failed")
+            if result.error_message:
+                console.print(f"Error: {result.error_message}", style="red")
+            return 1
+
+    # --------------------------
+
 
 def show_rich_help():
     """Display beautifully formatted help using Rich"""
@@ -1222,12 +1681,15 @@ def show_rich_help():
     table.add_row("wizard", "Configure API key")
     table.add_row("status", "System status")
     table.add_row("install <pkg>", "Install software (supports multiple packages)")
+    table.add_row("install <pkg>", "Install software")
+    table.add_row("import <file>", "Import deps from package files")
     table.add_row("history", "View history")
     table.add_row("rollback <id>", "Undo installation")
     table.add_row("notify", "Manage desktop notifications")
     table.add_row("env", "Manage environment variables")
     table.add_row("cache stats", "Show LLM cache statistics")
     table.add_row("stack <name>", "Install the stack")
+    table.add_row("sandbox <cmd>", "Test packages in Docker sandbox")
     table.add_row("doctor", "System health check")
 
     console.print(table)
@@ -1290,9 +1752,6 @@ def main():
     # Global flags
     parser.add_argument("--version", "-V", action="version", version=f"cortex {VERSION}")
     parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
-    parser.add_argument(
-        "--offline", action="store_true", help="Use cached responses only (no network calls)"
-    )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -1318,6 +1777,35 @@ def main():
         "--parallel",
         action="store_true",
         help="Enable parallel execution for multi-step installs",
+    )
+
+    # Import command - import dependencies from package manager files
+    import_parser = subparsers.add_parser(
+        "import",
+        help="Import and install dependencies from package files",
+    )
+    import_parser.add_argument(
+        "file",
+        nargs="?",
+        help="Dependency file (requirements.txt, package.json, Gemfile, Cargo.toml, go.mod)",
+    )
+    import_parser.add_argument(
+        "--all",
+        "-a",
+        action="store_true",
+        help="Scan directory for all dependency files",
+    )
+    import_parser.add_argument(
+        "--execute",
+        "-e",
+        action="store_true",
+        help="Execute install commands (default: dry-run)",
+    )
+    import_parser.add_argument(
+        "--dev",
+        "-d",
+        action="store_true",
+        help="Include dev dependencies",
     )
 
     # History command
@@ -1365,6 +1853,56 @@ def main():
     cache_parser = subparsers.add_parser("cache", help="Cache operations")
     cache_subs = cache_parser.add_subparsers(dest="cache_action", help="Cache actions")
     cache_subs.add_parser("stats", help="Show cache statistics")
+
+    # --- Sandbox Commands (Docker-based package testing) ---
+    sandbox_parser = subparsers.add_parser(
+        "sandbox", help="Test packages in isolated Docker sandbox"
+    )
+    sandbox_subs = sandbox_parser.add_subparsers(dest="sandbox_action", help="Sandbox actions")
+
+    # sandbox create <name> [--image IMAGE]
+    sandbox_create_parser = sandbox_subs.add_parser("create", help="Create a sandbox environment")
+    sandbox_create_parser.add_argument("name", help="Unique name for the sandbox")
+    sandbox_create_parser.add_argument(
+        "--image", default="ubuntu:22.04", help="Docker image to use (default: ubuntu:22.04)"
+    )
+
+    # sandbox install <name> <package>
+    sandbox_install_parser = sandbox_subs.add_parser("install", help="Install a package in sandbox")
+    sandbox_install_parser.add_argument("name", help="Sandbox name")
+    sandbox_install_parser.add_argument("package", help="Package to install")
+
+    # sandbox test <name> [package]
+    sandbox_test_parser = sandbox_subs.add_parser("test", help="Run tests in sandbox")
+    sandbox_test_parser.add_argument("name", help="Sandbox name")
+    sandbox_test_parser.add_argument("package", nargs="?", help="Specific package to test")
+
+    # sandbox promote <name> <package> [--dry-run]
+    sandbox_promote_parser = sandbox_subs.add_parser(
+        "promote", help="Install tested package on main system"
+    )
+    sandbox_promote_parser.add_argument("name", help="Sandbox name")
+    sandbox_promote_parser.add_argument("package", help="Package to promote")
+    sandbox_promote_parser.add_argument(
+        "--dry-run", action="store_true", help="Show command without executing"
+    )
+    sandbox_promote_parser.add_argument(
+        "-y", "--yes", action="store_true", help="Skip confirmation prompt"
+    )
+
+    # sandbox cleanup <name> [--force]
+    sandbox_cleanup_parser = sandbox_subs.add_parser("cleanup", help="Remove a sandbox environment")
+    sandbox_cleanup_parser.add_argument("name", help="Sandbox name to remove")
+    sandbox_cleanup_parser.add_argument("-f", "--force", action="store_true", help="Force removal")
+
+    # sandbox list
+    sandbox_subs.add_parser("list", help="List all sandbox environments")
+
+    # sandbox exec <name> <command...>
+    sandbox_exec_parser = sandbox_subs.add_parser("exec", help="Execute command in sandbox")
+    sandbox_exec_parser.add_argument("name", help="Sandbox name")
+    sandbox_exec_parser.add_argument("command", nargs="+", help="Command to execute")
+    # --------------------------
 
     # --- Environment Variable Management Commands ---
     env_parser = subparsers.add_parser("env", help="Manage environment variables")
@@ -1465,7 +2003,6 @@ def main():
         return 0
 
     cli = CortexCLI(verbose=args.verbose)
-    cli.offline = bool(getattr(args, "offline", False))
 
     try:
         if args.command == "demo":
@@ -1486,6 +2023,8 @@ def main():
                 dry_run=args.dry_run,
                 parallel=args.parallel,
             )
+        elif args.command == "import":
+            return cli.import_deps(args)
         elif args.command == "history":
             return cli.history(limit=args.limit, status=args.status, show_id=args.show_id)
         elif args.command == "rollback":
@@ -1495,6 +2034,8 @@ def main():
             return cli.notify(args)
         elif args.command == "stack":
             return cli.stack(args)
+        elif args.command == "sandbox":
+            return cli.sandbox(args)
         elif args.command == "cache":
             if getattr(args, "cache_action", None) == "stats":
                 return cli.cache_stats()
