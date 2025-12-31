@@ -817,6 +817,95 @@ class CortexCLI:
             self._print_error(str(e))
             return 1
 
+    def voice(self, continuous: bool = False) -> int:
+        """Handle voice input mode.
+
+        Args:
+            continuous: If True, stay in voice mode until Ctrl+C.
+                       If False, record single input and exit.
+        """
+        try:
+            from cortex.voice import VoiceInputError, VoiceInputHandler
+        except ImportError:
+            self._print_error("Voice dependencies not installed.")
+            cx_print("Install with: pip install cortex-linux[voice]", "info")
+            return 1
+
+        api_key = self._get_api_key()
+        if not api_key:
+            return 1
+
+        provider = self._get_provider()
+
+        def process_voice_command(text: str) -> None:
+            """Process transcribed voice command."""
+            if not text:
+                return
+
+            # Determine if this is an install command or a question
+            text_lower = text.lower().strip()
+            is_install = any(
+                text_lower.startswith(word) for word in ["install", "setup", "add", "get", "put"]
+            )
+
+            if is_install:
+                # Remove the command verb for install
+                software = text
+                for verb in ["install", "setup", "add", "get", "put"]:
+                    if text_lower.startswith(verb):
+                        software = text[len(verb) :].strip()
+                        break
+
+                cx_print(f"Installing: {software}", "info")
+                
+                # Ask user for confirmation
+                console.print()
+                console.print("[bold cyan]Choose an action:[/bold cyan]")
+                console.print("  [1] Dry run (preview commands)")
+                console.print("  [2] Execute (run commands)")
+                console.print("  [3] Cancel")
+                console.print()
+                
+                try:
+                    choice = input("Enter choice [1/2/3]: ").strip()
+                    
+                    if choice == "1":
+                        self.install(software, execute=False, dry_run=True)
+                    elif choice == "2":
+                        cx_print("Executing installation...", "info")
+                        self.install(software, execute=True, dry_run=False)
+                    else:
+                        cx_print("Cancelled.", "info")
+                except (KeyboardInterrupt, EOFError):
+                    cx_print("\nCancelled.", "info")
+            else:
+                # Treat as a question
+                cx_print(f"Question: {text}", "info")
+                self.ask(text)
+
+        try:
+            handler = VoiceInputHandler()
+
+            if continuous:
+                # Continuous voice mode
+                handler.start_voice_mode(process_voice_command)
+            else:
+                # Single recording mode
+                text = handler.record_single()
+                if text:
+                    process_voice_command(text)
+                else:
+                    cx_print("No speech detected.", "warning")
+
+            return 0
+
+        except VoiceInputError as e:
+            self._print_error(str(e))
+            return 1
+        except KeyboardInterrupt:
+            cx_print("\nVoice mode exited.", "info")
+            return 0
+
     def install(
         self,
         software: str,
@@ -3229,11 +3318,13 @@ def show_rich_help():
 
     # Command Rows
     table.add_row("ask <question>", "Ask about your system")
+    table.add_row("voice", "Voice input mode (F9 to speak)")
     table.add_row("demo", "See Cortex in action")
     table.add_row("wizard", "Configure API key")
     table.add_row("status", "System status")
     table.add_row("install <pkg>", "Install software")
     table.add_row("remove <pkg>", "Remove packages with impact analysis")
+    table.add_row("install --mic", "Install via voice input")
     table.add_row("import <file>", "Import deps from package files")
     table.add_row("history", "View history")
     table.add_row("rollback <id>", "Undo installation")
@@ -3407,17 +3498,38 @@ def main():
 
     # Ask command
     ask_parser = subparsers.add_parser("ask", help="Ask a question about your system")
-    ask_parser.add_argument("question", type=str, help="Natural language question")
+    ask_parser.add_argument("question", nargs="?", type=str, help="Natural language question")
+    ask_parser.add_argument(
+        "--mic",
+        action="store_true",
+        help="Use voice input (press F9 to record)",
+    )
+
+    # Voice command - continuous voice mode
+    voice_parser = subparsers.add_parser(
+        "voice", help="Voice input mode (F9 to speak, Ctrl+C to exit)"
+    )
+    voice_parser.add_argument(
+        "--single",
+        "-s",
+        action="store_true",
+        help="Record single input and exit (default: continuous mode)",
+    )
 
     # Install command
     install_parser = subparsers.add_parser("install", help="Install software")
-    install_parser.add_argument("software", type=str, help="Software to install")
+    install_parser.add_argument("software", nargs="?", type=str, help="Software to install")
     install_parser.add_argument("--execute", action="store_true", help="Execute commands")
     install_parser.add_argument("--dry-run", action="store_true", help="Show commands only")
     install_parser.add_argument(
         "--parallel",
         action="store_true",
         help="Enable parallel execution for multi-step installs",
+    )
+    install_parser.add_argument(
+        "--mic",
+        action="store_true",
+        help="Use voice input for software name (press F9 to record)",
     )
 
     # Remove command - uninstall with impact analysis
@@ -4028,11 +4140,40 @@ def main():
             return cli.printer(
                 action=getattr(args, "action", "status"), verbose=getattr(args, "verbose", False)
             )
+        elif args.command == "voice":
+            return cli.voice(continuous=not getattr(args, "single", False))
         elif args.command == "ask":
+            # Handle --mic flag for voice input
+            if getattr(args, "mic", False):
+                return cli.voice(continuous=False)
+            if not args.question:
+                cli._print_error("Please provide a question or use --mic for voice input")
+                return 1
             return cli.ask(args.question)
         elif args.command == "install":
+            # Handle --mic flag for voice input
+            if getattr(args, "mic", False):
+                try:
+                    from cortex.voice import VoiceInputHandler
+
+                    handler = VoiceInputHandler()
+                    cx_print("Press F9 to speak what you want to install...", "info")
+                    software = handler.record_single()
+                    if not software:
+                        cx_print("No speech detected.", "warning")
+                        return 1
+                    cx_print(f"Installing: {software}", "info")
+                except ImportError:
+                    cli._print_error("Voice dependencies not installed.")
+                    cx_print("Install with: pip install cortex-linux[voice]", "info")
+                    return 1
+            else:
+                software = args.software
+                if not software:
+                    cli._print_error("Please provide software name or use --mic for voice input")
+                    return 1
             return cli.install(
-                args.software,
+                software,
                 execute=args.execute,
                 dry_run=args.dry_run,
                 parallel=args.parallel,

@@ -5,6 +5,9 @@ anthropic>=0.18.0
 openai>=1.0.0
 requests>=2.32.4
 
+# Configuration
+pyyaml>=6.0.0
+
 # Environment variable loading from .env files
 python-dotenv>=1.0.0
 
@@ -16,8 +19,3 @@ rich>=13.0.0
 
 # Type hints for older Python versions
 typing-extensions>=4.0.0
-PyYAML==6.0.3
-
-# System monitoring (for dashboard)
-psutil>=5.9.0
-nvidia-ml-py>=12.0.0
