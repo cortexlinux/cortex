@@ -1,4 +1,5 @@
 import unittest
+
 from cortex.resolver import DependencyResolver
 
 
@@ -14,24 +15,21 @@ class TestDependencyResolver(unittest.TestCase):
         conflict = {
             "dependency": "lib-x",
             "package_a": {"name": "pkg-a", "requires": "^2.0.0"},
-            "package_b": {"name": "pkg-b", "requires": "~1.9.0"}
+            "package_b": {"name": "pkg-b", "requires": "~1.9.0"},
         }
         strategies = self.resolver.resolve(conflict)
         self.assertEqual(len(strategies), 2)
-        self.assertEqual(strategies[0]['type'], "Recommended")
+        self.assertEqual(strategies[0]["type"], "Recommended")
 
     def test_risk_calculation_low(self) -> None:
         """Test that risk is Low when no major version breaking changes exist."""
         conflict = {
             "dependency": "lib-x",
             "package_a": {"name": "pkg-a", "requires": "^2.0.0"},
-            "package_b": {"name": "pkg-b", "requires": "2.5.0"}
+            "package_b": {"name": "pkg-b", "requires": "2.5.0"},
         }
         strategies = self.resolver.resolve(conflict)
-        self.assertEqual(
-            strategies[0]['risk'], 
-            "Low (no breaking changes detected)"
-        )
+        self.assertEqual(strategies[0]["risk"], "Low (no breaking changes detected)")
 
     def test_complex_constraint_formats(self) -> None:
         """Test various semver constraint syntaxes for parser stability."""
@@ -44,21 +42,21 @@ class TestDependencyResolver(unittest.TestCase):
             conflict = {
                 "dependency": "lib-y",
                 "package_a": {"name": "pkg-a", "requires": case["req_a"]},
-                "package_b": {"name": "pkg-b", "requires": case["req_b"]}
+                "package_b": {"name": "pkg-b", "requires": case["req_b"]},
             }
             strategies = self.resolver.resolve(conflict)
-            self.assertNotEqual(strategies[0]['type'], "Error")
+            self.assertNotEqual(strategies[0]["type"], "Error")
 
     def test_strategy_field_integrity(self) -> None:
         """Verify all required fields exist in the resolution strategies."""
         conflict = {
             "dependency": "lib-x",
             "package_a": {"name": "pkg-a", "requires": "^2.0.0"},
-            "package_b": {"name": "pkg-b", "requires": "~1.9.0"}
+            "package_b": {"name": "pkg-b", "requires": "~1.9.0"},
         }
         strategies = self.resolver.resolve(conflict)
         for strategy in strategies:
-            for field in ['id', 'type', 'action', 'risk']:
+            for field in ["id", "type", "action", "risk"]:
                 self.assertIn(field, strategy)
 
     def test_missing_keys_raises_error(self) -> None:
@@ -72,7 +70,7 @@ class TestDependencyResolver(unittest.TestCase):
         conflict = {
             "dependency": "lib-x",
             "package_a": {"name": "pkg-a", "requires": "not-a-version"},
-            "package_b": {"name": "pkg-b", "requires": "1.0.0"}
+            "package_b": {"name": "pkg-b", "requires": "1.0.0"},
         }
         strategies = self.resolver.resolve(conflict)
-        self.assertEqual(strategies[0]['type'], "Error")
+        self.assertEqual(strategies[0]["type"], "Error")
