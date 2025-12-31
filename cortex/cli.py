@@ -1288,24 +1288,43 @@ class CortexCLI:
         return 0
 
     def resolve(self, args: argparse.Namespace) -> int:
-        """Handle dependency resolution command."""
-        resolver = DependencyResolver()
-        conflict_data = {
-            "dependency": args.dependency,
-            "package_a": {"name": args.package, "requires": args.version},
-            "package_b": {"name": "target-package", "requires": "0.0.0"},
-        }
-        results = resolver.resolve(conflict_data)
+        """
+        Handle dependency resolution command.
 
-        cx_header("Dependency Resolution Strategies")
-        for strategy in results:
-            color = "green" if strategy["type"] == "Recommended" else "yellow"
-            if strategy["type"] == "Error":
-                color = "red"
+        Args:
+            args: Parsed command-line arguments containing package info and conflict details
 
-            console.print(f"[{color}][{strategy['type']}][/{color}] {strategy['action']}")
-            console.print(f"   [dim]Risk: {strategy['risk']}[/dim]\n")
-        return 0
+        Returns:
+            Exit code (0 for success, 1 for failure)
+        """
+        try:
+            resolver = DependencyResolver()
+            conflict_data = {
+                "dependency": args.dependency,
+                "package_a": {"name": args.package, "requires": args.version},
+                "package_b": {"name": args.package_b, "requires": args.version_b},
+            }
+            results = resolver.resolve(conflict_data)
+
+            cx_header("Dependency Resolution Strategies")
+            for strategy in results:
+                color = "green" if strategy["type"] == "Recommended" else "yellow"
+                if strategy["type"] == "Error":
+                    color = "red"
+
+                console.print(f"[{color}][{strategy['type']}][/{color}] {strategy['action']}")
+                console.print(f"   [dim]Risk: {strategy['risk']}[/dim]\n")
+            return 0
+        except (ValueError, KeyError) as e:
+            self._print_error(f"Resolution failed: {e}")
+            return 1
+        except Exception as e:
+            self._print_error(f"Unexpected error during resolution: {e}")
+            if self.verbose:
+                import traceback
+
+                traceback.print_exc()
+            return 1
 
     # --- Import Dependencies Command ---
     def import_deps(self, args: argparse.Namespace) -> int:
@@ -1883,6 +1902,10 @@ def main():
     resolve_parser.add_argument("--package", required=True, help="Name of package A")
     resolve_parser.add_argument(
         "--version", required=True, help="Version requirement for package A"
+    )
+    resolve_parser.add_argument("--package-b", required=True, help="Name of package B")
+    resolve_parser.add_argument(
+        "--version-b", required=True, help="Version requirement for package B"
     )
     resolve_parser.add_argument("--dependency", required=True, help="The conflicting dependency")
 
