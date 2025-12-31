@@ -2,8 +2,10 @@
 
 from unittest.mock import MagicMock, patch
 
-import numpy as np
 import pytest
+
+# Skip all tests if voice dependencies are not installed
+np = pytest.importorskip("numpy", reason="numpy not installed (voice dependencies required)")
 
 
 class TestVoiceInputHandler:
