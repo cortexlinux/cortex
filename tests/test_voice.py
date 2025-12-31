@@ -30,7 +30,7 @@ class TestVoiceInputHandler:
         from cortex.voice import VoiceInputHandler
 
         return VoiceInputHandler(
-            model_name="tiny.en",
+            model_name="base.en",
             sample_rate=16000,
             hotkey="f9",
         )

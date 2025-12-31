@@ -46,7 +46,7 @@ sudo dnf install portaudio portaudio-devel
 
 ### First Run
 
-On first use, Cortex will download the Whisper model (~75MB for `tiny.en`). This happens automatically and is stored in `~/.cortex/models/`.
+On first use, Cortex will download the Whisper model (~150MB for `base.en`). This happens automatically and is stored in `~/.cortex/models/`.
 
 ## Usage
 
@@ -114,9 +114,9 @@ cortex voice --single
 
 | Model | Size | Speed | Accuracy |
 |-------|------|-------|----------|
-| `tiny.en` | ~75MB | Fastest | Low (not recommended) |
-| `base.en` | ~150MB | Fast | Good (default) |
-| `small.en` | ~500MB | Medium | Best |
+| `base.en` | ~150MB | Fast | Good (default, recommended) |
+| `small.en` | ~500MB | Medium | Better |
+| `medium.en` | ~1.5GB | Slow | Best |
 
 Set your preferred model for higher accuracy:
 
@@ -130,7 +130,7 @@ Add to `~/.cortex/config.yaml`:
 
 ```yaml
 voice:
-  model: "tiny.en"
+  model: "base.en"
   hotkey: "f9"
   sample_rate: 16000
 ```
@@ -184,7 +184,7 @@ pip install cortex-linux[voice]
 Check internet connection and try:
 ```bash
 # Manually download model
-python -c "from faster_whisper import WhisperModel; WhisperModel('tiny.en')"
+python -c "from faster_whisper import WhisperModel; WhisperModel('base.en')"
 ```
 
 ### Recording quality issues
@@ -213,7 +213,7 @@ echo $XDG_SESSION_TYPE
 ## Limitations
 
 - English language only (using `.en` models)
-- Requires ~75MB-500MB disk space for models
+- Requires ~150MB-1.5GB disk space for models
 - CPU-based inference (no GPU acceleration by default)
 - Push-to-talk only (no continuous listening for privacy)
 
@@ -226,7 +226,7 @@ from cortex.voice import VoiceInputHandler
 
 # Create handler
 handler = VoiceInputHandler(
-    model_name="tiny.en",
+    model_name="base.en",  # default
     sample_rate=16000,
     hotkey="f9",
 )
