@@ -12,6 +12,7 @@ Usage:
     python tests/test_ollama_integration.py
 """
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -25,7 +26,7 @@ from cortex.llm_router import LLMProvider, LLMRouter, TaskType
 
 # Mark all tests to skip if Ollama is not available
 pytestmark = pytest.mark.skipif(
-    not subprocess.run(["which", "ollama"], capture_output=True).returncode == 0,
+    shutil.which("ollama") is None,
     reason="Ollama is not installed. Install with: python scripts/setup_ollama.py",
 )
 
@@ -33,8 +34,7 @@ pytestmark = pytest.mark.skipif(
 def check_ollama_installed():
     """Check if Ollama is installed."""
     print("1. Checking Ollama installation...")
-    result = subprocess.run(["which", "ollama"], capture_output=True)
-    if result.returncode == 0:
+    if shutil.which("ollama") is not None:
         print("   ✓ Ollama is installed")
         return True
     else:

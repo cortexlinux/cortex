@@ -40,7 +40,7 @@ class TestVoiceInputHandler:
         from cortex.voice import VoiceInputHandler
 
         handler = VoiceInputHandler()
-        assert handler.model_name == "tiny.en"
+        assert handler.model_name == "base.en"
         assert handler.sample_rate == 16000
         assert handler.hotkey == "f9"
         assert handler._model is None
@@ -238,7 +238,7 @@ class TestGetVoiceHandler:
             from cortex.voice import get_voice_handler
 
             handler = get_voice_handler()
-            assert handler.model_name == "tiny.en"
+            assert handler.model_name == "base.en"
             assert handler.sample_rate == 16000
             assert handler.hotkey == "f9"
 

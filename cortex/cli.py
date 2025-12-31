@@ -577,7 +577,7 @@ class CortexCLI:
                         break
 
                 cx_print(f"Installing: {software}", "info")
-                
+
                 # Ask user for confirmation
                 console.print()
                 console.print("[bold cyan]Choose an action:[/bold cyan]")
@@ -585,10 +585,10 @@ class CortexCLI:
                 console.print("  [2] Execute (run commands)")
                 console.print("  [3] Cancel")
                 console.print()
-                
+
                 try:
                     choice = input("Enter choice [1/2/3]: ").strip()
-                    
+
                     if choice == "1":
                         self.install(software, execute=False, dry_run=True)
                     elif choice == "2":

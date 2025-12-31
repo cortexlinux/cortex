@@ -299,7 +299,9 @@ class VoiceInputHandler:
         indicators = ["●○○", "●●○", "●●●", "○●●", "○○●", "○○○"]
         while self._is_recording:
             indicator = indicators[dots % len(indicators)]
-            sys.stdout.write(f"\r CX  | Recording {indicator} (Press {self.hotkey.upper()} to stop)   ")
+            sys.stdout.write(
+                f"\r CX  | Recording {indicator} (Press {self.hotkey.upper()} to stop)   "
+            )
             sys.stdout.flush()
             dots += 1
             time.sleep(0.2)
@@ -417,7 +419,9 @@ class VoiceInputHandler:
             cx_print(str(e), "error")
             return
 
-        cx_print(f"Voice mode active. Press {self.hotkey.upper()} to speak, Ctrl+C to exit.", "success")
+        cx_print(
+            f"Voice mode active. Press {self.hotkey.upper()} to speak, Ctrl+C to exit.", "success"
+        )
         cx_print("Listening...", "info")
 
         self._setup_hotkey(on_transcription)
