@@ -43,7 +43,7 @@ class VoiceInputHandler:
     resource usage. Supports F9 push-to-talk hotkey by default.
 
     Attributes:
-        model_name: Whisper model to use (tiny.en, base.en, small.en)
+        model_name: Whisper model to use (base.en, small.en, medium.en)
         sample_rate: Audio sample rate in Hz (default: 16000)
         hotkey: Push-to-talk hotkey (default: f9)
     """
@@ -58,7 +58,7 @@ class VoiceInputHandler:
         """Initialize the voice input handler.
 
         Args:
-            model_name: Whisper model name (tiny.en, base.en, small.en).
+            model_name: Whisper model name (base.en, small.en, medium.en).
                        Defaults to CORTEX_WHISPER_MODEL env var or 'base.en'.
             sample_rate: Audio sample rate in Hz. Default 16000.
             hotkey: Push-to-talk hotkey. Default 'f9'.
