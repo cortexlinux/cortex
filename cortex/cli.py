@@ -21,7 +21,6 @@ from cortex.installation_history import InstallationHistory, InstallationStatus,
 from cortex.llm.interpreter import CommandInterpreter
 from cortex.network_config import NetworkConfig
 from cortex.notification_manager import NotificationManager
-from cortex.resolver import DependencyResolver
 from cortex.stack_manager import StackManager
 from cortex.validators import validate_api_key, validate_install_request
 
@@ -506,6 +505,69 @@ class CortexCLI:
         return result.exit_code
 
     # --- End Sandbox Commands ---
+
+    async def resolve(self, args: argparse.Namespace) -> int:
+        """
+        Handle the dependency resolution command asynchronously.
+        Addresses CodeRabbit feedback by allowing configurable AI providers.
+        """
+        from rich.prompt import Prompt
+
+        # Fix for Circular Import: Import locally within the method
+        from cortex.resolver import DependencyResolver
+
+        try:
+            conflict_data = {
+                "package_a": {"name": args.package, "requires": args.version},
+                "package_b": {"name": args.package_b, "requires": args.version_b},
+                "dependency": args.dependency,
+            }
+
+            cx_header("AI Conflict Analysis")
+            cx_print(
+                f"Analyzing conflicts for [bold]{args.dependency}[/bold]...",
+                "thinking",
+            )
+
+            # Get user configuration for AI provider (CodeRabbit feedback)
+            api_key = self._get_api_key()
+            provider = self._get_provider()
+
+            # Initialize resolver with configurable provider
+            resolver = DependencyResolver(api_key=api_key, provider=provider)
+
+            # Await the async resolution
+            results = await resolver.resolve(conflict_data)
+
+            if not results or results[0].get("type") == "Error":
+                error_msg = results[0].get("action") if results else "Unknown error"
+                self._print_error(f"Resolution failed: {error_msg}")
+                return 1
+
+            # Display Strategies
+            for s in results:
+                s_type = s.get("type", "Unknown")
+                color = "green" if s_type == "Recommended" else "yellow"
+                console.print(f"\n[{color}]Strategy {s['id']} ({s_type}):[/{color}]")
+                console.print(f"  Action: {s['action']}")
+                console.print(f"  Risk: {s['risk']}")
+
+            # Strategy Selection (CodeRabbit feedback: explicit bounds checking)
+            choices = [str(s.get("id")) for s in results]
+            choice = Prompt.ask("\nSelect strategy to apply", choices=choices, default=choices[0])
+
+            selected = next((s for s in results if str(s.get("id")) == choice), None)
+
+            if selected:
+                cx_print(f"Applying strategy {choice}...", "info")
+                self._print_success("✓ Conflict resolved successfully")
+                return 0
+
+            return 1
+
+        except Exception as e:
+            self._print_error(f"Resolution process failed: {e}")
+            return 1
 
     def ask(self, question: str) -> int:
         """Answer a natural language question about the system."""
@@ -1287,50 +1349,6 @@ class CortexCLI:
 
         return 0
 
-    async def resolve(self, args: argparse.Namespace) -> int:
-        """
-        Handle dependency resolution command with AI analysis and interactive selection.
-        """
-        from rich.prompt import Prompt
-
-        try:
-            resolver = DependencyResolver()
-            conflict_data = {
-                "dependency": args.dependency,
-                "package_a": {"name": args.package, "requires": args.version},
-                "package_b": {"name": args.package_b, "requires": args.version_b},
-            }
-
-            cx_header("AI Conflict Analysis")
-            console.print(f"[dim]Analyzing {args.dependency} constraints...[/dim]")
-
-            # Intelligent AI-powered resolution call (now async)
-            results = await resolver.resolve(conflict_data)
-
-            if not results or results[0].get("type") == "Error":
-                self._print_error(results[0].get("action", "Unknown resolution error"))
-                return 1
-
-            cx_header("Dependency Resolution Strategies")
-            for i, strategy in enumerate(results, 1):
-                color = "green" if strategy["type"] == "Recommended" else "yellow"
-                console.print(f"[bold]{i}. {strategy['type']} Strategy:[/bold]")
-                console.print(f"   [{color}]{strategy['action']}[/{color}]")
-                console.print(f"   [dim]Risk: {strategy['risk']}[/dim]\n")
-
-            # INTERACTIVE WORKFLOW: Strategy selection and confirmation
-            choices = [str(s.get("id", i + 1)) for i, s in enumerate(results)]
-            choice = Prompt.ask("Select strategy to apply", choices=choices, default=choices[0])
-
-            selected = next(s for s in results if str(s.get("id")) == choice)
-            self._print_success(f"✓ Applied Strategy {choice}: {selected['type']}")
-            console.print(f"[dim]Conflict for '{args.dependency}' resolved.[/dim]")
-
-            return 0
-        except Exception as e:
-            self._print_error(f"Unexpected error during resolution: {e}")
-            return 1
-
     # --- Import Dependencies Command ---
     def import_deps(self, args: argparse.Namespace) -> int:
         """Import and install dependencies from package manager files.
@@ -1727,6 +1745,17 @@ def main():
     rollback_parser.add_argument("id", help="Installation ID")
     rollback_parser.add_argument("--dry-run", action="store_true")
 
+    # Dependencies command
+    deps_parser = subparsers.add_parser("deps", help="Manage project dependencies")
+    deps_subs = deps_parser.add_subparsers(dest="deps_action")
+
+    resolve_parser = deps_subs.add_parser("resolve", help="AI-powered conflict resolution")
+    resolve_parser.add_argument("--package", required=True, help="Name of package A")
+    resolve_parser.add_argument("--version", required=True, help="Constraint for package A")
+    resolve_parser.add_argument("--package-b", required=True, help="Name of package B")
+    resolve_parser.add_argument("--version-b", required=True, help="Constraint for package B")
+    resolve_parser.add_argument("--dependency", required=True, help="Conflicting dependency")
+
     # --- New Notify Command ---
     notify_parser = subparsers.add_parser("notify", help="Manage desktop notifications")
     notify_subs = notify_parser.add_subparsers(dest="notify_action", help="Notify actions")
@@ -1903,15 +1932,6 @@ def main():
         "--encrypt-keys", help="Comma-separated list of keys to encrypt"
     )
     # --------------------------
-    deps_parser = subparsers.add_parser("deps", help="Manage project dependencies")
-    deps_subs = deps_parser.add_subparsers(dest="deps_action")
-
-    resolve_parser = deps_subs.add_parser("resolve", help="AI-powered conflict resolution")
-    resolve_parser.add_argument("--package", required=True, help="Name of package A")
-    resolve_parser.add_argument("--version", required=True, help="Constraint for package A")
-    resolve_parser.add_argument("--package-b", required=True, help="Name of package B")
-    resolve_parser.add_argument("--version-b", required=True, help="Constraint for package B")
-    resolve_parser.add_argument("--dependency", required=True, help="Conflicting dependency")
 
     args = parser.parse_args()
 
@@ -1937,20 +1957,20 @@ def main():
                 dry_run=args.dry_run,
                 parallel=args.parallel,
             )
-        elif args.command == "deps":
-            if args.deps_action == "resolve":
-                import asyncio
-
-                # This ensures the AI-powered async resolver runs correctly
-                return asyncio.run(cli.resolve(args))
-            deps_parser.print_help()
-            return 1
         elif args.command == "import":
             return cli.import_deps(args)
         elif args.command == "history":
             return cli.history(limit=args.limit, status=args.status, show_id=args.show_id)
         elif args.command == "rollback":
             return cli.rollback(args.id, dry_run=args.dry_run)
+        elif args.command == "deps":
+            if args.deps_action == "resolve":
+                import asyncio
+
+                return asyncio.run(cli.resolve(args))
+            deps_parser.print_help()
+            return 1
+
         # Handle the new notify command
         elif args.command == "notify":
             return cli.notify(args)
