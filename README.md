@@ -145,6 +145,7 @@ cortex rollback <installation-id>
 | `cortex install <query>` | Install packages matching natural language query |
 | `cortex install <query> --dry-run` | Preview installation plan (default) |
 | `cortex install <query> --execute` | Execute the installation |
+| `cortex sandbox <cmd>` | Test packages in Docker sandbox |
 | `cortex history` | View all past installations |
 | `cortex rollback <id>` | Undo a specific installation |
 | `cortex --version` | Show version information |
