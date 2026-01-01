@@ -399,7 +399,7 @@ if __name__ == "__main__":
     create_parser.add_argument("--no-dry-run", action="store_true", help="Disable dry-run")
 
     # List schedules
-    list_parser = subparsers.add_parser("list", help="List all schedules")
+    subparsers.add_parser("list", help="List all schedules")
 
     # Run schedule
     run_parser = subparsers.add_parser("run", help="Run a schedule")
