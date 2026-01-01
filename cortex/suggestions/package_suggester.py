@@ -1,4 +1,7 @@
-from rapidfuzz import process
+try:
+    from rapidfuzz import process
+except ImportError:
+    process = None
 
 from cortex.branding import console, cx_print
 
@@ -30,6 +33,8 @@ KNOWN_PACKAGES = [
 
 def suggest_alternatives(query: str, limit: int = 3):
     names = [pkg["name"] for pkg in KNOWN_PACKAGES]
+    if process is None:
+        return []
     matches = process.extract(query, names, limit=limit)
 
     results = []
