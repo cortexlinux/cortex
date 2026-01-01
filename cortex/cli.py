@@ -1366,7 +1366,6 @@ def main():
             return cli.wizard()
         elif args.command == "status":
             return cli.status()
-        feature/changelog-viewer
         elif args.command == "changelog":
             return cli.changelog(args.package)
 
@@ -1374,7 +1373,6 @@ def main():
 
         elif args.command == "ask":
             return cli.ask(args.question)
-        main
         elif args.command == "install":
             return cli.install(
                 args.software,
