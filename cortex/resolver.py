@@ -100,17 +100,16 @@ class DependencyResolver:
                     }
                 ]
 
-            # Quality Fix: Safe Spec Access (SonarCloud & Reliability)
-            # Validates specs list is non-empty before indexing.
+            # Ensure specs have at least one clause before accessing to avoid IndexError
             if not a_req.specs or not b_req.specs:
-                logger.debug("Specs have no clauses, skipping")
+                logger.debug("Specs have no clauses, skipping deterministic resolution")
                 return []
 
-            # Safe access using getattr to avoid crashes.
+            # Safe access to handle cases where 'version' or 'major' might be missing
             a_spec = a_req.specs[0]
             a_major = getattr(getattr(a_spec, "version", object()), "major", 0)
 
-            # Formatting Fix: Split long lines to stay under 79 chars.
+            # Formatting Fix: Split long lines to stay under 79 chars (PEP 8)
             return [
                 {
                     "id": 1,
