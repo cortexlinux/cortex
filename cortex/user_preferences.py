@@ -197,7 +197,7 @@ class PreferencesManager:
             self.preferences = self._from_dict(data)
             return self.preferences
 
-        except Exception as e:
+        except (FileNotFoundError, PermissionError, OSError, yaml.YAMLError) as e:
             print(f"[WARNING] Could not load preferences: {e}")
             print("[INFO] Using default preferences")
             return self.preferences
@@ -273,14 +273,26 @@ class PreferencesManager:
             if isinstance(value, str):
                 value = value.lower() in ("true", "yes", "1", "on")
         elif isinstance(current_value, int):
-            value = int(value)
+            try:
+                value = int(value)
+            except (ValueError, TypeError) as e:
+                raise PreferencesError(
+                    f"Cannot convert value '{value}' to integer for key '{key}'"
+                ) from e
         elif isinstance(current_value, list):
             if isinstance(value, str):
                 value = [v.strip() for v in value.split(",")]
         elif isinstance(current_value, Enum):
             # Convert string to enum
             enum_class = type(current_value)
-            value = enum_class(value)
+            try:
+                value = enum_class(value)
+            except (ValueError, TypeError) as e:
+                valid_values = [v.value for v in enum_class]
+                raise PreferencesError(
+                    f"Invalid value '{value}' for key '{key}'. "
+                    f"Valid options: {', '.join(valid_values)}"
+                ) from e
 
         setattr(obj, attr_name, value)
         self.save()
@@ -320,15 +332,33 @@ class PreferencesManager:
         """Export preferences to JSON file"""
         data = self._to_dict(include_metadata=True)
 
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        try:
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+        except PermissionError as e:
+            raise PreferencesError(f"Permission denied: Cannot write to '{filepath}'") from e
+        except OSError as e:
+            raise PreferencesError(f"Failed to export preferences to '{filepath}': {e}") from e
+        except (TypeError, ValueError) as e:
+            raise PreferencesError(f"Failed to serialize preferences to JSON: {e}") from e
 
         print(f"[SUCCESS] Configuration exported to {filepath}")
 
     def import_json(self, filepath: Path) -> None:
         """Import preferences from JSON file"""
-        with open(filepath, encoding="utf-8") as f:
-            data = json.load(f)
+        try:
+            with open(filepath, encoding="utf-8") as f:
+                data = json.load(f)
+        except FileNotFoundError as e:
+            raise PreferencesError(f"Configuration file not found: '{filepath}'") from e
+        except PermissionError as e:
+            raise PreferencesError(f"Permission denied: Cannot read '{filepath}'") from e
+        except OSError as e:
+            raise PreferencesError(f"Failed to read configuration from '{filepath}': {e}") from e
+        except json.JSONDecodeError as e:
+            raise PreferencesError(
+                f"Invalid JSON in '{filepath}': {e.msg} at line {e.lineno}"
+            ) from e
 
         # Remove metadata
         data.pop("exported_at", None)
