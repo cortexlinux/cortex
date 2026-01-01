@@ -12,6 +12,7 @@ benchmarks = [
     "benchmark_streaming.py",
 ]
 
+
 def run(jit_enabled):
     env = os.environ.copy()
     env["PYTHON_JIT"] = "1" if jit_enabled else "0"
@@ -25,6 +26,7 @@ def run(jit_enabled):
 
     for bench in benchmarks:
         subprocess.run([sys.executable, bench], env=env)
+
 
 if __name__ == "__main__":
     run(False)

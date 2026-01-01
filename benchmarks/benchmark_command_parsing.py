@@ -2,6 +2,7 @@ import time
 import argparse
 from cortex.cli import CortexCLI
 
+
 def benchmark():
     cli = CortexCLI(verbose=False)
 
@@ -11,6 +12,7 @@ def benchmark():
         parser.add_argument("command", nargs="?")
         parser.parse_args(["status"])
     return time.perf_counter() - start
+
 
 if __name__ == "__main__":
     duration = benchmark()

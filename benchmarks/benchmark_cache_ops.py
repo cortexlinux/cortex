@@ -1,5 +1,6 @@
 import time
 
+
 def benchmark():
     cache = {}
 
@@ -9,6 +10,7 @@ def benchmark():
         cache[key] = f"response_{i}"
         _ = cache.get(key)
     return time.perf_counter() - start
+
 
 if __name__ == "__main__":
     duration = benchmark()
