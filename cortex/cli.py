@@ -1400,54 +1400,26 @@ def main():
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
     # --------------------------
     # Config command (Git-backed configuration management)
-    config_parser = subparsers.add_parser(
-        "config",
-        help="Manage system configuration"
-    )
+    config_parser = subparsers.add_parser("config", help="Manage system configuration")
 
-    config_subparsers = config_parser.add_subparsers(
-        dest="subcommand",
-        help="Config subcommands"
-    )
-    config_subparsers.add_parser(
-        "history",
-        help="Show configuration change history"
-    )
+    config_subparsers = config_parser.add_subparsers(dest="subcommand", help="Config subcommands")
+    config_subparsers.add_parser("history", help="Show configuration change history")
     # config rollback
     rollback_parser = config_subparsers.add_parser(
-        "rollback",
-        help="Rollback configuration to a specific commit"
+        "rollback", help="Rollback configuration to a specific commit"
     )
-    rollback_parser.add_argument(
-        "commit",
-        help="Git commit hash"
-    )
+    rollback_parser.add_argument("commit", help="Git commit hash")
 
     # config git
-    config_git_parser = config_subparsers.add_parser(
-        "git",
-        help="Git operations for configuration"
-    )
+    config_git_parser = config_subparsers.add_parser("git", help="Git operations for configuration")
 
-    config_git_subparsers = config_git_parser.add_subparsers(
-        dest="action",
-        help="Git actions"
-    )
+    config_git_subparsers = config_git_parser.add_subparsers(dest="action", help="Git actions")
 
     # config git init
-    config_git_subparsers.add_parser(
-        "init",
-        help="Initialize git repository for configs"
-    )
+    config_git_subparsers.add_parser("init", help="Initialize git repository for configs")
     # config git commit
-    commit_parser = config_git_subparsers.add_parser(
-        "commit",
-        help="Commit configuration changes"
-    )
-    commit_parser.add_argument(
-        "message",
-        help="Commit message"
-    )
+    commit_parser = config_git_subparsers.add_parser("commit", help="Commit configuration changes")
+    commit_parser.add_argument("message", help="Commit message")
 
     # --------------------------
 
@@ -1674,7 +1646,7 @@ def main():
             if args.subcommand == "git" and args.action == "commit":
                 committed = gm.commit_all(args.message)
                 if committed:
-                    print(f"✓ Auto-committed: \"{args.message}\"")
+                    print(f'✓ Auto-committed: "{args.message}"')
                 else:
                     print("ℹ No changes to commit")
                 return 0
@@ -1693,7 +1665,6 @@ def main():
 
             print("Unknown config command")
             return 1
-
 
         elif args.command == "ask":
             return cli.ask(args.question)

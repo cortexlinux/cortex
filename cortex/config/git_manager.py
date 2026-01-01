@@ -10,25 +10,18 @@ class GitManager:
         if (self.config_path / ".git").exists():
             return False
 
-        subprocess.run(
-            ["git", "init"],
-            cwd=self.config_path,
-            check=True
-        )
+        subprocess.run(["git", "init"], cwd=self.config_path, check=True)
         return True
+
     def commit_all(self, message: str) -> bool:
-        subprocess.run(
-            ["git", "add", "."],
-            cwd=self.config_path,
-            check=True
-        )
+        subprocess.run(["git", "add", "."], cwd=self.config_path, check=True)
 
         result = subprocess.run(
             ["git", "commit", "-m", message],
             cwd=self.config_path,
             capture_output=True,
             text=True,
-            check=False
+            check=False,
         )
 
         if "nothing to commit" in result.stdout.lower():
@@ -38,12 +31,13 @@ class GitManager:
             raise RuntimeError(result.stderr.strip())
 
         return True
+
     def history(self) -> str:
         result = subprocess.run(
             ["git", "log", "--oneline", "--relative-date"],
             cwd=self.config_path,
             capture_output=True,
-            text=True
+            text=True,
         )
 
         if result.returncode != 0:
@@ -51,11 +45,8 @@ class GitManager:
             return ""
 
         return result.stdout.strip()
+
     def rollback(self, commit_hash: str) -> None:
         subprocess.run(
-            ["git", "checkout", commit_hash, "--", "."],
-            cwd=self.config_path,
-            check=True
+            ["git", "checkout", commit_hash, "--", "."], cwd=self.config_path, check=True
         )
-
-
