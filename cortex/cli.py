@@ -553,7 +553,7 @@ class CortexCLI:
                 console.print(f"  [bold]Action:[/bold] {s['action']}")
                 console.print(f"  [bold]Risk:[/bold]    {s['risk']}")
 
-                        # 1. Create numbered choices based on Strategy IDs (Satisfies UX request)
+                # 1. Create numbered choices based on Strategy IDs (Satisfies UX request)
             choices = [str(s.get("id")) for s in results]
 
             # 2. Use Prompt.ask to let user pick a number (1, 2, etc.)
