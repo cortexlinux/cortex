@@ -77,6 +77,15 @@
       ],
       "signed_date": "2025-12-31",
       "cla_version": "1.0"
+    },
+    {
+      "name": "Suyash",
+      "github_username": "Suyashd999",
+      "emails": [
+        "suyashd999@gmail.com"
+      ],
+      "signed_date": "2026-01-01",
+      "cla_version": "1.0"
     }
   ],
   "corporations": {
