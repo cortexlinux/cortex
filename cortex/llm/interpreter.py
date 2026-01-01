@@ -26,19 +26,24 @@ class CommandInterpreter:
         self,
         api_key: str,
         provider: str = "openai",
+        role: str = "default",
         model: str | None = None,
         cache: Optional["SemanticCache"] = None,
     ):
-        """Initialize the command interpreter.
-
-        Args:
-            api_key: API key for the LLM provider
-            provider: Provider name ("openai", "claude", or "ollama")
-            model: Optional model name override
-            cache: Optional SemanticCache instance for response caching
+        """Args:
+        api_key: API key for the LLM provider
+        provider: Provider name ("openai", "claude", or "ollama")
+        model: Optional model name override
+        cache: Optional SemanticCache instance for response caching
         """
+        from cortex.roles.loader import load_role
+
         self.api_key = api_key
         self.provider = APIProvider(provider.lower())
+        # Load role and system prompt
+        self.role_name = role
+        self.role = load_role(role)
+        self.system_prompt: str = self.role.get("system_prompt", "")
 
         if cache is None:
             try:
@@ -126,35 +131,36 @@ class CommandInterpreter:
         Args:
             simplified: If True, return a shorter prompt optimized for local models
         """
+
         if simplified:
-            return """You must respond with ONLY a JSON object. No explanations, no markdown, no code blocks.
+            base_prompt = (
+                "You must respond with ONLY a JSON object. No explanations, no markdown.\n\n"
+                "Format:\n"
+                '{"commands": ["command1", "command2"]}\n\n'
+                "Rules:\n"
+                "- Use apt for Ubuntu packages\n"
+                "- Add sudo for system commands\n"
+                "- Return ONLY the JSON object\n"
+            )
+        else:
+            base_prompt = (
+                "You are a Linux system command expert. Convert natural language requests "
+                "into safe, validated bash commands.\n\n"
+                "Rules:\n"
+                "1. Return ONLY a JSON array of commands\n"
+                "2. Each command must be safe and executable\n"
+                "3. Commands should be atomic and sequential\n"
+                "4. Avoid destructive operations without explicit user confirmation\n"
+                "5. Use apt for Debian/Ubuntu systems\n"
+                "6. Include sudo when required\n\n"
+                "Format:\n"
+                '{"commands": ["command1", "command2", ...]}\n'
+            )
 
-Format: {"commands": ["command1", "command2"]}
-
-Example input: install nginx
-Example output: {"commands": ["sudo apt update", "sudo apt install -y nginx"]}
-
-Rules:
-- Use apt for Ubuntu packages
-- Add sudo for system commands
-- Return ONLY the JSON object"""
-
-        return """You are a Linux system command expert. Convert natural language requests into safe, validated bash commands.
-
-Rules:
-1. Return ONLY a JSON array of commands
-2. Each command must be a safe, executable bash command
-3. Commands should be atomic and sequential
-4. Avoid destructive operations without explicit user confirmation
-5. Use package managers appropriate for Debian/Ubuntu systems (apt)
-6. Include necessary privilege escalation (sudo) when required
-7. Validate command syntax before returning
-
-Format:
-{"commands": ["command1", "command2", ...]}
-
-Example request: "install docker with nvidia support"
-Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.io", "sudo apt install -y nvidia-docker2", "sudo systemctl restart docker"]}"""
+        system_prompt = getattr(self, "system_prompt", "")
+        if system_prompt:
+            return f"{self.system_prompt}\n\n{base_prompt}"
+        return base_prompt
 
     def _call_openai(self, user_input: str) -> list[str]:
         try:
@@ -195,6 +201,7 @@ Example response: {"commands": ["sudo apt update", "sudo apt install -y docker.i
             enhanced_input = f"""{user_input}
 
 Respond with ONLY this JSON format (no explanations):
+
 {{\"commands\": [\"command1\", \"command2\"]}}"""
 
             response = self.client.chat.completions.create(
@@ -247,55 +254,39 @@ Respond with ONLY this JSON format (no explanations):
 
     def _parse_commands(self, content: str) -> list[str]:
         try:
-            # Strip markdown code blocks
-            if "```json" in content:
-                content = content.split("```json")[1].split("```")[0].strip()
-            elif "```" in content:
+            # Remove markdown code blocks if present
+            if "```" in content:
                 parts = content.split("```")
-                if len(parts) >= 3:
-                    content = parts[1].strip()
+                if len(parts) >= 2:
+                    content = parts[1]
 
-            # Try to find JSON object in the content
             import re
 
-            # Look for {"commands": [...]} pattern
-            json_match = re.search(
-                r'\{\s*["\']commands["\']\s*:\s*\[.*?\]\s*\}', content, re.DOTALL
+            match = re.search(
+                r'\{\s*"commands"\s*:\s*\[.*?\]\s*\}',
+                content,
+                re.DOTALL,
             )
-            if json_match:
-                content = json_match.group(0)
 
-            # Try to repair common JSON issues
-            content = self._repair_json(content)
+            if not match:
+                raise ValueError("No valid JSON command block found")
 
-            data = json.loads(content)
-            commands = data.get("commands", [])
+            json_text = match.group(0)
+            data = json.loads(json_text)
 
+            commands = data.get("commands")
             if not isinstance(commands, list):
-                raise ValueError("Commands must be a list")
+                raise ValueError("commands must be a list")
 
-            # Handle both formats:
-            # 1. ["cmd1", "cmd2"] - direct string array
-            # 2. [{"command": "cmd1"}, {"command": "cmd2"}] - object array
-            result = []
+            cleaned: list[str] = []
             for cmd in commands:
-                if isinstance(cmd, str):
-                    # Direct string
-                    if cmd:
-                        result.append(cmd)
-                elif isinstance(cmd, dict):
-                    # Object with "command" key
-                    cmd_str = cmd.get("command", "")
-                    if cmd_str:
-                        result.append(cmd_str)
+                if isinstance(cmd, str) and cmd.strip():
+                    cleaned.append(cmd.strip())
 
-            return result
-        except (json.JSONDecodeError, ValueError) as e:
-            # Log the problematic content for debugging
-            import sys
+            return cleaned
 
-            print(f"\nDebug: Failed to parse JSON. Raw content:\n{content[:500]}", file=sys.stderr)
-            raise ValueError(f"Failed to parse LLM response: {str(e)}")
+        except Exception as exc:
+            raise ValueError(f"Failed to parse LLM response: {exc}") from exc
 
     def _validate_commands(self, commands: list[str]) -> list[str]:
         dangerous_patterns = [
@@ -317,19 +308,6 @@ Respond with ONLY this JSON format (no explanations):
         return validated
 
     def parse(self, user_input: str, validate: bool = True) -> list[str]:
-        """Parse natural language input into shell commands.
-
-        Args:
-            user_input: Natural language description of desired action
-            validate: If True, validate commands for dangerous patterns
-
-        Returns:
-            List of shell commands to execute
-
-        Raises:
-            ValueError: If input is empty
-            RuntimeError: If offline mode is enabled and no cached response exists
-        """
         if not user_input or not user_input.strip():
             raise ValueError("User input cannot be empty")
 
@@ -361,23 +339,13 @@ Respond with ONLY this JSON format (no explanations):
         if validate:
             commands = self._validate_commands(commands)
 
-        if self.cache is not None and commands:
-            try:
-                self.cache.put_commands(
-                    prompt=user_input,
-                    provider=self.provider.value,
-                    model=self.model,
-                    system_prompt=cache_system_prompt,
-                    commands=commands,
-                )
-            except (OSError, sqlite3.Error):
-                # Silently fail cache writes - not critical for operation
-                pass
-
         return commands
 
     def parse_with_context(
-        self, user_input: str, system_info: dict[str, Any] | None = None, validate: bool = True
+        self,
+        user_input: str,
+        system_info: dict[str, Any] | None = None,
+        validate: bool = True,
     ) -> list[str]:
         context = ""
         if system_info:

@@ -32,7 +32,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 class CortexCLI:
-    def __init__(self, verbose: bool = False):
+    def __init__(self, verbose: bool = False, role: str = "default"):
         self.spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         self.spinner_idx = 0
         self.verbose = verbose
