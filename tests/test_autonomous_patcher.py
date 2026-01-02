@@ -77,9 +77,11 @@ class TestAutonomousPatcher(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp()
         self.config_path = os.path.join(self.temp_dir, "patcher_config.json")
 
-        # Patch the config path
+        # Use temp config path to avoid touching real user config
         self.patcher = AutonomousPatcher(
-            strategy=PatchStrategy.CRITICAL_ONLY, dry_run=True
+            strategy=PatchStrategy.CRITICAL_ONLY,
+            dry_run=True,
+            config_path=self.config_path,
         )
 
     def tearDown(self):
@@ -91,7 +93,7 @@ class TestAutonomousPatcher(unittest.TestCase):
 
     def test_initialization_defaults(self):
         """Test patcher initializes with correct defaults"""
-        patcher = AutonomousPatcher()
+        patcher = AutonomousPatcher(config_path=self.config_path)
 
         self.assertEqual(patcher.strategy, PatchStrategy.CRITICAL_ONLY)
         self.assertTrue(patcher.dry_run)
@@ -99,7 +101,9 @@ class TestAutonomousPatcher(unittest.TestCase):
 
     def test_initialization_custom_strategy(self):
         """Test patcher with custom strategy"""
-        patcher = AutonomousPatcher(strategy=PatchStrategy.HIGH_AND_ABOVE)
+        patcher = AutonomousPatcher(
+            strategy=PatchStrategy.HIGH_AND_ABOVE, config_path=self.config_path
+        )
 
         self.assertEqual(patcher.strategy, PatchStrategy.HIGH_AND_ABOVE)
 
@@ -411,7 +415,15 @@ class TestAutonomousPatcherAptUpdate(unittest.TestCase):
     """Test apt update functionality"""
 
     def setUp(self):
-        self.patcher = AutonomousPatcher(dry_run=True)
+        self.temp_dir = tempfile.mkdtemp()
+        self.config_path = os.path.join(self.temp_dir, "patcher_config.json")
+        self.patcher = AutonomousPatcher(dry_run=True, config_path=self.config_path)
+
+    def tearDown(self):
+        import shutil
+
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
 
     @patch("subprocess.run")
     @patch("cortex.autonomous_patcher._apt_last_updated", None)
@@ -465,6 +477,7 @@ class TestAutonomousPatcherConfig(unittest.TestCase):
 
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
+        self.config_path = os.path.join(self.temp_dir, "patcher_config.json")
 
     def tearDown(self):
         import shutil
@@ -472,26 +485,40 @@ class TestAutonomousPatcherConfig(unittest.TestCase):
         if os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir)
 
-    @patch("pathlib.Path.home")
-    def test_save_and_load_config(self, mock_home):
+    def test_save_and_load_config(self):
         """Test saving and loading configuration"""
-        mock_home.return_value = type("Path", (), {"__truediv__": lambda s, x: type("Path", (), {"exists": lambda s: False, "mkdir": lambda s, **k: None, "parent": type("Path", (), {"mkdir": lambda s, **k: None})(), "__truediv__": lambda s, x: s})()})()
-
-        patcher = AutonomousPatcher()
+        patcher = AutonomousPatcher(config_path=self.config_path)
         patcher.whitelist = {"nginx", "apache2"}
         patcher.blacklist = {"kernel"}
         patcher.min_severity = Severity.HIGH
 
-        # Config operations are tested implicitly through add_to_whitelist etc.
+        # Save config via add_to_whitelist
         patcher.add_to_whitelist("curl")
         self.assertIn("curl", patcher.whitelist)
+
+        # Verify config was saved to temp file
+        self.assertTrue(os.path.exists(self.config_path))
+
+        # Load config in new instance
+        patcher2 = AutonomousPatcher(config_path=self.config_path)
+        self.assertIn("curl", patcher2.whitelist)
+        self.assertIn("nginx", patcher2.whitelist)
+        self.assertIn("kernel", patcher2.blacklist)
 
 
 class TestVersionComparison(unittest.TestCase):
     """Test version comparison and vulnerability fix verification"""
 
     def setUp(self):
-        self.patcher = AutonomousPatcher(dry_run=True)
+        self.temp_dir = tempfile.mkdtemp()
+        self.config_path = os.path.join(self.temp_dir, "patcher_config.json")
+        self.patcher = AutonomousPatcher(dry_run=True, config_path=self.config_path)
+
+    def tearDown(self):
+        import shutil
+
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
 
     @patch("subprocess.run")
     def test_compare_versions_greater(self, mock_run):

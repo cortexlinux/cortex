@@ -73,6 +73,7 @@ class AutonomousPatcher:
         strategy: PatchStrategy = PatchStrategy.CRITICAL_ONLY,
         dry_run: bool = True,
         auto_approve: bool = False,
+        config_path: str | Path | None = None,
     ):
         """
         Initialize the autonomous patcher.
@@ -81,12 +82,19 @@ class AutonomousPatcher:
             strategy: Patching strategy
             dry_run: If True, only show what would be patched
             auto_approve: If True, automatically approve patches (dangerous!)
+            config_path: Optional path to config file (defaults to ~/.cortex/patcher_config.json)
         """
         self.strategy = strategy
         self.dry_run = dry_run
         self.auto_approve = auto_approve
         self.scanner = VulnerabilityScanner()
         self.history = InstallationHistory()
+
+        # Config path
+        if config_path is None:
+            self.config_path = Path.home() / ".cortex" / "patcher_config.json"
+        else:
+            self.config_path = Path(config_path)
 
         # Safety controls
         self.whitelist: set[str] = set()  # Packages always allowed to patch
@@ -98,13 +106,11 @@ class AutonomousPatcher:
 
     def _load_config(self):
         """Load patcher configuration from file"""
-        config_path = Path.home() / ".cortex" / "patcher_config.json"
-
-        if config_path.exists():
+        if self.config_path.exists():
             try:
                 import json
 
-                with open(config_path) as f:
+                with open(self.config_path) as f:
                     config = json.load(f)
 
                 self.whitelist = set(config.get("whitelist", []))
@@ -112,14 +118,13 @@ class AutonomousPatcher:
                 min_sev = config.get("min_severity", "medium")
                 self.min_severity = Severity(min_sev.lower())
 
-                logger.info(f"Loaded patcher config from {config_path}")
+                logger.info(f"Loaded patcher config from {self.config_path}")
             except Exception as e:
                 logger.warning(f"Failed to load patcher config: {e}")
 
     def _save_config(self):
         """Save patcher configuration to file"""
-        config_path = Path.home() / ".cortex" / "patcher_config.json"
-        config_path.parent.mkdir(parents=True, exist_ok=True)
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
             import json
@@ -130,7 +135,7 @@ class AutonomousPatcher:
                 "min_severity": self.min_severity.value,
             }
 
-            with open(config_path, "w") as f:
+            with open(self.config_path, "w") as f:
                 json.dump(config, f, indent=2)
 
         except Exception as e:
