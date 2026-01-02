@@ -33,11 +33,24 @@ def get_env_file_locations() -> list[Path]:
     cwd_env = Path.cwd() / ".env"
     locations.append(cwd_env)
 
-    # 2. User's home directory .cortex folder
+    # 2. Parent directory (for project root .env)
+    parent_env = Path.cwd().parent / ".env"
+    locations.append(parent_env)
+
+    # 3. Cortex package directory .env
+    try:
+        import cortex
+
+        cortex_dir = Path(cortex.__file__).parent / ".env"
+        locations.append(cortex_dir)
+    except ImportError:
+        pass
+
+    # 4. User's home directory .cortex folder
     home_cortex_env = Path.home() / ".cortex" / ".env"
     locations.append(home_cortex_env)
 
-    # 3. System-wide config (Linux only)
+    # 5. System-wide config (Linux only)
     if os.name == "posix":
         system_env = Path("/etc/cortex/.env")
         locations.append(system_env)

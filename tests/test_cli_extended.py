@@ -30,11 +30,10 @@ class TestCortexCLIExtended(unittest.TestCase):
         api_key = self.cli._get_api_key()
         self.assertEqual(api_key, "sk-ant-test-claude-key")
 
-    @patch.object(CortexCLI, "_get_provider", return_value="openai")
-    @patch.dict(os.environ, {}, clear=True)
-    def test_get_api_key_not_found(self, _mock_get_provider) -> None:
+    @patch.dict(os.environ, {"CORTEX_PROVIDER": "ollama"}, clear=True)
+    def test_get_api_key_not_found(self) -> None:
         api_key = self.cli._get_api_key()
-        self.assertIsNone(api_key)
+        self.assertEqual(api_key, "ollama-local")
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=True)
     def test_get_provider_openai(self) -> None:
@@ -74,13 +73,17 @@ class TestCortexCLIExtended(unittest.TestCase):
         self.cli._print_success("Test success")
         mock_cx_print.assert_called_once_with("Test success", "success")
 
-    @patch.object(CortexCLI, "_get_api_key", return_value=None)
-    def test_install_no_api_key(self, _mock_get_api_key) -> None:
-        result = self.cli.install("docker")
-        self.assertEqual(result, 1)
+    @patch("cortex.cli.CommandInterpreter")
+    def test_install_no_api_key(self, mock_interpreter_class) -> None:
+        mock_interpreter = Mock()
+        mock_interpreter.parse.return_value = ["apt update", "apt install docker"]
+        mock_interpreter_class.return_value = mock_interpreter
 
+        result = self.cli.install("docker")
+        self.assertEqual(result, 0)
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key"}, clear=True)
     @patch.object(CortexCLI, "_get_provider", return_value="openai")
-    @patch.object(CortexCLI, "_get_api_key", return_value="sk-test-key")
     @patch.object(CortexCLI, "_animate_spinner", return_value=None)
     @patch.object(CortexCLI, "_clear_line", return_value=None)
     @patch("cortex.cli.CommandInterpreter")
@@ -89,7 +92,6 @@ class TestCortexCLIExtended(unittest.TestCase):
         mock_interpreter_class,
         _mock_clear_line,
         _mock_spinner,
-        _mock_get_api_key,
         _mock_get_provider,
     ) -> None:
         mock_interpreter = Mock()
@@ -101,8 +103,8 @@ class TestCortexCLIExtended(unittest.TestCase):
         self.assertEqual(result, 0)
         mock_interpreter.parse.assert_called_once_with("install docker")
 
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key"}, clear=True)
     @patch.object(CortexCLI, "_get_provider", return_value="openai")
-    @patch.object(CortexCLI, "_get_api_key", return_value="sk-test-key")
     @patch.object(CortexCLI, "_animate_spinner", return_value=None)
     @patch.object(CortexCLI, "_clear_line", return_value=None)
     @patch("cortex.cli.CommandInterpreter")
@@ -111,7 +113,6 @@ class TestCortexCLIExtended(unittest.TestCase):
         mock_interpreter_class,
         _mock_clear_line,
         _mock_spinner,
-        _mock_get_api_key,
         _mock_get_provider,
     ) -> None:
         mock_interpreter = Mock()
@@ -121,10 +122,10 @@ class TestCortexCLIExtended(unittest.TestCase):
         result = self.cli.install("docker", execute=False)
 
         self.assertEqual(result, 0)
-        mock_interpreter.parse.assert_called_once()
+        mock_interpreter.parse.assert_called_once_with("install docker")
 
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key"}, clear=True)
     @patch.object(CortexCLI, "_get_provider", return_value="openai")
-    @patch.object(CortexCLI, "_get_api_key", return_value="sk-test-key")
     @patch.object(CortexCLI, "_animate_spinner", return_value=None)
     @patch.object(CortexCLI, "_clear_line", return_value=None)
     @patch("cortex.cli.CommandInterpreter")
@@ -135,7 +136,6 @@ class TestCortexCLIExtended(unittest.TestCase):
         mock_interpreter_class,
         _mock_clear_line,
         _mock_spinner,
-        _mock_get_api_key,
         _mock_get_provider,
     ) -> None:
         mock_interpreter = Mock()

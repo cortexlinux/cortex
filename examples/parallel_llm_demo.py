@@ -37,6 +37,7 @@ async def demo_multi_package_queries():
     start_time = time.time()
 
     responses = await query_multiple_packages(router, packages, max_concurrent=5)
+    responses = await query_multiple_packages(router, packages, max_concurrent=5)
 
     elapsed = time.time() - start_time
 
