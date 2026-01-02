@@ -122,6 +122,7 @@ dmypy.json
 .ropeproject/
 .sublime-project
 .sublime-workspace
+.cursor/
 
 # ==============================
 # OS-specific
@@ -151,10 +152,13 @@ htmlcov/
 *.swo
 
 # ==============================
-# Cortex specific
+# Cortex-specific
 # ==============================
+# User preferences and configuration
 .cortex/
 *.yaml.bak
+~/.config/cortex/preferences.yaml
+~/.config/cortex/*.backup.*
 /tmp/
 .env
 
@@ -177,6 +181,11 @@ cortex-code-stats.csv
 
 # Local scripts (not part of distribution)
 *.local.sh
+
+# Data files (except contributors.json which is tracked)
+data/*.json
+data/*.csv
+!data/contributors.json
 
 # Editor config (keep .editorconfig)
 .vscode/settings.json

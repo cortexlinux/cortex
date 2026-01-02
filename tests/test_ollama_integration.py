@@ -12,6 +12,7 @@ Usage:
     python tests/test_ollama_integration.py
 """
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -23,9 +24,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from cortex.llm_router import LLMProvider, LLMRouter, TaskType
 
+
+def _ollama_installed() -> bool:
+    """Check if ollama is available in PATH (cross-platform)."""
+    return shutil.which("ollama") is not None
+
+
 # Mark all tests to skip if Ollama is not available
 pytestmark = pytest.mark.skipif(
-    not subprocess.run(["which", "ollama"], capture_output=True).returncode == 0,
+    not _ollama_installed(),
     reason="Ollama is not installed. Install with: python scripts/setup_ollama.py",
 )
 
@@ -33,8 +40,7 @@ pytestmark = pytest.mark.skipif(
 def check_ollama_installed():
     """Check if Ollama is installed."""
     print("1. Checking Ollama installation...")
-    result = subprocess.run(["which", "ollama"], capture_output=True)
-    if result.returncode == 0:
+    if _ollama_installed():
         print("   ✓ Ollama is installed")
         return True
     else:

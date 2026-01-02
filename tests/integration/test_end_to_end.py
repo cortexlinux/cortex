@@ -7,6 +7,8 @@ import os
 import unittest
 from pathlib import Path
 
+import pytest
+
 from .docker_utils import DockerRunResult, docker_available, run_in_docker
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -17,8 +19,10 @@ BASE_ENV = {
     "PYTHONPATH": "/workspace",
     "PYTHONDONTWRITEBYTECODE": "1",
 }
+# Install build dependencies first for packages with C extensions (e.g., ruamel.yaml.clib required by safety)
+APT_BUILD_DEPS = "apt-get update && apt-get install -y --no-install-recommends gcc libc-dev && rm -rf /var/lib/apt/lists/*"
 PIP_BOOTSTRAP = "python -m pip install --quiet --upgrade pip setuptools && python -m pip install --quiet --no-cache-dir -r /workspace/requirements.txt"
-PIP_BOOTSTRAP_DEV = "python -m pip install --quiet --upgrade pip setuptools && python -m pip install --quiet --no-cache-dir -r /workspace/requirements.txt -r /workspace/requirements-dev.txt"
+PIP_BOOTSTRAP_DEV = f"{APT_BUILD_DEPS} && python -m pip install --quiet --upgrade pip setuptools && python -m pip install --quiet --no-cache-dir -r /workspace/requirements.txt -r /workspace/requirements-dev.txt"
 
 
 @unittest.skipUnless(docker_available(), "Docker is required for integration tests")
@@ -103,6 +107,7 @@ class TestEndToEndWorkflows(unittest.TestCase):
         self.assertTrue(result.succeeded(), msg=result.stderr)
         self.assertIn("STEPS 1", result.stdout)
 
+    @pytest.mark.timeout(300)  # This test installs build deps + all packages in Docker
     def test_project_tests_run_inside_container(self):
         """The unified test runner should pass within the container."""
 
