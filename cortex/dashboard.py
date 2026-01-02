@@ -52,6 +52,7 @@ except ImportError:
 # HTTP requests for Ollama API
 try:
     import requests
+
     REQUESTS_AVAILABLE = True
 except ImportError:
     REQUESTS_AVAILABLE = False
@@ -107,7 +108,7 @@ INSTALL_STEP_DELAY = 0.6  # Delay between installation steps (simulation)
 INSTALL_TOTAL_STEPS = 5  # Number of simulated installation steps
 
 # Unit Conversion Constants
-BYTES_PER_GB = 1024 ** 3  # Bytes in a gigabyte
+BYTES_PER_GB = 1024**3  # Bytes in a gigabyte
 
 # Simulation Mode - Set to False when real CLI integration is ready
 # TODO: Replace simulated installation with actual CLI calls
@@ -123,14 +124,17 @@ MAX_MODELS_DISPLAYED = 5  # Max models shown in UI
 # ENUMS
 # =============================================================================
 
+
 class DashboardTab(Enum):
     """Available dashboard tabs"""
+
     HOME = "home"
     PROGRESS = "progress"
 
 
 class InstallationState(Enum):
     """Installation states"""
+
     IDLE = "idle"
     WAITING_INPUT = "waiting_input"
     PROCESSING = "processing"
@@ -141,6 +145,7 @@ class InstallationState(Enum):
 
 class ActionType(Enum):
     """Action types for dashboard"""
+
     NONE = "none"
     INSTALL = "install"
     BENCH = "bench"
@@ -166,9 +171,11 @@ ACTION_MAP = {
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class SystemMetrics:
     """Container for system metrics"""
+
     cpu_percent: float
     ram_percent: float
     ram_used_gb: float
@@ -185,6 +192,7 @@ class SystemMetrics:
 @dataclass
 class InstallationProgress:
     """Tracks installation progress"""
+
     state: InstallationState = InstallationState.IDLE
     package: str = ""
     current_step: int = 0
@@ -207,6 +215,7 @@ class InstallationProgress:
 # PLATFORM UTILITIES
 # =============================================================================
 
+
 def get_root_disk_path() -> str:
     """Get the root disk path in a platform-agnostic way."""
     if platform.system() == "Windows":
@@ -217,6 +226,7 @@ def get_root_disk_path() -> str:
 # =============================================================================
 # SYSTEM MONITOR
 # =============================================================================
+
 
 class SystemMonitor:
     """
@@ -329,6 +339,7 @@ class SystemMonitor:
 # PROCESS LISTER
 # =============================================================================
 
+
 class ProcessLister:
     """
     Lists running processes related to AI/ML workloads.
@@ -390,11 +401,13 @@ class ProcessLister:
                     name = proc.info.get("name", "").lower()
                     # Only filter by process name, not command line
                     if any(kw in name for kw in self.KEYWORDS):
-                        processes.append({
-                            "pid": proc.info.get("pid"),
-                            "name": proc.info.get("name", "unknown"),
-                            # cmdline intentionally NOT collected for privacy
-                        })
+                        processes.append(
+                            {
+                                "pid": proc.info.get("pid"),
+                                "name": proc.info.get("name", "unknown"),
+                                # cmdline intentionally NOT collected for privacy
+                            }
+                        )
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
 
@@ -412,6 +425,7 @@ class ProcessLister:
 # =============================================================================
 # MODEL LISTER (Ollama Integration)
 # =============================================================================
+
 
 class ModelLister:
     """
@@ -438,10 +452,7 @@ class ModelLister:
         if not REQUESTS_AVAILABLE:
             return False
         try:
-            response = requests.get(
-                f"{OLLAMA_API_BASE}/api/tags",
-                timeout=OLLAMA_API_TIMEOUT
-            )
+            response = requests.get(f"{OLLAMA_API_BASE}/api/tags", timeout=OLLAMA_API_TIMEOUT)
             self.ollama_available = response.status_code == 200
             return self.ollama_available
         except Exception:
@@ -455,19 +466,18 @@ class ModelLister:
 
         try:
             # Check running models via Ollama API
-            response = requests.get(
-                f"{OLLAMA_API_BASE}/api/ps",
-                timeout=OLLAMA_API_TIMEOUT
-            )
+            response = requests.get(f"{OLLAMA_API_BASE}/api/ps", timeout=OLLAMA_API_TIMEOUT)
             if response.status_code == 200:
                 data = response.json()
                 models = []
                 for model in data.get("models", []):
-                    models.append({
-                        "name": model.get("name", "unknown"),
-                        "size": model.get("size", 0),
-                        "digest": model.get("digest", "")[:8],
-                    })
+                    models.append(
+                        {
+                            "name": model.get("name", "unknown"),
+                            "size": model.get("size", 0),
+                            "digest": model.get("digest", "")[:8],
+                        }
+                    )
                 with self.lock:
                     self.models = models[:MAX_MODELS_DISPLAYED]
                     self.ollama_available = True
@@ -489,10 +499,7 @@ class ModelLister:
         if not REQUESTS_AVAILABLE:
             return []
         try:
-            response = requests.get(
-                f"{OLLAMA_API_BASE}/api/tags",
-                timeout=OLLAMA_API_TIMEOUT
-            )
+            response = requests.get(f"{OLLAMA_API_BASE}/api/tags", timeout=OLLAMA_API_TIMEOUT)
             if response.status_code == 200:
                 data = response.json()
                 return [
@@ -510,6 +517,7 @@ class ModelLister:
 # =============================================================================
 # COMMAND HISTORY
 # =============================================================================
+
 
 class CommandHistory:
     """
@@ -547,7 +555,7 @@ class CommandHistory:
             if os.path.exists(history_file):
                 try:
                     with open(history_file, encoding="utf-8", errors="ignore") as f:
-                        for line in f.readlines()[-self.max_size:]:
+                        for line in f.readlines()[-self.max_size :]:
                             cmd = line.strip()
                             if cmd and not cmd.startswith(":"):
                                 self.history.append(cmd)
@@ -571,6 +579,7 @@ class CommandHistory:
 # =============================================================================
 # UI RENDERER
 # =============================================================================
+
 
 class UIRenderer:
     """Renders the dashboard UI with multi-tab support"""
@@ -1240,6 +1249,7 @@ class UIRenderer:
             progress.update_elapsed()
 
             from cortex.cli import CortexCLI
+
             cli = CortexCLI()
 
             if self.stop_event.is_set() or progress.state == InstallationState.FAILED:
@@ -1256,7 +1266,10 @@ class UIRenderer:
             stderr_capture = io.StringIO()
 
             try:
-                with contextlib.redirect_stdout(stdout_capture), contextlib.redirect_stderr(stderr_capture):
+                with (
+                    contextlib.redirect_stdout(stdout_capture),
+                    contextlib.redirect_stderr(stderr_capture),
+                ):
                     result = cli.install(package_name, dry_run=True, execute=False)
             except Exception as e:
                 result = 1
@@ -1292,8 +1305,9 @@ class UIRenderer:
                 error_msg = stderr_output.strip() or stdout_output.strip()
                 # Remove Rich formatting characters for cleaner display
                 import re
-                clean_msg = re.sub(r'\[.*?\]', '', error_msg)  # Remove [color] tags
-                clean_msg = re.sub(r' CX.*?[│✗✓⠋]', '', clean_msg)  # Remove CX prefix
+
+                clean_msg = re.sub(r"\[.*?\]", "", error_msg)  # Remove [color] tags
+                clean_msg = re.sub(r" CX.*?[│✗✓⠋]", "", clean_msg)  # Remove CX prefix
                 clean_msg = clean_msg.strip()
 
                 if "doesn't look valid" in clean_msg or "wizard" in clean_msg.lower():
@@ -1306,7 +1320,7 @@ class UIRenderer:
                     progress.error_message = "API key not configured. Run 'cortex wizard'"
                 elif clean_msg:
                     # Show cleaned error, truncated
-                    lines = clean_msg.split('\n')
+                    lines = clean_msg.split("\n")
                     first_line = lines[0].strip()[:80]
                     progress.error_message = first_line or f"Failed to install '{package_name}'"
                 else:
@@ -1486,6 +1500,7 @@ class UIRenderer:
 # DASHBOARD APP
 # =============================================================================
 
+
 class DashboardApp:
     """
     Main dashboard application orchestrator.
@@ -1517,9 +1532,7 @@ class DashboardApp:
         try:
             console.print("[bold cyan]Starting Cortex Dashboard...[/bold cyan]")
             console.print("[dim]Press [cyan]q[/cyan] to quit[/dim]")
-            console.print(
-                "[dim]System monitoring starts when you run Bench or Doctor[/dim]\n"
-            )
+            console.print("[dim]System monitoring starts when you run Bench or Doctor[/dim]\n")
             time.sleep(STARTUP_DELAY)
             self.ui.run()
             return 0
