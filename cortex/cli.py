@@ -1103,7 +1103,8 @@ class CortexCLI:
         """Handle autonomous patching."""
         from cortex.autonomous_patcher import AutonomousPatcher, PatchStrategy
 
-        dry_run = getattr(args, "dry_run", True) and not getattr(args, "apply", False)
+        # Dry run is the default; only disabled when --apply is explicitly specified
+        dry_run = not getattr(args, "apply", False)
         strategy = PatchStrategy(getattr(args, "strategy", "critical_only"))
 
         patcher = AutonomousPatcher(strategy=strategy, dry_run=dry_run)
