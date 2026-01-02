@@ -95,6 +95,15 @@
       ],
       "signed_date": "2026-01-02",
       "cla_version": "1.0"
+    },
+    {
+      "name": "Dhaval Chaudhari",
+      "github_username": "dhvll",
+      "emails": [
+        "dhavalchaudhari39@gmail.com"
+      ],
+      "signed_date": "2026-01-02",
+      "cla_version": "1.0"
     }
   ],
   "corporations": {
