@@ -10,6 +10,7 @@ import platform
 import shutil
 import sqlite3
 import subprocess
+from pathlib import Path
 from typing import Any
 
 
@@ -197,8 +198,6 @@ class AskHandler:
 
         # Try config file
         try:
-            from pathlib import Path
-
             config_file = Path.home() / ".cortex" / "config.json"
             if config_file.exists():
                 with open(config_file) as f:
