@@ -104,6 +104,7 @@ exclude = '''
     | \.tox
     | \.venv
     | venv
+    | myenv
     | _build
     | buck-out
     | build
@@ -134,6 +135,7 @@ exclude = [
     "dist",
     "node_modules",
     "venv",
+    "myenv",
 ]
 
 [tool.ruff.lint]
