@@ -8,13 +8,13 @@ Author: Cortex Linux Team
 License: Apache 2.0
 """
 
-from typing import Callable, Dict
+from collections.abc import Callable
 
 
 def _arabic_plural_rule(n: int) -> str:
     """
     Arabic pluralization rule (6 plural forms per CLDR standard).
-    
+
     Arabic has distinct plural forms for:
     - zero (0)
     - one (1)
@@ -22,10 +22,10 @@ def _arabic_plural_rule(n: int) -> str:
     - few (3-10)
     - many (11-99)
     - other (100+)
-    
+
     Args:
         n: Count to pluralize
-        
+
     Returns:
         Plural form key
     """
@@ -46,28 +46,28 @@ def _arabic_plural_rule(n: int) -> str:
 class PluralRules:
     """
     Defines pluralization rules for different languages.
-    
+
     Different languages have different numbers of plural forms:
-    
+
     - English: one vs. other
       Examples: 1 package, 2 packages
-    
+
     - Spanish: one vs. other
       Examples: 1 paquete, 2 paquetes
-    
+
     - Russian: one, few, many
       Examples: 1, 2-4, 5+
-    
+
     - Arabic: zero, one, two, few, many, other
       Examples: 0, 1, 2, 3-10, 11-99, 100+
-    
+
     - Japanese: No plural distinction (all use 'other')
-    
+
     - Hindi: one vs. other
       Examples: 1 pैकेज, 2 pैकेज
     """
-    
-    RULES: Dict[str, Callable[[int], str]] = {
+
+    RULES: dict[str, Callable[[int], str]] = {
         "en": lambda n: "one" if n == 1 else "other",
         "es": lambda n: "one" if n == 1 else "other",
         "fr": lambda n: "one" if n <= 1 else "other",
@@ -76,19 +76,19 @@ class PluralRules:
         "hi": lambda n: "one" if n == 1 else "other",
         "pt": lambda n: "one" if n == 1 else "other",
     }
-    
+
     @classmethod
     def get_plural_form(cls, language: str, count: int) -> str:
         """
         Get plural form key for language and count.
-        
+
         Args:
             language: Language code (e.g., 'en', 'es', 'ar')
             count: Numeric count for pluralization
-            
+
         Returns:
             Plural form key ('one', 'few', 'many', 'other', etc.)
-            
+
         Example:
             >>> PluralRules.get_plural_form('en', 1)
             'one'
@@ -100,15 +100,15 @@ class PluralRules:
         # Default to English rules if language not found
         rule = cls.RULES.get(language, cls.RULES["en"])
         return rule(count)
-    
+
     @classmethod
     def supports_language(cls, language: str) -> bool:
         """
         Check if pluralization rules exist for a language.
-        
+
         Args:
             language: Language code
-            
+
         Returns:
             True if language has defined rules
         """
@@ -182,4 +182,3 @@ HINDI_RULES = {
         100: "other",
     },
 }
-
