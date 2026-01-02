@@ -1,0 +1,151 @@
+{
+  "common": {
+    "yes": "Yes",
+    "no": "No",
+    "continue": "Continue",
+    "cancel": "Cancel",
+    "error": "Error",
+    "success": "Success",
+    "warning": "Warning",
+    "confirm": "Are you sure?",
+    "loading": "Loading",
+    "please_wait": "Please wait...",
+    "back": "Back",
+    "next": "Next",
+    "exit": "Exit"
+  },
+
+  "cli": {
+    "help": "Display this help message",
+    "version": "Show version information",
+    "verbose": "Enable verbose output",
+    "quiet": "Suppress non-essential output",
+    "dry_run": "Preview changes without applying them",
+    "force": "Force execution without confirmation",
+    "output_format": "Output format (text, json, yaml)"
+  },
+
+  "install": {
+    "prompt": "What would you like to install?",
+    "checking_deps": "Checking dependencies for {package}",
+    "resolving": "Resolving package dependencies...",
+    "downloading": "Downloading {package_count, plural, one {# package} other {# packages}}",
+    "installing": "Installing {packages}...",
+    "success": "{package} installed successfully",
+    "failed": "Installation of {package} failed: {error}",
+    "dry_run": "[DRY RUN] Would install {packages}",
+    "already_installed": "{package} is already installed (version {version})",
+    "updating": "Updating {package}...",
+    "verifying": "Verifying installation of {package}",
+    "install_time": "Installation completed in {time}s",
+    "requires": "Requires: {dependencies}"
+  },
+
+  "remove": {
+    "prompt": "What would you like to remove?",
+    "removing": "Removing {packages}...",
+    "success": "{package} removed successfully",
+    "failed": "Removal of {package} failed: {error}",
+    "not_installed": "{package} is not installed",
+    "dry_run": "[DRY RUN] Would remove {packages}",
+    "requires_confirmation": "This will remove {count} package(s). Continue?"
+  },
+
+  "search": {
+    "prompt": "Search for packages",
+    "searching": "Searching for '{query}'...",
+    "found": "Found {count, plural, one {# package} other {# packages}}",
+    "not_found": "No packages found for '{query}'",
+    "results": "Search results for '{query}':",
+    "installed": "Installed",
+    "available": "Available",
+    "description": "Description",
+    "version": "Version"
+  },
+
+  "config": {
+    "language_set": "Language set to {language}",
+    "language_not_found": "Language '{language}' not found. Using English.",
+    "current_language": "Current language: {language}",
+    "available_languages": "Available languages: {languages}",
+    "saved": "Configuration saved",
+    "reset": "Configuration reset to defaults",
+    "invalid_key": "Invalid configuration key: {key}",
+    "invalid_value": "Invalid value for {key}: {value}"
+  },
+
+  "errors": {
+    "network": "Network error: {details}",
+    "permission": "Permission denied: {details}",
+    "invalid_package": "Package '{package}' not found",
+    "disk_space": "Insufficient disk space ({needed}GB needed, {available}GB available)",
+    "api_key_missing": "API key not configured. Run 'cortex wizard' to set it up.",
+    "timeout": "Operation timed out after {seconds} seconds",
+    "parse_error": "Failed to parse response: {details}",
+    "invalid_input": "Invalid input: {details}",
+    "operation_failed": "Operation failed: {details}",
+    "unexpected": "An unexpected error occurred. Please try again."
+  },
+
+  "prompts": {
+    "confirm_install": "Install {packages}? (y/n)",
+    "confirm_remove": "Remove {packages}? (y/n)",
+    "select_version": "Select version for {package}:",
+    "enter_api_key": "Enter your {provider} API key:",
+    "confirm_dry_run": "This is a dry-run. Continue to see what would be done?"
+  },
+
+  "status": {
+    "checking": "Checking system...",
+    "detected_os": "Detected OS: {os} {version}",
+    "detected_arch": "Architecture: {arch}",
+    "hardware_info": "CPU cores: {cores}, RAM: {ram}GB",
+    "checking_updates": "Checking for updates...",
+    "up_to_date": "System is up to date",
+    "updates_available": "{count, plural, one {# update} other {# updates}} available"
+  },
+
+  "wizard": {
+    "welcome": "Welcome to Cortex Linux!",
+    "select_language": "Select your language:",
+    "api_key": "Enter your API key (or press Enter to skip):",
+    "provider": "Which AI provider would you like to use?",
+    "complete": "Setup complete! Run 'cortex install <package>' to get started.",
+    "skip_setup": "Skip setup for now?"
+  },
+
+  "history": {
+    "view": "Installation History",
+    "date": "Date",
+    "action": "Action",
+    "packages": "Packages",
+    "status": "Status",
+    "no_history": "No installation history yet",
+    "clear_confirm": "Clear all history? This cannot be undone."
+  },
+
+  "notifications": {
+    "update_available": "Update available: {version}",
+    "install_success": "{package} installed successfully",
+    "install_failed": "Failed to install {package}",
+    "security_update": "Security update available for {package}",
+    "api_error": "API error: {details}"
+  },
+
+  "help": {
+    "usage": "Usage:",
+    "examples": "Examples:",
+    "options": "Options:",
+    "description": "Description:",
+    "subcommands": "Subcommands:",
+    "see_help": "See 'cortex {command} --help' for more information"
+  },
+
+  "demo": {
+    "title": "Cortex Linux Demo",
+    "scenario": "Scenario: {description}",
+    "starting": "Starting demo...",
+    "step": "Step {number}: {description}",
+    "complete": "Demo complete!"
+  }
+}

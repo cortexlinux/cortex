@@ -1,0 +1,147 @@
+{
+  "common": {
+    "yes": "Ja",
+    "no": "Nein",
+    "continue": "Fortfahren",
+    "cancel": "Abbrechen",
+    "error": "Fehler",
+    "success": "Erfolg",
+    "warning": "Warnung",
+    "confirm": "Bestätigen",
+    "loading": "Wird geladen...",
+    "please_wait": "Please wait...",
+    "back": "Zurück",
+    "next": "Next",
+    "exit": "Exit",
+    "info": "Information",
+    "done": "Erledigt",
+    "required_field": "Das Feld {field} ist erforderlich"
+  },
+  "cli": {
+    "help": "Display this help message",
+    "version": "Show version information",
+    "verbose": "Enable verbose output",
+    "quiet": "Suppress non-essential output",
+    "dry_run": "Preview changes without applying them",
+    "force": "Force execution without confirmation",
+    "output_format": "Output format (text, json, yaml)"
+  },
+  "install": {
+    "prompt": "Was möchten Sie installieren?",
+    "checking_deps": "Abhängigkeiten für {package} werden überprüft",
+    "resolving": "Paketabhängigkeiten werden aufgelöst...",
+    "downloading": "Lädt {package_count, plural, one {# Paket} other {# Pakete}} herunter",
+    "installing": "{packages} wird installiert...",
+    "success": "{package} erfolgreich installiert",
+    "failed": "Installation von {package} fehlgeschlagen: {error}",
+    "dry_run": "[DRY RUN] Würde {packages} installieren",
+    "already_installed": "{package} ist bereits installiert (Version {version})",
+    "updating": "{package} wird aktualisiert...",
+    "verifying": "Installation von {package} wird überprüft",
+    "install_time": "Installation in {time}s abgeschlossen",
+    "requires": "Erforderlich: {dependencies}"
+  },
+  "remove": {
+    "prompt": "What would you like to remove?",
+    "removing": "Removing {packages}...",
+    "success": "{package} removed successfully",
+    "failed": "Removal of {package} failed: {error}",
+    "not_installed": "{package} is not installed",
+    "dry_run": "[DRY RUN] Would remove {packages}",
+    "requires_confirmation": "This will remove {count} package(s). Continue?"
+  },
+  "search": {
+    "prompt": "Search for packages",
+    "searching": "Searching for '{query}'...",
+    "found": "Found {count, plural, one {# package} other {# packages}}",
+    "not_found": "No packages found for '{query}'",
+    "results": "Search results for '{query}':",
+    "installed": "Installed",
+    "available": "Available",
+    "description": "Description",
+    "version": "Version"
+  },
+  "config": {
+    "language_set": "Sprache auf {language} gesetzt",
+    "language_not_found": "Sprache {language} nicht gefunden",
+    "current_language": "Aktuelle Sprache: {language}",
+    "available_languages": "Verfügbare Sprachen: {languages}",
+    "saved": "Configuration saved",
+    "reset": "Configuration reset to defaults",
+    "invalid_key": "Ungültiger Konfigurationsschlüssel: {key}",
+    "invalid_value": "Ungültiger Wert für {key}: {value}",
+    "config_missing": "Konfigurationsdatei nicht gefunden",
+    "config_readonly": "Konfigurationsdatei ist schreibgeschützt"
+  },
+  "errors": {
+    "network": "Netzwerkfehler: {error}",
+    "permission": "Permission denied: {details}",
+    "invalid_package": "Paket '{package}' nicht gefunden",
+    "disk_space": "Nicht genug Speicherplatz verfügbar",
+    "api_key_missing": "API-Schlüssel nicht gesetzt. Bitte in der Konfiguration setzen.",
+    "timeout": "Zeitüberschreitung bei {operation}",
+    "parse_error": "Failed to parse response: {details}",
+    "invalid_input": "Ungültige Eingabe: {error}",
+    "operation_failed": "Operation failed: {details}",
+    "unexpected": "An unexpected error occurred. Please try again.",
+    "permission_denied": "Berechtigung verweigert",
+    "package_conflict": "Paketkonflikt: {package}",
+    "installation_failed": "Installation fehlgeschlagen",
+    "unknown_error": "Unbekannter Fehler"
+  },
+  "prompts": {
+    "confirm_install": "Install {packages}? (y/n)",
+    "confirm_remove": "Remove {packages}? (y/n)",
+    "select_version": "Select version for {package}:",
+    "enter_api_key": "Enter your {provider} API key:",
+    "confirm_dry_run": "This is a dry-run. Continue to see what would be done?"
+  },
+  "status": {
+    "checking": "Checking system...",
+    "detected_os": "Detected OS: {os} {version}",
+    "detected_arch": "Architecture: {arch}",
+    "hardware_info": "CPU cores: {cores}, RAM: {ram}GB",
+    "checking_updates": "Checking for updates...",
+    "up_to_date": "System is up to date",
+    "updates_available": "{count, plural, one {# update} other {# updates}} available"
+  },
+  "wizard": {
+    "welcome": "Welcome to Cortex Linux!",
+    "select_language": "Select your language:",
+    "api_key": "Enter your API key (or press Enter to skip):",
+    "provider": "Which AI provider would you like to use?",
+    "complete": "Setup complete! Run 'cortex install <package>' to get started.",
+    "skip_setup": "Skip setup for now?"
+  },
+  "history": {
+    "view": "Installation History",
+    "date": "Date",
+    "action": "Action",
+    "packages": "Packages",
+    "status": "Status",
+    "no_history": "No installation history yet",
+    "clear_confirm": "Clear all history? This cannot be undone."
+  },
+  "notifications": {
+    "update_available": "Update available: {version}",
+    "install_success": "{package} installed successfully",
+    "install_failed": "Failed to install {package}",
+    "security_update": "Security update available for {package}",
+    "api_error": "API error: {details}"
+  },
+  "help": {
+    "usage": "Usage:",
+    "examples": "Examples:",
+    "options": "Options:",
+    "description": "Description:",
+    "subcommands": "Subcommands:",
+    "see_help": "See 'cortex {command} --help' for more information"
+  },
+  "demo": {
+    "title": "Cortex Linux Demo",
+    "scenario": "Scenario: {description}",
+    "starting": "Starting demo...",
+    "step": "Step {number}: {description}",
+    "complete": "Demo complete!"
+  }
+}

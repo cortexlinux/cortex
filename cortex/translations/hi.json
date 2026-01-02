@@ -1,0 +1,151 @@
+{
+  "common": {
+    "yes": "हाँ",
+    "no": "नहीं",
+    "continue": "जारी रखें",
+    "cancel": "रद्द करें",
+    "error": "त्रुटि",
+    "success": "सफल",
+    "warning": "चेतावनी",
+    "confirm": "क्या आप सुनिश्चित हैं?",
+    "loading": "लोड हो रहा है",
+    "please_wait": "कृपया प्रतीक्षा करें...",
+    "back": "पीछे",
+    "next": "अगला",
+    "exit": "बाहर निकलें"
+  },
+
+  "cli": {
+    "help": "यह सहायता संदेश प्रदर्शित करें",
+    "version": "संस्करण जानकारी दिखाएं",
+    "verbose": "विस्तृत आउटपुट सक्षम करें",
+    "quiet": "गैर-आवश्यक आउटपुट दबाएं",
+    "dry_run": "परिवर्तनों का पूर्वावलोकन करें बिना उन्हें लागू किए",
+    "force": "पुष्टि के बिना निष्पादन को मजबूर करें",
+    "output_format": "आउटपुट प्रारूप (पाठ, json, yaml)"
+  },
+
+  "install": {
+    "prompt": "आप क्या इंस्टॉल करना चाहते हैं?",
+    "checking_deps": "{package} के लिए निर्भरताएं जांच रहे हैं",
+    "resolving": "पैकेज निर्भरताओं को हल कर रहे हैं...",
+    "downloading": "{package_count, plural, one {# पैकेज} other {# पैकेज}} डाउनलोड कर रहे हैं",
+    "installing": "{packages} स्थापित कर रहे हैं...",
+    "success": "{package} सफलतापूर्वक स्थापित हुआ",
+    "failed": "{package} की स्थापना विफल रही: {error}",
+    "dry_run": "[ड्राई रन] {packages} स्थापित होते",
+    "already_installed": "{package} पहले से स्थापित है (संस्करण {version})",
+    "updating": "{package} को अपडेट कर रहे हैं...",
+    "verifying": "{package} की स्थापना की पुष्टि कर रहे हैं",
+    "install_time": "स्थापना {time}s में पूर्ण हुई",
+    "requires": "आवश्यकता: {dependencies}"
+  },
+
+  "remove": {
+    "prompt": "आप क्या हटाना चाहते हैं?",
+    "removing": "{packages} को हटा रहे हैं...",
+    "success": "{package} सफलतापूर्वक हटाया गया",
+    "failed": "{package} को हटाने में विफल: {error}",
+    "not_installed": "{package} स्थापित नहीं है",
+    "dry_run": "[ड्राई रन] {packages} हटाए जाते",
+    "requires_confirmation": "यह {count} पैकेज को हटाएगा। जारी रखें?"
+  },
+
+  "search": {
+    "prompt": "पैकेजों को खोजें",
+    "searching": "'{query}' के लिए खोज रहे हैं...",
+    "found": "{count, plural, one {# पैकेज} other {# पैकेज}} मिले",
+    "not_found": "'{query}' के लिए कोई पैकेज नहीं मिला",
+    "results": "'{query}' के लिए खोज परिणाम:",
+    "installed": "स्थापित",
+    "available": "उपलब्ध",
+    "description": "विवरण",
+    "version": "संस्करण"
+  },
+
+  "config": {
+    "language_set": "भाषा {language} में सेट की गई",
+    "language_not_found": "भाषा '{language}' नहीं मिली। अंग्रेजी का उपयोग कर रहे हैं।",
+    "current_language": "वर्तमान भाषा: {language}",
+    "available_languages": "उपलब्ध भाषाएं: {languages}",
+    "saved": "कॉन्फ़िगरेशन सहेजा गया",
+    "reset": "कॉन्फ़िगरेशन डिफ़ॉल्ट मानों में रीसेट किया गया",
+    "invalid_key": "अमान्य कॉन्फ़िगरेशन कुंजी: {key}",
+    "invalid_value": "{key} के लिए अमान्य मान: {value}"
+  },
+
+  "errors": {
+    "network": "नेटवर्क त्रुटि: {details}",
+    "permission": "अनुमति अस्वीकृत: {details}",
+    "invalid_package": "पैकेज '{package}' नहीं मिला",
+    "disk_space": "अपर्याप्त डिस्क स्पेस ({needed}GB आवश्यक, {available}GB उपलब्ध)",
+    "api_key_missing": "API कुंजी कॉन्फ़िगर नहीं की गई। इसे सेट करने के लिए 'cortex wizard' चलाएं।",
+    "timeout": "{seconds} सेकंड के बाद ऑपरेशन समय समाप्त हुआ",
+    "parse_error": "प्रतिक्रिया को पार्स करने में विफल: {details}",
+    "invalid_input": "अमान्य इनपुट: {details}",
+    "operation_failed": "ऑपरेशन विफल: {details}",
+    "unexpected": "एक अप्रत्याशित त्रुटि हुई। कृपया पुनः प्रयास करें।"
+  },
+
+  "prompts": {
+    "confirm_install": "{packages} स्थापित करें? (y/n)",
+    "confirm_remove": "{packages} हटाएं? (y/n)",
+    "select_version": "{package} के लिए संस्करण चुनें:",
+    "enter_api_key": "अपनी {provider} API कुंजी दर्ज करें:",
+    "confirm_dry_run": "यह एक सूखी दौड़ है। देखने के लिए जारी रखें कि क्या किया जाएगा?"
+  },
+
+  "status": {
+    "checking": "सिस्टम जांच रहे हैं...",
+    "detected_os": "पहचानी गई OS: {os} {version}",
+    "detected_arch": "आर्किटेक्चर: {arch}",
+    "hardware_info": "CPU कोर: {cores}, RAM: {ram}GB",
+    "checking_updates": "अपडेट के लिए जांच रहे हैं...",
+    "up_to_date": "सिस्टम अद्यतन है",
+    "updates_available": "{count, plural, one {# अपडेट} other {# अपडेट}} उपलब्ध"
+  },
+
+  "wizard": {
+    "welcome": "Cortex Linux में आपका स्वागत है!",
+    "select_language": "अपनी भाषा चुनें:",
+    "api_key": "अपनी API कुंजी दर्ज करें (या छोड़ने के लिए Enter दबाएं):",
+    "provider": "आप कौन सा AI प्रदाता चाहते हैं?",
+    "complete": "सेटअप पूर्ण! शुरू करने के लिए 'cortex install <पैकेज>' चलाएं।",
+    "skip_setup": "अभी के लिए सेटअप छोड़ दें?"
+  },
+
+  "history": {
+    "view": "स्थापना इतिहास",
+    "date": "तारीख",
+    "action": "कार्रवाई",
+    "packages": "पैकेज",
+    "status": "स्थिति",
+    "no_history": "अभी तक कोई स्थापना इतिहास नहीं",
+    "clear_confirm": "सभी इतिहास साफ करें? यह पूर्ववत नहीं किया जा सकता।"
+  },
+
+  "notifications": {
+    "update_available": "अपडेट उपलब्ध: {version}",
+    "install_success": "{package} सफलतापूर्वक स्थापित हुआ",
+    "install_failed": "{package} को स्थापित करने में विफल",
+    "security_update": "{package} के लिए सुरक्षा अपडेट उपलब्ध",
+    "api_error": "API त्रुटि: {details}"
+  },
+
+  "help": {
+    "usage": "उपयोग:",
+    "examples": "उदाहरण:",
+    "options": "विकल्प:",
+    "description": "विवरण:",
+    "subcommands": "उप-कमांड:",
+    "see_help": "अधिक जानकारी के लिए 'cortex {command} --help' देखें"
+  },
+
+  "demo": {
+    "title": "Cortex Linux डेमो",
+    "scenario": "परिदृश्य: {description}",
+    "starting": "डेमो शुरू कर रहे हैं...",
+    "step": "चरण {number}: {description}",
+    "complete": "डेमो पूर्ण!"
+  }
+}

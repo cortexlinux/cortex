@@ -1,0 +1,147 @@
+{
+  "common": {
+    "yes": "Да",
+    "no": "Нет",
+    "continue": "Продолжить",
+    "cancel": "Отмена",
+    "error": "Ошибка",
+    "success": "Успех",
+    "warning": "Предупреждение",
+    "confirm": "Подтвердить",
+    "loading": "Загрузка...",
+    "please_wait": "Please wait...",
+    "back": "Назад",
+    "next": "Next",
+    "exit": "Exit",
+    "info": "Информация",
+    "done": "Готово",
+    "required_field": "Поле {field} обязательно"
+  },
+  "cli": {
+    "help": "Отобразить справочную информацию",
+    "version": "Показать информацию о версии",
+    "verbose": "Включить подробный вывод",
+    "quiet": "Подавить несущественный вывод",
+    "dry_run": "Просмотреть изменения без их применения",
+    "force": "Принудить выполнение без подтверждения",
+    "output_format": "Формат вывода (text, json, yaml)"
+  },
+  "install": {
+    "prompt": "Что вы хотите установить?",
+    "checking_deps": "Проверка зависимостей для {package}",
+    "resolving": "Разрешение зависимостей пакетов...",
+    "downloading": "Загрузка {package_count, plural, one {# пакета} few {# пакетов} other {# пакетов}}",
+    "installing": "Установка {packages}...",
+    "success": "{package} успешно установлен",
+    "failed": "Ошибка установки {package}: {error}",
+    "dry_run": "[DRY RUN] Установил бы {packages}",
+    "already_installed": "{package} уже установлен (версия {version})",
+    "updating": "Обновление {package}...",
+    "verifying": "Проверка установки {package}",
+    "install_time": "Установка завершена за {time}s",
+    "requires": "Требует: {dependencies}"
+  },
+  "remove": {
+    "prompt": "Что вы хотите удалить?",
+    "removing": "Удаление {packages}...",
+    "success": "{package} успешно удален",
+    "failed": "Ошибка удаления {package}: {error}",
+    "not_installed": "{package} не установлен",
+    "dry_run": "[DRY RUN] Удалил бы {packages}",
+    "requires_confirmation": "Это удалит {count, plural, one {# пакет} few {# пакета} other {# пакетов}}. Продолжить?"
+  },
+  "search": {
+    "prompt": "Поиск пакетов",
+    "searching": "Поиск '{query}'...",
+    "found": "Найдено {count, plural, one {# пакет} few {# пакета} other {# пакетов}}",
+    "not_found": "Пакеты для '{query}' не найдены",
+    "results": "Результаты поиска для '{query}':",
+    "installed": "Установлено",
+    "available": "Доступно",
+    "description": "Описание",
+    "version": "Версия"
+  },
+  "config": {
+    "language_set": "Язык установлен на {language}",
+    "language_not_found": "Язык {language} не найден",
+    "current_language": "Текущий язык: {language}",
+    "available_languages": "Доступные языки: {languages}",
+    "saved": "Конфигурация сохранена",
+    "reset": "Конфигурация сброшена к значениям по умолчанию",
+    "invalid_key": "Неверный ключ конфигурации: {key}",
+    "invalid_value": "Неверное значение для {key}: {value}",
+    "config_missing": "Файл конфигурации не найден",
+    "config_readonly": "Файл конфигурации доступен только для чтения"
+  },
+  "errors": {
+    "network": "Ошибка сети: {error}",
+    "permission": "Доступ запрещен: {details}",
+    "invalid_package": "Пакет '{package}' не найден",
+    "disk_space": "Недостаточно свободного места на диске",
+    "api_key_missing": "Ключ API не установлен. Установите его в конфигурации.",
+    "timeout": "Истекло время ожидания {operation}",
+    "parse_error": "Ошибка при разборе ответа: {details}",
+    "invalid_input": "Неверный ввод: {error}",
+    "operation_failed": "Операция не выполнена: {details}",
+    "unexpected": "Произошла неожиданная ошибка. Пожалуйста, попробуйте снова.",
+    "permission_denied": "Доступ запрещен",
+    "package_conflict": "Конфликт пакета: {package}",
+    "installation_failed": "Установка не удалась",
+    "unknown_error": "Неизвестная ошибка"
+  },
+  "prompts": {
+    "confirm_install": "Установить {packages}? (y/n)",
+    "confirm_remove": "Удалить {packages}? (y/n)",
+    "select_version": "Выберите версию для {package}:",
+    "enter_api_key": "Введите ваш ключ API {provider}:",
+    "confirm_dry_run": "Это пробный запуск. Продолжить, чтобы увидеть, что будет сделано?"
+  },
+  "status": {
+    "checking": "Проверка системы...",
+    "detected_os": "Обнаружена ОС: {os} {version}",
+    "detected_arch": "Архитектура: {arch}",
+    "hardware_info": "Ядер процессора: {cores}, ОЗУ: {ram}GB",
+    "checking_updates": "Проверка обновлений...",
+    "up_to_date": "Система актуальна",
+    "updates_available": "Доступно {count, plural, one {# обновление} few {# обновления} other {# обновлений}}"
+  },
+  "wizard": {
+    "welcome": "Welcome to Cortex Linux!",
+    "select_language": "Select your language:",
+    "api_key": "Enter your API key (or press Enter to skip):",
+    "provider": "Which AI provider would you like to use?",
+    "complete": "Setup complete! Run 'cortex install <package>' to get started.",
+    "skip_setup": "Skip setup for now?"
+  },
+  "history": {
+    "view": "Installation History",
+    "date": "Date",
+    "action": "Action",
+    "packages": "Packages",
+    "status": "Status",
+    "no_history": "No installation history yet",
+    "clear_confirm": "Clear all history? This cannot be undone."
+  },
+  "notifications": {
+    "update_available": "Update available: {version}",
+    "install_success": "{package} installed successfully",
+    "install_failed": "Failed to install {package}",
+    "security_update": "Security update available for {package}",
+    "api_error": "API error: {details}"
+  },
+  "help": {
+    "usage": "Usage:",
+    "examples": "Examples:",
+    "options": "Options:",
+    "description": "Description:",
+    "subcommands": "Subcommands:",
+    "see_help": "See 'cortex {command} --help' for more information"
+  },
+  "demo": {
+    "title": "Cortex Linux Demo",
+    "scenario": "Scenario: {description}",
+    "starting": "Starting demo...",
+    "step": "Step {number}: {description}",
+    "complete": "Demo complete!"
+  }
+}

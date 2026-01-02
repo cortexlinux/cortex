@@ -1,0 +1,151 @@
+{
+  "common": {
+    "yes": "はい",
+    "no": "いいえ",
+    "continue": "続行",
+    "cancel": "キャンセル",
+    "error": "エラー",
+    "success": "成功",
+    "warning": "警告",
+    "confirm": "よろしいですか?",
+    "loading": "読み込み中",
+    "please_wait": "お待ちください...",
+    "back": "戻る",
+    "next": "次へ",
+    "exit": "終了"
+  },
+
+  "cli": {
+    "help": "このヘルプメッセージを表示",
+    "version": "バージョン情報を表示",
+    "verbose": "詳細な出力を有効にする",
+    "quiet": "不要な出力を抑制",
+    "dry_run": "変更をプレビューして適用しない",
+    "force": "確認なしで実行を強制",
+    "output_format": "出力形式 (テキスト、json、yaml)"
+  },
+
+  "install": {
+    "prompt": "何をインストールしたいですか?",
+    "checking_deps": "{package} の依存関係を確認中",
+    "resolving": "パッケージの依存関係を解決中...",
+    "downloading": "{package_count, plural, one {# パッケージ} other {# パッケージ}}をダウンロード中",
+    "installing": "{packages} をインストール中...",
+    "success": "{package} が正常にインストールされました",
+    "failed": "{package} のインストールに失敗しました: {error}",
+    "dry_run": "[ドライラン] {packages} がインストールされます",
+    "already_installed": "{package} は既にインストールされています (バージョン {version})",
+    "updating": "{package} を更新中...",
+    "verifying": "{package} のインストールを確認中",
+    "install_time": "インストールは {time}s で完了しました",
+    "requires": "必要: {dependencies}"
+  },
+
+  "remove": {
+    "prompt": "何をアンインストールしたいですか?",
+    "removing": "{packages} を削除中...",
+    "success": "{package} が正常に削除されました",
+    "failed": "{package} の削除に失敗しました: {error}",
+    "not_installed": "{package} はインストールされていません",
+    "dry_run": "[ドライラン] {packages} が削除されます",
+    "requires_confirmation": "これは {count} パッケージを削除します。続行しますか?"
+  },
+
+  "search": {
+    "prompt": "パッケージを検索",
+    "searching": "'{query}' を検索中...",
+    "found": "{count, plural, one {# パッケージ} other {# パッケージ}}が見つかりました",
+    "not_found": "'{query}' のパッケージが見つかりません",
+    "results": "'{query}' の検索結果:",
+    "installed": "インストール済み",
+    "available": "利用可能",
+    "description": "説明",
+    "version": "バージョン"
+  },
+
+  "config": {
+    "language_set": "言語が {language} に設定されました",
+    "language_not_found": "言語 '{language}' が見つかりません。英語を使用しています。",
+    "current_language": "現在の言語: {language}",
+    "available_languages": "利用可能な言語: {languages}",
+    "saved": "設定が保存されました",
+    "reset": "設定がデフォルト値にリセットされました",
+    "invalid_key": "無効な設定キー: {key}",
+    "invalid_value": "{key} の値が無効です: {value}"
+  },
+
+  "errors": {
+    "network": "ネットワークエラー: {details}",
+    "permission": "権限がありません: {details}",
+    "invalid_package": "パッケージ '{package}' が見つかりません",
+    "disk_space": "ディスク容量が不足しています ({needed}GB 必要、{available}GB 利用可能)",
+    "api_key_missing": "API キーが設定されていません。'cortex wizard' を実行して設定してください。",
+    "timeout": "{seconds} 秒後に操作がタイムアウトしました",
+    "parse_error": "応答の解析に失敗しました: {details}",
+    "invalid_input": "無効な入力: {details}",
+    "operation_failed": "操作に失敗しました: {details}",
+    "unexpected": "予期しないエラーが発生しました。もう一度試してください。"
+  },
+
+  "prompts": {
+    "confirm_install": "{packages} をインストールしますか? (y/n)",
+    "confirm_remove": "{packages} を削除しますか? (y/n)",
+    "select_version": "{package} のバージョンを選択:",
+    "enter_api_key": "{provider} の API キーを入力:",
+    "confirm_dry_run": "これはドライランです。実行されることを確認するために続行しますか?"
+  },
+
+  "status": {
+    "checking": "システムを確認中...",
+    "detected_os": "検出された OS: {os} {version}",
+    "detected_arch": "アーキテクチャ: {arch}",
+    "hardware_info": "CPU コア: {cores}、RAM: {ram}GB",
+    "checking_updates": "更新を確認中...",
+    "up_to_date": "システムは最新です",
+    "updates_available": "{count, plural, one {# 更新} other {# 更新}}が利用可能です"
+  },
+
+  "wizard": {
+    "welcome": "Cortex Linux へようこそ!",
+    "select_language": "言語を選択:",
+    "api_key": "API キーを入力 (スキップするには Enter キーを押す):",
+    "provider": "どの AI プロバイダーを使用しますか?",
+    "complete": "セットアップが完了しました! 'cortex install <パッケージ>' を実行して開始してください。",
+    "skip_setup": "今はセットアップをスキップしますか?"
+  },
+
+  "history": {
+    "view": "インストール履歴",
+    "date": "日付",
+    "action": "アクション",
+    "packages": "パッケージ",
+    "status": "ステータス",
+    "no_history": "まだインストール履歴がありません",
+    "clear_confirm": "すべての履歴を削除しますか? これは元に戻せません。"
+  },
+
+  "notifications": {
+    "update_available": "更新が利用可能です: {version}",
+    "install_success": "{package} が正常にインストールされました",
+    "install_failed": "{package} のインストールに失敗しました",
+    "security_update": "{package} のセキュリティ更新が利用可能です",
+    "api_error": "API エラー: {details}"
+  },
+
+  "help": {
+    "usage": "使用方法:",
+    "examples": "例:",
+    "options": "オプション:",
+    "description": "説明:",
+    "subcommands": "サブコマンド:",
+    "see_help": "詳細は 'cortex {command} --help' を参照してください"
+  },
+
+  "demo": {
+    "title": "Cortex Linux デモ",
+    "scenario": "シナリオ: {description}",
+    "starting": "デモを開始中...",
+    "step": "ステップ {number}: {description}",
+    "complete": "デモが完了しました!"
+  }
+}

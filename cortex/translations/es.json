@@ -1,0 +1,151 @@
+{
+  "common": {
+    "yes": "Sí",
+    "no": "No",
+    "continue": "Continuar",
+    "cancel": "Cancelar",
+    "error": "Error",
+    "success": "Éxito",
+    "warning": "Advertencia",
+    "confirm": "¿Estás seguro?",
+    "loading": "Cargando",
+    "please_wait": "Por favor espera...",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "exit": "Salir"
+  },
+
+  "cli": {
+    "help": "Mostrar este mensaje de ayuda",
+    "version": "Mostrar información de versión",
+    "verbose": "Habilitar salida detallada",
+    "quiet": "Suprimir salida no esencial",
+    "dry_run": "Vista previa de cambios sin aplicarlos",
+    "force": "Forzar ejecución sin confirmación",
+    "output_format": "Formato de salida (texto, json, yaml)"
+  },
+
+  "install": {
+    "prompt": "¿Qué te gustaría instalar?",
+    "checking_deps": "Verificando dependencias para {package}",
+    "resolving": "Resolviendo dependencias de paquetes...",
+    "downloading": "Descargando {package_count, plural, one {# paquete} other {# paquetes}}",
+    "installing": "Instalando {packages}...",
+    "success": "{package} instalado exitosamente",
+    "failed": "La instalación de {package} falló: {error}",
+    "dry_run": "[SIMULACIÓN] Se instalaría {packages}",
+    "already_installed": "{package} ya está instalado (versión {version})",
+    "updating": "Actualizando {package}...",
+    "verifying": "Verificando instalación de {package}",
+    "install_time": "Instalación completada en {time}s",
+    "requires": "Requiere: {dependencies}"
+  },
+
+  "remove": {
+    "prompt": "¿Qué te gustaría desinstalar?",
+    "removing": "Desinstalando {packages}...",
+    "success": "{package} desinstalado exitosamente",
+    "failed": "La desinstalación de {package} falló: {error}",
+    "not_installed": "{package} no está instalado",
+    "dry_run": "[SIMULACIÓN] Se desinstalaría {packages}",
+    "requires_confirmation": "Esto desinstalará {count} paquete(s). ¿Continuar?"
+  },
+
+  "search": {
+    "prompt": "Buscar paquetes",
+    "searching": "Buscando '{query}'...",
+    "found": "Se encontraron {count, plural, one {# paquete} other {# paquetes}}",
+    "not_found": "No se encontraron paquetes para '{query}'",
+    "results": "Resultados de búsqueda para '{query}':",
+    "installed": "Instalado",
+    "available": "Disponible",
+    "description": "Descripción",
+    "version": "Versión"
+  },
+
+  "config": {
+    "language_set": "Idioma establecido a {language}",
+    "language_not_found": "Idioma '{language}' no encontrado. Usando inglés.",
+    "current_language": "Idioma actual: {language}",
+    "available_languages": "Idiomas disponibles: {languages}",
+    "saved": "Configuración guardada",
+    "reset": "Configuración restablecida a valores predeterminados",
+    "invalid_key": "Clave de configuración inválida: {key}",
+    "invalid_value": "Valor inválido para {key}: {value}"
+  },
+
+  "errors": {
+    "network": "Error de red: {details}",
+    "permission": "Permiso denegado: {details}",
+    "invalid_package": "Paquete '{package}' no encontrado",
+    "disk_space": "Espacio en disco insuficiente ({needed}GB necesarios, {available}GB disponibles)",
+    "api_key_missing": "Clave API no configurada. Ejecuta 'cortex wizard' para configurarla.",
+    "timeout": "Operación agotada después de {seconds} segundos",
+    "parse_error": "Error al analizar respuesta: {details}",
+    "invalid_input": "Entrada inválida: {details}",
+    "operation_failed": "La operación falló: {details}",
+    "unexpected": "Ocurrió un error inesperado. Por favor, intenta de nuevo."
+  },
+
+  "prompts": {
+    "confirm_install": "¿Instalar {packages}? (s/n)",
+    "confirm_remove": "¿Desinstalar {packages}? (s/n)",
+    "select_version": "Selecciona versión para {package}:",
+    "enter_api_key": "Ingresa tu clave API de {provider}:",
+    "confirm_dry_run": "Esta es una simulación. ¿Continuar para ver qué se haría?"
+  },
+
+  "status": {
+    "checking": "Verificando sistema...",
+    "detected_os": "SO detectado: {os} {version}",
+    "detected_arch": "Arquitectura: {arch}",
+    "hardware_info": "Núcleos de CPU: {cores}, RAM: {ram}GB",
+    "checking_updates": "Verificando actualizaciones...",
+    "up_to_date": "El sistema está actualizado",
+    "updates_available": "{count, plural, one {# actualización} other {# actualizaciones}} disponible(s)"
+  },
+
+  "wizard": {
+    "welcome": "¡Bienvenido a Cortex Linux!",
+    "select_language": "Selecciona tu idioma:",
+    "api_key": "Ingresa tu clave API (o presiona Enter para omitir):",
+    "provider": "¿Qué proveedor de IA te gustaría usar?",
+    "complete": "¡Configuración completa! Ejecuta 'cortex install <paquete>' para comenzar.",
+    "skip_setup": "¿Omitir configuración por ahora?"
+  },
+
+  "history": {
+    "view": "Historial de Instalación",
+    "date": "Fecha",
+    "action": "Acción",
+    "packages": "Paquetes",
+    "status": "Estado",
+    "no_history": "Aún no hay historial de instalación",
+    "clear_confirm": "¿Borrar todo el historial? No se puede deshacer."
+  },
+
+  "notifications": {
+    "update_available": "Actualización disponible: {version}",
+    "install_success": "{package} instalado exitosamente",
+    "install_failed": "Error al instalar {package}",
+    "security_update": "Actualización de seguridad disponible para {package}",
+    "api_error": "Error de API: {details}"
+  },
+
+  "help": {
+    "usage": "Uso:",
+    "examples": "Ejemplos:",
+    "options": "Opciones:",
+    "description": "Descripción:",
+    "subcommands": "Subcomandos:",
+    "see_help": "Ver 'cortex {command} --help' para más información"
+  },
+
+  "demo": {
+    "title": "Demo de Cortex Linux",
+    "scenario": "Escenario: {description}",
+    "starting": "Iniciando demo...",
+    "step": "Paso {number}: {description}",
+    "complete": "¡Demo completada!"
+  }
+}

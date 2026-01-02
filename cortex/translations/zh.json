@@ -1,0 +1,147 @@
+{
+  "common": {
+    "yes": "是",
+    "no": "否",
+    "continue": "继续",
+    "cancel": "取消",
+    "error": "错误",
+    "success": "成功",
+    "warning": "警告",
+    "confirm": "确认",
+    "loading": "加载中...",
+    "please_wait": "Please wait...",
+    "back": "返回",
+    "next": "Next",
+    "exit": "Exit",
+    "info": "信息",
+    "done": "完成",
+    "required_field": "字段 {field} 是必需的"
+  },
+  "cli": {
+    "help": "Display this help message",
+    "version": "Show version information",
+    "verbose": "Enable verbose output",
+    "quiet": "Suppress non-essential output",
+    "dry_run": "Preview changes without applying them",
+    "force": "Force execution without confirmation",
+    "output_format": "Output format (text, json, yaml)"
+  },
+  "install": {
+    "prompt": "您想安装什么？",
+    "checking_deps": "正在检查 {package} 的依赖关系",
+    "resolving": "正在解析软件包依赖关系...",
+    "downloading": "正在下载 {package_count, plural, one {# 个软件包} other {# 个软件包}}",
+    "installing": "正在安装 {packages}...",
+    "success": "{package} 安装成功",
+    "failed": "{package} 安装失败：{error}",
+    "dry_run": "[DRY RUN] 将安装 {packages}",
+    "already_installed": "{package} 已安装（版本 {version}）",
+    "updating": "正在更新 {package}...",
+    "verifying": "正在验证 {package} 的安装",
+    "install_time": "安装在 {time}s 内完成",
+    "requires": "需要：{dependencies}"
+  },
+  "remove": {
+    "prompt": "What would you like to remove?",
+    "removing": "Removing {packages}...",
+    "success": "{package} removed successfully",
+    "failed": "Removal of {package} failed: {error}",
+    "not_installed": "{package} is not installed",
+    "dry_run": "[DRY RUN] Would remove {packages}",
+    "requires_confirmation": "This will remove {count} package(s). Continue?"
+  },
+  "search": {
+    "prompt": "Search for packages",
+    "searching": "Searching for '{query}'...",
+    "found": "Found {count, plural, one {# package} other {# packages}}",
+    "not_found": "No packages found for '{query}'",
+    "results": "Search results for '{query}':",
+    "installed": "Installed",
+    "available": "Available",
+    "description": "Description",
+    "version": "Version"
+  },
+  "config": {
+    "language_set": "语言已设置为 {language}",
+    "language_not_found": "语言 {language} 未找到",
+    "current_language": "当前语言：{language}",
+    "available_languages": "可用语言：{languages}",
+    "saved": "Configuration saved",
+    "reset": "Configuration reset to defaults",
+    "invalid_key": "无效的配置键：{key}",
+    "invalid_value": "{key} 的值无效：{value}",
+    "config_missing": "未找到配置文件",
+    "config_readonly": "配置文件为只读"
+  },
+  "errors": {
+    "network": "网络错误：{error}",
+    "permission": "Permission denied: {details}",
+    "invalid_package": "未找到软件包 '{package}'",
+    "disk_space": "磁盘空间不足",
+    "api_key_missing": "未设置 API 密钥。请在配置中设置。",
+    "timeout": "{operation} 超时",
+    "parse_error": "Failed to parse response: {details}",
+    "invalid_input": "输入无效：{error}",
+    "operation_failed": "Operation failed: {details}",
+    "unexpected": "An unexpected error occurred. Please try again.",
+    "permission_denied": "权限被拒绝",
+    "package_conflict": "软件包冲突：{package}",
+    "installation_failed": "安装失败",
+    "unknown_error": "未知错误"
+  },
+  "prompts": {
+    "confirm_install": "Install {packages}? (y/n)",
+    "confirm_remove": "Remove {packages}? (y/n)",
+    "select_version": "Select version for {package}:",
+    "enter_api_key": "Enter your {provider} API key:",
+    "confirm_dry_run": "This is a dry-run. Continue to see what would be done?"
+  },
+  "status": {
+    "checking": "Checking system...",
+    "detected_os": "Detected OS: {os} {version}",
+    "detected_arch": "Architecture: {arch}",
+    "hardware_info": "CPU cores: {cores}, RAM: {ram}GB",
+    "checking_updates": "Checking for updates...",
+    "up_to_date": "System is up to date",
+    "updates_available": "{count, plural, one {# update} other {# updates}} available"
+  },
+  "wizard": {
+    "welcome": "Welcome to Cortex Linux!",
+    "select_language": "Select your language:",
+    "api_key": "Enter your API key (or press Enter to skip):",
+    "provider": "Which AI provider would you like to use?",
+    "complete": "Setup complete! Run 'cortex install <package>' to get started.",
+    "skip_setup": "Skip setup for now?"
+  },
+  "history": {
+    "view": "Installation History",
+    "date": "Date",
+    "action": "Action",
+    "packages": "Packages",
+    "status": "Status",
+    "no_history": "No installation history yet",
+    "clear_confirm": "Clear all history? This cannot be undone."
+  },
+  "notifications": {
+    "update_available": "Update available: {version}",
+    "install_success": "{package} installed successfully",
+    "install_failed": "Failed to install {package}",
+    "security_update": "Security update available for {package}",
+    "api_error": "API error: {details}"
+  },
+  "help": {
+    "usage": "Usage:",
+    "examples": "Examples:",
+    "options": "Options:",
+    "description": "Description:",
+    "subcommands": "Subcommands:",
+    "see_help": "See 'cortex {command} --help' for more information"
+  },
+  "demo": {
+    "title": "Cortex Linux Demo",
+    "scenario": "Scenario: {description}",
+    "starting": "Starting demo...",
+    "step": "Step {number}: {description}",
+    "complete": "Demo complete!"
+  }
+}

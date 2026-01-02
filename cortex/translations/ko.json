@@ -1,0 +1,147 @@
+{
+  "common": {
+    "yes": "예",
+    "no": "아니오",
+    "continue": "계속",
+    "cancel": "취소",
+    "error": "오류",
+    "success": "성공",
+    "warning": "경고",
+    "confirm": "확인",
+    "loading": "로딩 중...",
+    "please_wait": "Please wait...",
+    "back": "뒤로",
+    "next": "Next",
+    "exit": "Exit",
+    "info": "정보",
+    "done": "완료",
+    "required_field": "{field} 필드는 필수입니다"
+  },
+  "cli": {
+    "help": "Display this help message",
+    "version": "Show version information",
+    "verbose": "Enable verbose output",
+    "quiet": "Suppress non-essential output",
+    "dry_run": "Preview changes without applying them",
+    "force": "Force execution without confirmation",
+    "output_format": "Output format (text, json, yaml)"
+  },
+  "install": {
+    "prompt": "무엇을 설치하시겠습니까?",
+    "checking_deps": "{package}의 종속성 확인 중",
+    "resolving": "패키지 종속성 해석 중...",
+    "downloading": "{package_count, plural, one {# 개 패키지} other {# 개 패키지}} 다운로드 중",
+    "installing": "{packages} 설치 중...",
+    "success": "{package}이(가) 성공적으로 설치되었습니다",
+    "failed": "{package} 설치 실패: {error}",
+    "dry_run": "[DRY RUN] {packages}을(를) 설치했을 것입니다",
+    "already_installed": "{package}은(는) 이미 설치되어 있습니다 (버전 {version})",
+    "updating": "{package} 업데이트 중...",
+    "verifying": "{package} 설치 검증 중",
+    "install_time": "설치가 {time}초 내에 완료되었습니다",
+    "requires": "필요함: {dependencies}"
+  },
+  "remove": {
+    "prompt": "What would you like to remove?",
+    "removing": "Removing {packages}...",
+    "success": "{package} removed successfully",
+    "failed": "Removal of {package} failed: {error}",
+    "not_installed": "{package} is not installed",
+    "dry_run": "[DRY RUN] Would remove {packages}",
+    "requires_confirmation": "This will remove {count} package(s). Continue?"
+  },
+  "search": {
+    "prompt": "Search for packages",
+    "searching": "Searching for '{query}'...",
+    "found": "Found {count, plural, one {# package} other {# packages}}",
+    "not_found": "No packages found for '{query}'",
+    "results": "Search results for '{query}':",
+    "installed": "Installed",
+    "available": "Available",
+    "description": "Description",
+    "version": "Version"
+  },
+  "config": {
+    "language_set": "언어가 {language}로 설정되었습니다",
+    "language_not_found": "언어 {language}를 찾을 수 없습니다",
+    "current_language": "현재 언어: {language}",
+    "available_languages": "사용 가능한 언어: {languages}",
+    "saved": "Configuration saved",
+    "reset": "Configuration reset to defaults",
+    "invalid_key": "잘못된 구성 키: {key}",
+    "invalid_value": "{key}의 값이 잘못되었습니다: {value}",
+    "config_missing": "구성 파일을 찾을 수 없습니다",
+    "config_readonly": "구성 파일은 읽기 전용입니다"
+  },
+  "errors": {
+    "network": "네트워크 오류: {error}",
+    "permission": "Permission denied: {details}",
+    "invalid_package": "패키지 '{package}'을(를) 찾을 수 없습니다",
+    "disk_space": "디스크 공간 부족",
+    "api_key_missing": "API 키가 설정되지 않았습니다. 구성에서 설정하세요.",
+    "timeout": "{operation} 시간 초과",
+    "parse_error": "Failed to parse response: {details}",
+    "invalid_input": "잘못된 입력: {error}",
+    "operation_failed": "Operation failed: {details}",
+    "unexpected": "An unexpected error occurred. Please try again.",
+    "permission_denied": "권한 거부",
+    "package_conflict": "패키지 충돌: {package}",
+    "installation_failed": "설치 실패",
+    "unknown_error": "알 수 없는 오류"
+  },
+  "prompts": {
+    "confirm_install": "Install {packages}? (y/n)",
+    "confirm_remove": "Remove {packages}? (y/n)",
+    "select_version": "Select version for {package}:",
+    "enter_api_key": "Enter your {provider} API key:",
+    "confirm_dry_run": "This is a dry-run. Continue to see what would be done?"
+  },
+  "status": {
+    "checking": "Checking system...",
+    "detected_os": "Detected OS: {os} {version}",
+    "detected_arch": "Architecture: {arch}",
+    "hardware_info": "CPU cores: {cores}, RAM: {ram}GB",
+    "checking_updates": "Checking for updates...",
+    "up_to_date": "System is up to date",
+    "updates_available": "{count, plural, one {# update} other {# updates}} available"
+  },
+  "wizard": {
+    "welcome": "Welcome to Cortex Linux!",
+    "select_language": "Select your language:",
+    "api_key": "Enter your API key (or press Enter to skip):",
+    "provider": "Which AI provider would you like to use?",
+    "complete": "Setup complete! Run 'cortex install <package>' to get started.",
+    "skip_setup": "Skip setup for now?"
+  },
+  "history": {
+    "view": "Installation History",
+    "date": "Date",
+    "action": "Action",
+    "packages": "Packages",
+    "status": "Status",
+    "no_history": "No installation history yet",
+    "clear_confirm": "Clear all history? This cannot be undone."
+  },
+  "notifications": {
+    "update_available": "Update available: {version}",
+    "install_success": "{package} installed successfully",
+    "install_failed": "Failed to install {package}",
+    "security_update": "Security update available for {package}",
+    "api_error": "API error: {details}"
+  },
+  "help": {
+    "usage": "Usage:",
+    "examples": "Examples:",
+    "options": "Options:",
+    "description": "Description:",
+    "subcommands": "Subcommands:",
+    "see_help": "See 'cortex {command} --help' for more information"
+  },
+  "demo": {
+    "title": "Cortex Linux Demo",
+    "scenario": "Scenario: {description}",
+    "starting": "Starting demo...",
+    "step": "Step {number}: {description}",
+    "complete": "Demo complete!"
+  }
+}

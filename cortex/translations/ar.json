@@ -1,0 +1,151 @@
+{
+  "common": {
+    "yes": "نعم",
+    "no": "لا",
+    "continue": "متابعة",
+    "cancel": "إلغاء",
+    "error": "خطأ",
+    "success": "نجح",
+    "warning": "تحذير",
+    "confirm": "هل أنت متأكد?",
+    "loading": "جاري التحميل",
+    "please_wait": "يرجى الانتظار...",
+    "back": "رجوع",
+    "next": "التالي",
+    "exit": "خروج"
+  },
+
+  "cli": {
+    "help": "عرض رسالة المساعدة هذه",
+    "version": "عرض معلومات الإصدار",
+    "verbose": "تفعيل الإخراج المفصل",
+    "quiet": "قمع الإخراج غير الضروري",
+    "dry_run": "عرض معاينة التغييرات دون تطبيقها",
+    "force": "فرض التنفيذ بدون تأكيد",
+    "output_format": "تنسيق الإخراج (نص، json، yaml)"
+  },
+
+  "install": {
+    "prompt": "ماذا تود تثبيته؟",
+    "checking_deps": "جاري التحقق من التبعيات لـ {package}",
+    "resolving": "جاري حل تبعيات الحزم...",
+    "downloading": "جاري تحميل {package_count, plural, one {# حزمة} other {# حزم}}",
+    "installing": "جاري تثبيت {packages}...",
+    "success": "تم تثبيت {package} بنجاح",
+    "failed": "فشل تثبيت {package}: {error}",
+    "dry_run": "[محاكاة] سيتم تثبيت {packages}",
+    "already_installed": "{package} مثبت بالفعل (الإصدار {version})",
+    "updating": "جاري تحديث {package}...",
+    "verifying": "جاري التحقق من تثبيت {package}",
+    "install_time": "اكتمل التثبيت في {time}ث",
+    "requires": "يتطلب: {dependencies}"
+  },
+
+  "remove": {
+    "prompt": "ماذا تود إزالته؟",
+    "removing": "جاري إزالة {packages}...",
+    "success": "تمت إزالة {package} بنجاح",
+    "failed": "فشلت إزالة {package}: {error}",
+    "not_installed": "{package} غير مثبت",
+    "dry_run": "[محاكاة] سيتم إزالة {packages}",
+    "requires_confirmation": "هذا سيزيل {count} حزم. هل تريد المتابعة?"
+  },
+
+  "search": {
+    "prompt": "ابحث عن الحزم",
+    "searching": "جاري البحث عن '{query}'...",
+    "found": "تم العثور على {count, plural, one {# حزمة} other {# حزم}}",
+    "not_found": "لم يتم العثور على حزم لـ '{query}'",
+    "results": "نتائج البحث عن '{query}':",
+    "installed": "مثبت",
+    "available": "متاح",
+    "description": "الوصف",
+    "version": "الإصدار"
+  },
+
+  "config": {
+    "language_set": "تم تعيين اللغة إلى {language}",
+    "language_not_found": "لم يتم العثور على اللغة '{language}'. استخدام الإنجليزية.",
+    "current_language": "اللغة الحالية: {language}",
+    "available_languages": "اللغات المتاحة: {languages}",
+    "saved": "تم حفظ الإعدادات",
+    "reset": "تم إعادة تعيين الإعدادات إلى القيم الافتراضية",
+    "invalid_key": "مفتاح إعدادات غير صحيح: {key}",
+    "invalid_value": "قيمة غير صحيحة لـ {key}: {value}"
+  },
+
+  "errors": {
+    "network": "خطأ في الشبكة: {details}",
+    "permission": "تم رفض الإذن: {details}",
+    "invalid_package": "الحزمة '{package}' غير موجودة",
+    "disk_space": "مساحة القرص غير كافية ({needed}GB مطلوبة، {available}GB متاحة)",
+    "api_key_missing": "لم يتم تكوين مفتاح API. قم بتشغيل 'cortex wizard' لإعداده.",
+    "timeout": "انتهت المهمة بحد أقصى زمني بعد {seconds} ثانية",
+    "parse_error": "فشل تحليل الرد: {details}",
+    "invalid_input": "إدخال غير صحيح: {details}",
+    "operation_failed": "فشلت العملية: {details}",
+    "unexpected": "حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى."
+  },
+
+  "prompts": {
+    "confirm_install": "هل تريد تثبيت {packages}؟ (y/n)",
+    "confirm_remove": "هل تريد إزالة {packages}؟ (y/n)",
+    "select_version": "حدد إصدار {package}:",
+    "enter_api_key": "أدخل مفتاح API الخاص بك لـ {provider}:",
+    "confirm_dry_run": "هذه محاكاة. هل تريد المتابعة لرؤية ما سيتم فعله?"
+  },
+
+  "status": {
+    "checking": "جاري فحص النظام...",
+    "detected_os": "نظام التشغيل المكتشف: {os} {version}",
+    "detected_arch": "المعمارية: {arch}",
+    "hardware_info": "نوى CPU: {cores}، RAM: {ram}GB",
+    "checking_updates": "جاري التحقق من التحديثات...",
+    "up_to_date": "النظام محدث",
+    "updates_available": "{count, plural, one {# تحديث} other {# تحديثات}} متاحة"
+  },
+
+  "wizard": {
+    "welcome": "مرحبا بك في Cortex Linux!",
+    "select_language": "اختر لغتك:",
+    "api_key": "أدخل مفتاح API الخاص بك (أو اضغط Enter للتخطي):",
+    "provider": "أي مزود ذكاء اصطناعي تريد استخدام؟",
+    "complete": "اكتمل الإعداد! قم بتشغيل 'cortex install <حزمة>' للبدء.",
+    "skip_setup": "هل تريد تخطي الإعداد الآن?"
+  },
+
+  "history": {
+    "view": "سجل التثبيت",
+    "date": "التاريخ",
+    "action": "الإجراء",
+    "packages": "الحزم",
+    "status": "الحالة",
+    "no_history": "لا يوجد سجل تثبيت حتى الآن",
+    "clear_confirm": "مسح كل السجل؟ لا يمكن التراجع عن هذا."
+  },
+
+  "notifications": {
+    "update_available": "تحديث متاح: {version}",
+    "install_success": "تم تثبيت {package} بنجاح",
+    "install_failed": "فشل تثبيت {package}",
+    "security_update": "تحديث أمان متاح لـ {package}",
+    "api_error": "خطأ API: {details}"
+  },
+
+  "help": {
+    "usage": "الاستخدام:",
+    "examples": "أمثلة:",
+    "options": "الخيارات:",
+    "description": "الوصف:",
+    "subcommands": "الأوامر الفرعية:",
+    "see_help": "انظر 'cortex {command} --help' للمزيد من المعلومات"
+  },
+
+  "demo": {
+    "title": "عرض Cortex Linux",
+    "scenario": "السيناريو: {description}",
+    "starting": "جاري بدء العرض...",
+    "step": "الخطوة {number}: {description}",
+    "complete": "اكتمل العرض!"
+  }
+}
