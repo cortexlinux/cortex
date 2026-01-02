@@ -3,11 +3,9 @@
 Tests for Autonomous Patcher Module
 """
 
-import json
 import os
 import tempfile
 import unittest
-from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 from cortex.autonomous_patcher import (
