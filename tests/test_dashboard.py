@@ -58,7 +58,7 @@ class TestSystemMonitor(unittest.TestCase):
         monitor.enable_monitoring()
         monitor.update_metrics()
         metrics = monitor.get_metrics()
-        
+
         self.assertGreaterEqual(metrics.cpu_percent, 0)
         self.assertGreaterEqual(metrics.ram_percent, 0)
         self.assertGreater(metrics.ram_used_gb, 0)
@@ -275,7 +275,7 @@ class TestDashboardApp(unittest.TestCase):
     def test_init_components(self):
         """App should initialize all components."""
         app = DashboardApp()
-        
+
         self.assertIsNotNone(app.monitor)
         self.assertIsNotNone(app.lister)
         self.assertIsNotNone(app.history)
@@ -285,7 +285,7 @@ class TestDashboardApp(unittest.TestCase):
     def test_no_auto_collection_on_init(self):
         """No auto-collection should happen on app initialization."""
         app = DashboardApp()
-        
+
         self.assertFalse(app.monitor._monitoring_enabled)
         self.assertFalse(app.lister._enabled)
         self.assertFalse(app.history._loaded)
@@ -317,6 +317,7 @@ class TestDataClasses(unittest.TestCase):
     def test_installation_progress_update_elapsed(self):
         """Elapsed time should update when start_time is set."""
         import time
+
         progress = InstallationProgress()
         progress.start_time = time.time() - 5.0  # 5 seconds ago
         progress.update_elapsed()
@@ -343,7 +344,7 @@ class TestConstants(unittest.TestCase):
 
     def test_bytes_per_gb(self):
         """BYTES_PER_GB should be correct."""
-        self.assertEqual(BYTES_PER_GB, 1024 ** 3)
+        self.assertEqual(BYTES_PER_GB, 1024**3)
 
     def test_bar_width(self):
         """BAR_WIDTH should be defined."""
