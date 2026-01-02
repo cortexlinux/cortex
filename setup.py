@@ -5,20 +5,18 @@ from setuptools import find_packages, setup
 with open("README.md", encoding="utf-8") as fh:
     long_description = fh.read()
 
-# Try to read requirements from root, fallback to LLM directory
-requirements_path = "requirements.txt"
-if not os.path.exists(requirements_path):
-    requirements_path = os.path.join("LLM", "requirements.txt")
-
-if os.path.exists(requirements_path):
-    with open(requirements_path, encoding="utf-8") as fh:
-        requirements = [
-            line.strip()
-            for line in fh
-            if line.strip() and not line.startswith("#") and not line.startswith("-r")
-        ]
-else:
-    requirements = ["anthropic>=0.18.0", "openai>=1.0.0"]
+# Dependencies are now defined in pyproject.toml
+# This is kept for backward compatibility but pyproject.toml is the source of truth
+requirements = [
+    "anthropic>=0.18.0",
+    "openai>=1.0.0",
+    "requests>=2.32.4",
+    "PyYAML>=6.0.3",
+    "python-dotenv>=1.0.0",
+    "cryptography>=44.0.1",
+    "rich>=13.0.0",
+    "typing-extensions>=4.0.0",
+]
 
 setup(
     name="cortex-linux",
