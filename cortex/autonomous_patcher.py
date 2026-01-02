@@ -190,7 +190,7 @@ class AutonomousPatcher:
     def _check_package_update_available(self, package_name: str) -> str | None:
         """
         Check if an update is available for a package.
-        
+
         Note: Call ensure_apt_updated() before iterating over multiple packages
         to avoid repeated apt-get update calls.
         """
@@ -218,12 +218,12 @@ class AutonomousPatcher:
     def _compare_versions(self, version1: str, operator: str, version2: str) -> bool:
         """
         Compare two Debian package versions using dpkg --compare-versions.
-        
+
         Args:
             version1: First version string
             operator: Comparison operator (lt, le, eq, ne, ge, gt)
             version2: Second version string
-            
+
         Returns:
             True if the comparison holds, False otherwise
         """
@@ -241,16 +241,16 @@ class AutonomousPatcher:
     ) -> bool:
         """
         Check if the candidate version fixes the vulnerability.
-        
+
         Args:
             candidate_version: The version available for update
             vulnerability: The vulnerability to check
-            
+
         Returns:
             True if the update will fix the vulnerability
         """
         fixed_version = vulnerability.fixed_version
-        
+
         # If no fixed version is specified, we can't verify - log warning but allow
         if not fixed_version:
             logger.debug(
@@ -258,7 +258,7 @@ class AutonomousPatcher:
                 f"{vulnerability.package_name}, cannot verify fix"
             )
             return True  # Allow update when fixed_version is unknown
-        
+
         # Check if candidate version >= fixed version
         if self._compare_versions(candidate_version, "ge", fixed_version):
             logger.debug(
@@ -266,7 +266,7 @@ class AutonomousPatcher:
                 f"{vulnerability.package_name} ({vulnerability.cve_id})"
             )
             return True
-        
+
         logger.warning(
             f"Update for {vulnerability.package_name} to {candidate_version} does NOT fix "
             f"{vulnerability.cve_id} (requires >= {fixed_version})"
