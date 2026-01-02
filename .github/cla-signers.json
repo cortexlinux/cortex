@@ -97,10 +97,28 @@
       "cla_version": "1.0"
     },
     {
+      "name": "Anuj Ghodke",
+      "github_username": "RIVALHIDE",
+      "emails": [
+        "anujghodke09@gmail.com"
+      ],
+      "signed_date": "2026-01-02",
+      "cla_version": "1.0"
+    },
+    {
       "name": "Dhaval Chaudhari",
       "github_username": "dhvll",
       "emails": [
         "dhavalchaudhari39@gmail.com"
+      ],
+      "signed_date": "2026-01-02",
+      "cla_version": "1.0"
+    },
+    {
+      "name": "Shree Milind Jejurikar",
+      "github_username": "ShreeJejurikar",
+      "emails": [
+        "shreemj0407@gmail.com"
       ],
       "signed_date": "2026-01-02",
       "cla_version": "1.0"
