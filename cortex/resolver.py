@@ -109,16 +109,16 @@ class DependencyResolver:
             return []
 
     def _build_prompt(self, data: dict[str, Any]) -> str:
-        """Constructs a prompt for direct JSON response as requested by maintainer."""
+        """Constructs a prompt for direct JSON response with parseable actions."""
         return (
-            f"You are a semantic version conflict resolver. "
-            f"Package '{data['package_a']['name']}' requires {data['dependency']} {data['package_a']['requires']}. "
-            f"Package '{data['package_b']['name']}' requires {data['dependency']} {data['package_b']['requires']}. "
-            f"These constraints conflict. "
-            f"Return ONLY a JSON array of 2 resolution strategies. Each strategy must be an object with exactly these keys: "
-            f"'id' (number: 1 or 2), 'type' (string: 'Recommended' or 'Alternative'), "
-            f"'action' (string: specific version change for one package), 'risk' (string: 'Low', 'Medium', or 'High'). "
-            f"Do not mention any packages other than {data['package_a']['name']}, {data['package_b']['name']}, and {data['dependency']}."
+            f"Act as a semantic version conflict resolver. "
+            f"Analyze this conflict for the dependency: {data['dependency']}. "
+            f"Package '{data['package_a']['name']}' requires {data['package_a']['requires']}. "
+            f"Package '{data['package_b']['name']}' requires {data['package_b']['requires']}. "
+            "Return ONLY a JSON array of 2 objects with keys: 'id', 'type', 'action', 'risk'. "
+            "IMPORTANT: The 'action' field MUST follow the exact format: 'Use <package_name> <version>' "
+            "(e.g., 'Use django 4.2.0') so it can be parsed by the system. "
+            f"Do not mention packages other than {data['package_a']['name']}, {data['package_b']['name']}, and {data['dependency']}."
         )
 
     def _parse_ai_response(self, response: str) -> list[dict[str, Any]]:

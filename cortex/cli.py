@@ -509,11 +509,11 @@ class CortexCLI:
     async def resolve(self, args: argparse.Namespace) -> int:
         """
         Handle the dependency resolution command asynchronously.
-        Addresses CodeRabbit feedback by allowing configurable AI providers.
         """
+        import re  # Move to top of method
+
         from rich.prompt import Prompt
 
-        # Fix for Circular Import: Import locally within the method
         from cortex.resolver import DependencyResolver
 
         try:
@@ -524,19 +524,12 @@ class CortexCLI:
             }
 
             cx_header("AI Conflict Analysis")
-            cx_print(
-                f"Analyzing conflicts for [bold]{args.dependency}[/bold]...",
-                "thinking",
-            )
+            cx_print(f"Analyzing conflicts for [bold]{args.dependency}[/bold]...", "thinking")
 
-            # Get user configuration for AI provider (CodeRabbit feedback)
             api_key = self._get_api_key()
             provider = self._get_provider()
-
-            # Initialize resolver with configurable provider
             resolver = DependencyResolver(api_key=api_key, provider=provider)
 
-            # Await the async resolution
             results = await resolver.resolve(conflict_data)
 
             if not results or results[0].get("type") == "Error":
@@ -544,41 +537,67 @@ class CortexCLI:
                 self._print_error(f"Resolution failed: {error_msg}")
                 return 1
 
-            # Display Strategies
             for s in results:
                 s_type = s.get("type", "Unknown")
                 color = "green" if s_type == "Recommended" else "yellow"
-                # Updated to make the number very clear
                 console.print(f"\n[{color}]Strategy {s['id']} ({s_type}):[/{color}]")
                 console.print(f"  [bold]Action:[/bold] {s['action']}")
                 console.print(f"  [bold]Risk:[/bold]    {s['risk']}")
 
-            # 1. Create numbered choices based on Strategy IDs
             choices = [str(s.get("id")) for s in results]
-
-            # 2. Use Prompt.ask to let user pick a number (1, 2, etc.)
             choice = Prompt.ask("\nSelect strategy to apply", choices=choices, default=choices[0])
-
             selected = next((s for s in results if str(s.get("id")) == choice), None)
 
             if selected:
                 cx_print(f"Applying strategy {choice}...", "info")
-
-                # Parse the action to extract the package and version to install
                 action = selected.get("action", "")
-                # TODO: Implement actual resolution based on the action
-                # For example:
-                # - Parse "Use package-name ^1.2.0" to extract package and version
-                # - Call package manager to install/update the package
-                # - Update dependency manifest files if needed
-                #
-                # Example pseudo-code:
-                # if "Use" in action:
-                #     # Extract and install the specific version
-                #     pass
-                # elif "Upgrade" in action:
-                #     # Upgrade the package
-                #     pass
+                match = re.search(r"Use\s+(\S+)\s+(.+)", action)
+
+                if match:
+                    package_name = match.group(1)
+                    version_constraint = match.group(2).strip("^~ ")
+                    manifest_path = "requirements.txt"
+
+                    if os.path.exists(manifest_path):
+                        try:
+                            with open(manifest_path) as f:
+                                lines = f.readlines()
+
+                            new_lines = []
+                            updated = False
+                            for line in lines:
+                                if not line.strip() or line.startswith("#"):
+                                    new_lines.append(line)
+                                    continue
+
+                                parts = re.split(r"[=<>~!]", line)
+                                current_pkg_name = parts[0].strip()
+
+                                if current_pkg_name == package_name:
+                                    new_lines.append(f"{package_name}=={version_constraint}\n")
+                                    updated = True
+                                else:
+                                    new_lines.append(line)
+
+                            if not updated:
+                                new_lines.append(f"{package_name}=={version_constraint}\n")
+
+                            with open(manifest_path, "w") as f:
+                                f.writelines(new_lines)
+
+                            status_msg = (
+                                f"Updated {manifest_path}"
+                                if updated
+                                else f"Added to {manifest_path}"
+                            )
+                            cx_print(f"✓ {status_msg} with {package_name}", "success")
+                        except Exception as file_err:
+                            self._print_error(f"Could not update manifest: {file_err}")
+                    else:
+                        cx_print(
+                            f"Advisory: Manual update required for {package_name} to {version_constraint}.",
+                            "warning",
+                        )
 
                 self._print_success("✓ Conflict resolved successfully")
                 return 0
