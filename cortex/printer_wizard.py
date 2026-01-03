@@ -1,5 +1,5 @@
 import subprocess
-import shlex
+import shutil
 from typing import List, Tuple
 from rich.prompt import Prompt, Confirm
 from cortex.branding import console, cx_print, cx_header
@@ -196,4 +196,4 @@ class ScannerWizard:
         except subprocess.CalledProcessError:
              cx_print("Scan failed.", "error")
 
-import shutil # Late import fix
+
