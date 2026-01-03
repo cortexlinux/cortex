@@ -133,9 +133,9 @@ class TestAPIKeyDetector:
             with patch("pathlib.Path.cwd", return_value=Path(tmpdir)):
                 # Also need to mock home so it doesn't find other keys
                 with patch("pathlib.Path.home", return_value=Path(tmpdir)):
-                    detector = APIKeyDetector(cache_dir=Path(tmpdir) / ".cortex")
+                    test_detector = APIKeyDetector(cache_dir=Path(tmpdir) / ".cortex")
                     with patch.dict(os.environ, {}, clear=True):
-                        found, key, provider, _ = detector.detect()
+                        found, key, provider, _ = test_detector.detect()
                         assert found is True
                         assert key == "sk-ant-cwd123"
                         assert provider == "anthropic"
