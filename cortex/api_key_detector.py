@@ -380,9 +380,25 @@ class APIKeyDetector:
                 return provider
         return None
 
+    def _atomic_write(self, target_file: Path, content: str) -> None:
+        """
+        Atomically write content to a file to prevent corruption from concurrent access.
+
+        Args:
+            target_file: The file to write to
+            content: The content to write
+        """
+        temp_file = target_file.with_suffix(".tmp")
+        temp_file.parent.mkdir(parents=True, exist_ok=True)
+        temp_file.write_text(content)
+        temp_file.chmod(0o600)
+        temp_file.replace(target_file)
+
     def _cache_key_location(self, key: str, provider: str, source: str):
         """
         Cache the location where a key was found.
+
+        Uses atomic write operations to prevent corruption from concurrent access.
 
         Args:
             key: The API key
@@ -396,9 +412,9 @@ class APIKeyDetector:
                 "source": source,
                 "key_hint": key[:10] + "..." if len(key) > 10 else key,
             }
-            self.cache_file.write_text(json.dumps(cache_data, indent=2))
-            # Secure cache file (user read/write only)
-            self.cache_file.chmod(0o600)
+
+            self._atomic_write(self.cache_file, json.dumps(cache_data, indent=2))
+
         except Exception:
             # Silently ignore cache errors
             pass
@@ -458,6 +474,8 @@ class APIKeyDetector:
         """
         Save API key to ~/.cortex/.env.
 
+        Uses atomic write operations to prevent corruption from concurrent access.
+
         Args:
             key: The API key to save
             provider: Provider name
@@ -467,7 +485,8 @@ class APIKeyDetector:
             var_name = self._get_env_var_name(provider)
             existing = self._read_env_file(env_file)
             updated = self._update_or_append_key(existing, var_name, key)
-            self._write_env_file(env_file, updated)
+
+            self._atomic_write(env_file, updated)
 
         except Exception as e:
             # If save fails, print warning but don't crash
