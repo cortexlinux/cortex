@@ -989,6 +989,290 @@ class CortexCLI:
                 traceback.print_exc()
             return 1
 
+    def security(self, args: argparse.Namespace) -> int:
+        """Handle security vulnerability management commands."""
+        action = getattr(args, "security_action", None)
+
+        if not action:
+            self._print_error("Please specify a subcommand (scan/patch/schedule)")
+            return 1
+
+        try:
+            if action == "scan":
+                return self._security_scan(args)
+            elif action == "patch":
+                return self._security_patch(args)
+            elif action == "schedule":
+                return self._security_schedule(args)
+            else:
+                self._print_error(f"Unknown security subcommand: {action}")
+                return 1
+        except Exception as e:
+            self._print_error(f"Security operation failed: {e}")
+            if self.verbose:
+                import traceback
+
+                traceback.print_exc()
+            return 1
+
+    def _security_scan(self, args: argparse.Namespace) -> int:
+        """Handle vulnerability scanning."""
+        import logging
+
+        from cortex.vulnerability_scanner import Severity, VulnerabilityScanner
+
+        # Suppress verbose logging for cleaner output
+        logging.getLogger("cortex.vulnerability_scanner").setLevel(logging.WARNING)
+
+        scanner = VulnerabilityScanner()
+
+        if getattr(args, "critical", False):
+            critical = scanner.get_critical_vulnerabilities()
+            if critical:
+                console.print("\n🔴 Critical Vulnerabilities:")
+                console.print("=" * 80)
+                for vuln in critical[:20]:  # Limit to 20
+                    console.print(f"\n[red]CVE: {vuln.cve_id}[/red]")
+                    console.print(
+                        f"Package: [yellow]{vuln.package_name}[/yellow] {vuln.installed_version}"
+                    )
+                    console.print(f"Description: {vuln.description[:100]}...")
+                    if vuln.fixed_version:
+                        console.print(f"Fixed in: [green]{vuln.fixed_version}[/green]")
+            else:
+                cx_print("✅ No critical vulnerabilities found", "success")
+            return 0
+
+        package = getattr(args, "package", None)
+        scan_all = getattr(args, "all", False)
+
+        if package:
+            packages = scanner._get_installed_packages()
+            if package not in packages:
+                self._print_error(f"Package {package} not found")
+                return 1
+
+            version = packages[package]
+            vulns = scanner.scan_package(package, version)
+
+            console.print(f"\n🔍 Vulnerabilities for {package} {version}:")
+            console.print("=" * 80)
+            if vulns:
+                for vuln in vulns:
+                    severity_color = {
+                        Severity.CRITICAL: "red",
+                        Severity.HIGH: "yellow",
+                        Severity.MEDIUM: "blue",
+                        Severity.LOW: "green",
+                    }.get(vuln.severity, "white")
+
+                    console.print(
+                        f"\n[{severity_color}]CVE: {vuln.cve_id} [{vuln.severity.value.upper()}][/{severity_color}]"
+                    )
+                    console.print(f"Description: {vuln.description}")
+                    if vuln.fixed_version:
+                        console.print(f"Fixed in: {vuln.fixed_version}")
+            else:
+                cx_print("✅ No vulnerabilities found", "success")
+        elif scan_all:
+            result = scanner.scan_all_packages()
+
+            console.print("\n📊 Scan Results:")
+            console.print("=" * 80)
+            console.print(f"Packages scanned: {result.total_packages_scanned}")
+            console.print(f"Vulnerabilities found: {result.vulnerabilities_found}")
+            console.print(f"  [red]🔴 Critical: {result.critical_count}[/red]")
+            console.print(f"  [yellow]🟠 High: {result.high_count}[/yellow]")
+            console.print(f"  [blue]🟡 Medium: {result.medium_count}[/blue]")
+            console.print(f"  [green]🟢 Low: {result.low_count}[/green]")
+            console.print(f"\nScan duration: {result.scan_duration_seconds:.2f}s")
+
+            if result.vulnerabilities:
+                console.print("\n📋 Top Vulnerabilities:")
+                sorted_vulns = sorted(
+                    result.vulnerabilities,
+                    key=lambda v: (
+                        v.severity == Severity.CRITICAL,
+                        v.severity == Severity.HIGH,
+                        v.cvss_score or 0,
+                    ),
+                    reverse=True,
+                )
+
+                for vuln in sorted_vulns[:10]:
+                    severity_color = {
+                        Severity.CRITICAL: "red",
+                        Severity.HIGH: "yellow",
+                        Severity.MEDIUM: "blue",
+                        Severity.LOW: "green",
+                    }.get(vuln.severity, "white")
+
+                    console.print(
+                        f"\n  [{severity_color}]{vuln.cve_id} - {vuln.package_name} [{vuln.severity.value.upper()}][/{severity_color}]"
+                    )
+                    console.print(f"    {vuln.description[:80]}...")
+        else:
+            self._print_error("Please specify --package, --all, or --critical")
+            return 1
+
+        return 0
+
+    def _security_patch(self, args: argparse.Namespace) -> int:
+        """Handle autonomous patching."""
+        import logging
+
+        from cortex.autonomous_patcher import AutonomousPatcher, PatchStrategy
+        from cortex.progress_indicators import get_progress_indicator
+
+        # Suppress verbose logging for cleaner output
+        logging.getLogger("cortex.vulnerability_scanner").setLevel(logging.WARNING)
+        logging.getLogger("cortex.autonomous_patcher").setLevel(logging.WARNING)
+
+        progress = get_progress_indicator()
+
+        # Dry run is the default; only disabled when --apply is explicitly specified
+        dry_run = not getattr(args, "apply", False)
+        strategy = PatchStrategy(getattr(args, "strategy", "critical_only"))
+        package_filter = getattr(args, "package", None)
+
+        patcher = AutonomousPatcher(strategy=strategy, dry_run=dry_run)
+
+        if getattr(args, "scan_and_patch", False) or package_filter:
+            # Show header
+            console.print()
+            if dry_run:
+                console.print("[yellow]🔍 DRY RUN MODE[/yellow] - No packages will be updated")
+            else:
+                console.print("[green]🔧 APPLY MODE[/green] - Patches will be installed")
+            console.print(f"[dim]Strategy: {strategy.value}[/dim]")
+            console.print()
+
+            vulnerabilities = None
+            if package_filter:
+                # Scan specific package first
+                from cortex.vulnerability_scanner import VulnerabilityScanner
+
+                scanner = VulnerabilityScanner()
+                scan_result = scanner.scan_all_packages(
+                    package_filter=[package_filter], progress=progress
+                )
+                vulnerabilities = scan_result.vulnerabilities
+
+                if not vulnerabilities:
+                    console.print()
+                    progress.print_success(f"No vulnerabilities found in {package_filter}")
+                    return 0
+
+                console.print()
+
+            result = patcher.patch_vulnerabilities(vulnerabilities, progress=progress)
+
+            # Show summary
+            console.print()
+            if result.success:
+                if result.packages_updated:
+                    console.print(
+                        "[green]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/green]"
+                    )
+                    console.print("[green]✅ Patch complete![/green]")
+                    console.print(
+                        f"   Packages updated: [cyan]{len(result.packages_updated)}[/cyan]"
+                    )
+                    console.print(
+                        f"   Vulnerabilities patched: [cyan]{result.vulnerabilities_patched}[/cyan]"
+                    )
+                    if result.duration_seconds:
+                        console.print(f"   Duration: [dim]{result.duration_seconds:.2f}s[/dim]")
+                    console.print(
+                        "[green]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/green]"
+                    )
+                else:
+                    console.print("[dim]No updates were applied.[/dim]")
+            else:
+                console.print("[red]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/red]")
+                console.print("[red]❌ Patch failed![/red]")
+                for error in result.errors:
+                    console.print(f"   [red]•[/red] {error}")
+                console.print("[red]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/red]")
+                return 1
+        else:
+            self._print_error("Use --scan-and-patch or --package to patch vulnerabilities")
+            return 1
+
+        return 0
+
+    def _security_schedule(self, args: argparse.Namespace) -> int:
+        """Handle security scheduling."""
+        from cortex.security_scheduler import ScheduleFrequency, SecurityScheduler
+
+        scheduler = SecurityScheduler()
+        schedule_action = getattr(args, "schedule_action", None)
+
+        if schedule_action == "create":
+            from cortex.autonomous_patcher import PatchStrategy
+
+            schedule = scheduler.create_schedule(
+                schedule_id=args.id,
+                frequency=ScheduleFrequency(getattr(args, "frequency", "monthly")),
+                scan_enabled=True,
+                patch_enabled=getattr(args, "enable_patch", False),
+                patch_strategy=PatchStrategy(getattr(args, "patch_strategy", "critical_only")),
+                dry_run=True,
+            )
+
+            cx_print(f"✅ Created schedule: {args.id}", "success")
+            console.print(f"   Frequency: {schedule.frequency.value}")
+            console.print(f"   Scan: {'enabled' if schedule.scan_enabled else 'disabled'}")
+            console.print(f"   Patch: {'enabled' if schedule.patch_enabled else 'disabled'}")
+
+        elif schedule_action == "list":
+            schedules = scheduler.list_schedules()
+            if schedules:
+                console.print("\n📅 Security Schedules:")
+                console.print("=" * 80)
+                for s in schedules:
+                    console.print(f"\nID: [green]{s.schedule_id}[/green]")
+                    console.print(f"  Frequency: {s.frequency.value}")
+                    console.print(f"  Scan: {'✅' if s.scan_enabled else '❌'}")
+                    console.print(f"  Patch: {'✅' if s.patch_enabled else '❌'}")
+                    console.print(f"  Dry-run: {'✅' if s.dry_run else '❌'}")
+                    if s.last_run:
+                        console.print(f"  Last run: {s.last_run}")
+                    if s.next_run:
+                        console.print(f"  Next run: {s.next_run}")
+            else:
+                cx_print("No schedules configured", "info")
+
+        elif schedule_action == "run":
+            results = scheduler.run_schedule(args.id)
+            if results["success"]:
+                cx_print("✅ Schedule execution complete", "success")
+                if results["scan_result"]:
+                    console.print(
+                        f"  Vulnerabilities found: {results['scan_result']['vulnerabilities_found']}"
+                    )
+                if results["patch_result"]:
+                    console.print(
+                        f"  Packages updated: {results['patch_result']['packages_updated']}"
+                    )
+            else:
+                self._print_error("❌ Schedule execution failed")
+                for error in results["errors"]:
+                    console.print(f"  - {error}")
+                return 1
+
+        elif schedule_action == "install-timer":
+            if scheduler.install_systemd_timer(args.id):
+                cx_print(f"✅ Installed systemd timer for {args.id}", "success")
+            else:
+                self._print_error(f"Failed to install systemd timer for {args.id}")
+                return 1
+        else:
+            self._print_error("Please specify a schedule action (create/list/run/install-timer)")
+            return 1
+
+        return 0
+
     def _env_set(self, env_mgr: EnvironmentManager, args: argparse.Namespace) -> int:
         """Set an environment variable."""
         app = args.app
@@ -1780,6 +2064,57 @@ def main():
     sandbox_exec_parser.add_argument("command", nargs="+", help="Command to execute")
     # --------------------------
 
+    # --- Security Vulnerability Management Commands ---
+    security_parser = subparsers.add_parser("security", help="Security vulnerability management")
+    security_subs = security_parser.add_subparsers(dest="security_action", help="Security actions")
+
+    # Security scan
+    sec_scan_parser = security_subs.add_parser("scan", help="Scan for vulnerabilities")
+    sec_scan_parser.add_argument("--package", help="Scan specific package")
+    sec_scan_parser.add_argument("--all", action="store_true", help="Scan all packages")
+    sec_scan_parser.add_argument(
+        "--critical", action="store_true", help="Show only critical vulnerabilities"
+    )
+
+    # Security patch
+    sec_patch_parser = security_subs.add_parser("patch", help="Patch vulnerabilities")
+    sec_patch_parser.add_argument(
+        "--scan-and-patch", action="store_true", help="Scan and patch automatically"
+    )
+    sec_patch_parser.add_argument("--package", help="Patch specific package only")
+    sec_patch_parser.add_argument(
+        "--dry-run", action="store_true", default=True, help="Dry run mode (default)"
+    )
+    sec_patch_parser.add_argument("--apply", action="store_true", help="Actually apply patches")
+    sec_patch_parser.add_argument(
+        "--strategy",
+        choices=["automatic", "critical_only", "high_and_above"],
+        default="critical_only",
+        help="Patching strategy",
+    )
+
+    # Security schedule
+    sec_schedule_parser = security_subs.add_parser("schedule", help="Manage security schedules")
+    sec_schedule_subs = sec_schedule_parser.add_subparsers(
+        dest="schedule_action", help="Schedule actions"
+    )
+    sec_schedule_create = sec_schedule_subs.add_parser("create", help="Create a schedule")
+    sec_schedule_create.add_argument("id", help="Schedule ID")
+    sec_schedule_create.add_argument(
+        "--frequency",
+        choices=["daily", "weekly", "monthly"],
+        default="monthly",
+        help="Schedule frequency",
+    )
+    sec_schedule_create.add_argument("--enable-patch", action="store_true", help="Enable patching")
+    sec_schedule_subs.add_parser("list", help="List schedules")
+    sec_schedule_run = sec_schedule_subs.add_parser("run", help="Run a schedule")
+    sec_schedule_run.add_argument("id", help="Schedule ID")
+    sec_schedule_install = sec_schedule_subs.add_parser(
+        "install-timer", help="Install systemd timer"
+    )
+    sec_schedule_install.add_argument("id", help="Schedule ID")
+
     # --- Environment Variable Management Commands ---
     env_parser = subparsers.add_parser("env", help="Manage environment variables")
     env_subs = env_parser.add_subparsers(dest="env_action", help="Environment actions")
@@ -1916,6 +2251,8 @@ def main():
             return 1
         elif args.command == "env":
             return cli.env(args)
+        elif args.command == "security":
+            return cli.security(args)
         else:
             parser.print_help()
             return 1
