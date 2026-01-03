@@ -1534,6 +1534,32 @@ class CortexCLI:
                 console.print(f"Error: {result.error_message}", style="red")
             return 1
 
+    def pkg(self, args: argparse.Namespace) -> int:
+        """Handle package manager commands."""
+        try:
+            from cortex.package_manager import UnifiedPackageManager
+
+            mgr = UnifiedPackageManager()
+            action = getattr(args, "pkg_action", None)
+
+            if action == "install":
+                mgr.install(args.package, dry_run=args.dry_run)
+            elif action == "remove":
+                mgr.remove(args.package, dry_run=args.dry_run)
+            elif action == "list":
+                mgr.list_packages()
+            elif action == "storage":
+                mgr.storage_analysis()
+            elif action == "permissions":
+                mgr.check_permissions(args.package)
+            else:
+                self._print_error("Unknown package manager action")
+                return 1
+            return 0
+        except Exception as e:
+            self._print_error(f"Package Manager failed: {e}")
+            return 1
+
     # --------------------------
 
 
@@ -1566,6 +1592,7 @@ def show_rich_help():
     table.add_row("cache stats", "Show LLM cache statistics")
     table.add_row("stack <name>", "Install the stack")
     table.add_row("sandbox <cmd>", "Test packages in Docker sandbox")
+    table.add_row("pkg", "Manage Snap/Flatpak packages")
     table.add_row("doctor", "System health check")
 
     console.print(table)
@@ -1870,6 +1897,33 @@ def main():
     env_template_apply_parser.add_argument(
         "--encrypt-keys", help="Comma-separated list of keys to encrypt"
     )
+
+    # pkg command
+    pkg_parser = subparsers.add_parser(
+        "pkg", aliases=["apps"], help="Manage Snap/Flatpak packages"
+    )
+    pkg_subs = pkg_parser.add_subparsers(dest="pkg_action", help="Package actions")
+
+    # pkg install <package>
+    pkg_install = pkg_subs.add_parser("install", help="Install a package")
+    pkg_install.add_argument("package", help="Package name")
+    pkg_install.add_argument("--dry-run", action="store_true")
+
+    # pkg remove <package>
+    pkg_remove = pkg_subs.add_parser("remove", help="Remove a package")
+    pkg_remove.add_argument("package", help="Package name")
+    pkg_remove.add_argument("--dry-run", action="store_true")
+
+    # pkg list
+    pkg_subs.add_parser("list", help="List packages")
+
+    # pkg storage
+    pkg_subs.add_parser("storage", help="Analyze package storage usage")
+
+    # pkg permissions <package>
+    pkg_perm = pkg_subs.add_parser("permissions", help="Check package permissions")
+    pkg_perm.add_argument("package", help="Package name")
+
     # --------------------------
 
     args = parser.parse_args()
@@ -1916,6 +1970,8 @@ def main():
             return 1
         elif args.command == "env":
             return cli.env(args)
+        elif args.command in ["pkg", "apps"]:
+            return cli.pkg(args)
         else:
             parser.print_help()
             return 1
