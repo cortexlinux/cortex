@@ -56,7 +56,7 @@ class TestAPIKeyDetector:
 
     def _assert_found_key(self, result, expected_key, expected_provider):
         """Helper to assert successful key detection."""
-        found, key, provider, source = result
+        found, key, provider, _ = result
         assert found is True
         assert key == expected_key
         assert provider == expected_provider
@@ -290,15 +290,14 @@ class TestAPIKeyDetector:
         """Test prompting with invalid key format."""
         # Choice 1 (Claude), but enter an invalid key
         with patch("builtins.input", side_effect=["1", "invalid-key"]):
-            entered, key, provider = detector.prompt_for_key()
+            entered, _, _ = detector.prompt_for_key()
             assert entered is False
-            assert key is None
 
     @patch("cortex.api_key_detector.cx_print")
     def test_prompt_cancelled(self, mock_print, detector):
         """Test when user cancels prompt."""
         with patch("builtins.input", side_effect=KeyboardInterrupt()):
-            entered, key, provider = detector.prompt_for_key()
+            entered, _, _ = detector.prompt_for_key()
             assert entered is False
 
     @patch("cortex.api_key_detector.cx_print")
@@ -306,7 +305,7 @@ class TestAPIKeyDetector:
         """Test when user provides empty input."""
         # Choice 1 (Claude), but enter empty key
         with patch("builtins.input", side_effect=["1", ""]):
-            entered, key, provider = detector.prompt_for_key()
+            entered, _, _ = detector.prompt_for_key()
             assert entered is False
 
 

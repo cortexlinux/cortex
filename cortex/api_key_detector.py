@@ -330,7 +330,7 @@ class APIKeyDetector:
             for key_field in API_KEY_FIELD_NAMES + [env_var]:
                 if key_field in data:
                     return data[key_field]
-        except (json.JSONDecodeError, ValueError):
+        except json.JSONDecodeError:
             pass
         return None
 
