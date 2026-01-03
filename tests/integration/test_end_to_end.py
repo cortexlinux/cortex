@@ -21,6 +21,11 @@ PIP_BOOTSTRAP = "python -m pip install --quiet --upgrade pip setuptools && pytho
 PIP_BOOTSTRAP_DEV = "python -m pip install --quiet --upgrade pip setuptools && python -m pip install --quiet --no-cache-dir -r /workspace/requirements.txt -r /workspace/requirements-dev.txt"
 
 
+def _make_safe_bootstrap(bootstrap_cmd: str) -> str:
+    """Add --root-user-action=ignore to pip install commands for Docker root contexts."""
+    return bootstrap_cmd.replace("pip install", "pip install --root-user-action=ignore")
+
+
 @unittest.skipUnless(docker_available(), "Docker is required for integration tests")
 class TestEndToEndWorkflows(unittest.TestCase):
     """Run Cortex commands inside disposable Docker containers."""
@@ -30,10 +35,7 @@ class TestEndToEndWorkflows(unittest.TestCase):
         if env:
             effective_env.update(env)
 
-        # Apply the fix globally to the helper function so all tests pass
-        safe_bootstrap = PIP_BOOTSTRAP.replace(
-            "pip install", "pip install --root-user-action=ignore"
-        )
+        safe_bootstrap = _make_safe_bootstrap(PIP_BOOTSTRAP)
 
         return run_in_docker(
             DEFAULT_IMAGE,
@@ -122,9 +124,7 @@ class TestEndToEndWorkflows(unittest.TestCase):
         effective_env.update(env)
 
         # FIX 2: Suppress the pip root warning to prevent result.succeeded() from failing
-        bootstrap_cmd = PIP_BOOTSTRAP_DEV.replace(
-            "pip install", "pip install --root-user-action=ignore"
-        )
+        bootstrap_cmd = _make_safe_bootstrap(PIP_BOOTSTRAP_DEV)
 
         result = run_in_docker(
             DEFAULT_IMAGE,
