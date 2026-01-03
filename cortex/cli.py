@@ -4,10 +4,12 @@ import os
 import sys
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from cortex.ask import AskHandler
 from cortex.branding import VERSION, console, cx_header, cx_print, show_banner
+from cortex.config.git_manager import GitManager
 from cortex.coordinator import InstallationCoordinator, InstallationStep, StepStatus
 from cortex.demo import run_demo
 from cortex.dependency_importer import (
@@ -1617,6 +1619,30 @@ def main():
     parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    # --------------------------
+    # Config command (Git-backed configuration management)
+    config_parser = subparsers.add_parser("config", help="Manage system configuration")
+
+    config_subparsers = config_parser.add_subparsers(dest="subcommand", help="Config subcommands")
+    config_subparsers.add_parser("history", help="Show configuration change history")
+    # config rollback
+    rollback_parser = config_subparsers.add_parser(
+        "rollback", help="Rollback configuration to a specific commit"
+    )
+    rollback_parser.add_argument("commit", help="Git commit hash")
+
+    # config git
+    config_git_parser = config_subparsers.add_parser("git", help="Git operations for configuration")
+
+    config_git_subparsers = config_git_parser.add_subparsers(dest="action", help="Git actions")
+
+    # config git init
+    config_git_subparsers.add_parser("init", help="Initialize git repository for configs")
+    # config git commit
+    commit_parser = config_git_subparsers.add_parser("commit", help="Commit configuration changes")
+    commit_parser.add_argument("message", help="Commit message")
+
+    # --------------------------
 
     # Demo command
     demo_parser = subparsers.add_parser("demo", help="See Cortex in action")
@@ -1874,6 +1900,43 @@ def main():
             return cli.wizard()
         elif args.command == "status":
             return cli.status()
+        elif args.command == "config":
+            config_dir = Path.home() / ".cortex" / "configs"
+            config_dir.mkdir(parents=True, exist_ok=True)
+
+            gm = GitManager(str(config_dir))
+
+            if args.subcommand == "git" and args.action == "init":
+                created = gm.init_repo()
+                if created:
+                    print("✓ Git repository initialized")
+                else:
+                    print("✓ Git repository already exists")
+                return 0
+
+            if args.subcommand == "git" and args.action == "commit":
+                committed = gm.commit_all(args.message)
+                if committed:
+                    print(f'✓ Auto-committed: "{args.message}"')
+                else:
+                    print("ℹ No changes to commit")
+                return 0
+
+            if args.subcommand == "history":
+                output = gm.history()
+                if output:
+                    print(output)
+                else:
+                    print("No configuration history found")
+                return 0
+            if args.subcommand == "rollback":
+                gm.rollback(args.commit)
+                print(f"✓ Rolled back to commit {args.commit}")
+                return 0
+
+            print("Unknown config command")
+            return 1
+
         elif args.command == "ask":
             return cli.ask(args.question)
         elif args.command == "install":
