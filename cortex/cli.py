@@ -1534,6 +1534,41 @@ class CortexCLI:
                 console.print(f"Error: {result.error_message}", style="red")
             return 1
 
+    def printer(self, args: argparse.Namespace) -> int:
+        """Handle printer setup."""
+        try:
+            from cortex.printer_wizard import PrinterWizard
+
+            wiz = PrinterWizard()
+            action = getattr(args, "printer_action", None)
+
+            if action == "setup":
+                wiz.setup(dry_run=args.dry_run)
+            else:
+                self._print_error("Unknown printer action")
+                return 1
+            return 0
+        except Exception as e:
+            self._print_error(f"Printer Wizard failed: {e}")
+            return 1
+
+    def scanner(self, args: argparse.Namespace) -> int:
+        """Handle scanner commands."""
+        try:
+            from cortex.printer_wizard import ScannerWizard
+            wiz = ScannerWizard()
+            
+            action = getattr(args, "scanner_action", None)
+            if action == "setup":
+                wiz.setup(dry_run=args.dry_run)
+            else:
+                self._print_error("Unknown scanner action")
+                return 1
+            return 0
+        except Exception as e:
+            self._print_error(f"Scanner Wizard failed: {e}")
+            return 1
+
     # --------------------------
 
 
@@ -1566,6 +1601,8 @@ def show_rich_help():
     table.add_row("cache stats", "Show LLM cache statistics")
     table.add_row("stack <name>", "Install the stack")
     table.add_row("sandbox <cmd>", "Test packages in Docker sandbox")
+    table.add_row("printer", "Setup and manage printers")
+    table.add_row("scanner", "Setup scanners (SANE)")
     table.add_row("doctor", "System health check")
 
     console.print(table)
@@ -1870,6 +1907,21 @@ def main():
     env_template_apply_parser.add_argument(
         "--encrypt-keys", help="Comma-separated list of keys to encrypt"
     )
+
+    # Printer command
+    printer_parser = subparsers.add_parser("printer", help="Manage printers (CUPS)")
+    printer_subs = printer_parser.add_subparsers(dest="printer_action", help="Printer actions")
+
+    printer_setup = printer_subs.add_parser("setup", help="Add a new printer")
+    printer_setup.add_argument("--dry-run", action="store_true")
+
+    # Scanner command
+    scanner_parser = subparsers.add_parser("scanner", help="Manage scanners (SANE)")
+    scanner_subs = scanner_parser.add_subparsers(dest="scanner_action", help="Scanner actions")
+
+    scanner_setup = scanner_subs.add_parser("setup", help="Detect and test scanners")
+    scanner_setup.add_argument("--dry-run", action="store_true")
+
     # --------------------------
 
     args = parser.parse_args()
@@ -1916,6 +1968,10 @@ def main():
             return 1
         elif args.command == "env":
             return cli.env(args)
+        elif args.command == "printer":
+            return cli.printer(args)
+        elif args.command == "scanner":
+            return cli.scanner(args)
         else:
             parser.print_help()
             return 1
