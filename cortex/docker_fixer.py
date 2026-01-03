@@ -1,7 +1,7 @@
 import json
 import os
 import subprocess
-import sys
+
 from typing import Dict, List, Optional, Tuple
 
 from rich.prompt import Confirm, Prompt
@@ -16,7 +16,18 @@ class DockerPermissionFixer:
     specifically focusing on bind mounts and UID/GID mapping.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the Docker permission fixer with current host UID/GID.
+
+        Attributes:
+            host_uid: The current user's UID on the host system.
+            host_gid: The current user's GID on the host system.
+
+        Raises:
+            OSError: If running on a non-POSIX system (e.g., Windows).
+        """
+        if not hasattr(os, 'getuid'):
+            raise OSError("DockerPermissionFixer requires a POSIX-compatible system.")
         self.host_uid = os.getuid()
         self.host_gid = os.getgid()
 
@@ -70,7 +81,7 @@ class DockerPermissionFixer:
         except json.JSONDecodeError:
             return None
 
-    def diagnose(self, container_id: str):
+    def diagnose(self, container_id: str) -> None:
         """Diagnose permission issues for a specific container."""
         details = self.inspect_container(container_id)
         if not details:
@@ -127,14 +138,12 @@ class DockerPermissionFixer:
                 owner_gid = stat.st_gid
                 
                 status_icon = "✅"
-                status_msg = "[green]OK[/green]"
                 
                 # Logic: If container runs as root (0), it can access host files (usually).
                 # But files created by container will be root-owned on host, causing issues for host user.
                 # If container runs as non-root (e.g. 1000), it needs host files to be 1000 or readable/writable by 1000.
                 
                 is_root_container = (effective_uid == 0)
-                is_host_owner_match = (owner_uid == self.host_uid)
                 
                 issues = []
                 
@@ -183,7 +192,7 @@ class DockerPermissionFixer:
                      # For now, warn user to check container docs.
                       console.print(f"  sudo chown -R <container_uid>:<container_gid> {source}")
 
-    def run(self):
+    def run(self) -> None:
         """Interactive wizard."""
         cx_header("Docker Permission Fixer")
         console.print(f"Host User: UID=[bold green]{self.host_uid}[/bold green], GID=[bold green]{self.host_gid}[/bold green]")

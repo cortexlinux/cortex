@@ -1523,7 +1523,15 @@ class CortexCLI:
             return 1
 
     def fix_docker(self) -> int:
-        """Run the Interactive Docker Permission Fixer."""
+        """
+        Run the interactive Docker permission diagnostic tool.
+
+        Diagnoses container user/group settings and bind mount permission mismatches.
+        Provides actionable recommendations for fixing permission issues.
+
+        Returns:
+            int: 0 on success
+        """
         fixer = DockerPermissionFixer()
         fixer.run()
         return 0
