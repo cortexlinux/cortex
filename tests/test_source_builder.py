@@ -186,52 +186,49 @@ class TestSourceBuilder:
     @patch("cortex.source_builder.tarfile.open")
     def test_fetch_from_url_tarball(self, mock_tarfile, mock_urlretrieve, mock_run_command):
         """Test fetching source from URL (tarball)."""
+
+        # Mock urlretrieve to create a dummy archive file
+        def mock_urlretrieve_impl(url, filepath):
+            Path(filepath).parent.mkdir(parents=True, exist_ok=True)
+            Path(filepath).touch()
+
+        mock_urlretrieve.side_effect = mock_urlretrieve_impl
+
         # Mock tarfile extraction
         mock_tar = MagicMock()
         mock_tarfile.return_value.__enter__.return_value = mock_tar
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Create a mock extracted directory structure
-            extract_dir = Path(tmpdir) / "extracted"
-            extract_dir.mkdir()
-            source_subdir = extract_dir / "source-1.0"
-            source_subdir.mkdir()
+        # Mock getmembers to return a safe member
+        mock_member = MagicMock()
+        mock_member.name = "source-1.0"
+        mock_tar.getmembers.return_value = [mock_member]
 
-            # Mock getmembers to return a safe member
-            mock_member = MagicMock()
-            mock_member.name = "source-1.0"
-            mock_tar.getmembers.return_value = [mock_member]
+        # Mock the tarfile to create extracted structure
+        def mock_extractall(path, members=None):
+            # Handle both Path objects and strings
+            extract_path = Path(path) if not isinstance(path, Path) else path
+            # Create the extracted directory structure that _fetch_from_url expects
+            (extract_path / "source-1.0").mkdir(parents=True, exist_ok=True)
+            # Create a file inside to make it a valid directory
+            (extract_path / "source-1.0" / "README").touch()
 
-            # Mock the tarfile to return our structure
-            def mock_extractall(path, members=None):
-                # Handle both Path objects and strings
-                extract_path = Path(path) if not isinstance(path, Path) else path
-                (extract_path / "source-1.0").mkdir(parents=True)
+        mock_tar.extractall = mock_extractall
 
-            mock_tar.extractall = mock_extractall
-
-            result = self.builder._fetch_from_url(
-                "https://example.com/test.tar.gz", "test", "1.0"
-            )
-            assert result is not None
+        result = self.builder._fetch_from_url("https://example.com/test.tar.gz", "test", "1.0")
+        assert result is not None
+        assert isinstance(result, Path)
 
     def test_build_from_source_missing_deps(self):
         """Test build_from_source with missing dependencies."""
-        with patch.object(
-            self.builder, "fetch_source", return_value=Path("/tmp/test")
-        ), patch.object(
-            self.builder, "detect_build_system", return_value="autotools"
-        ), patch.object(
-            self.builder, "detect_build_dependencies", return_value=["gcc"]
-        ), patch.object(
-            self.builder, "configure_build", return_value=["./configure"]
-        ), patch.object(
-            self.builder, "build", return_value=["make"]
-        ), patch.object(
-            self.builder, "install_build", return_value=["sudo make install"]
-        ), patch(
-            "cortex.source_builder.run_command"
-        ) as mock_run:
+        with (
+            patch.object(self.builder, "fetch_source", return_value=Path("/tmp/test")),
+            patch.object(self.builder, "detect_build_system", return_value="autotools"),
+            patch.object(self.builder, "detect_build_dependencies", return_value=["gcc"]),
+            patch.object(self.builder, "configure_build", return_value=["./configure"]),
+            patch.object(self.builder, "build", return_value=["make"]),
+            patch.object(self.builder, "install_build", return_value=["sudo make install"]),
+            patch("cortex.source_builder.run_command") as mock_run,
+        ):
             # Mock dependency installation failure
             mock_run.return_value = Mock(success=False, stderr="Failed to install")
 
@@ -245,13 +242,11 @@ class TestSourceBuilder:
             source_dir = Path(tmpdir)
             (source_dir / "configure").touch()
 
-            with patch.object(
-                self.builder, "fetch_source", return_value=source_dir
-            ), patch.object(
-                self.builder, "detect_build_dependencies", return_value=[]
-            ), patch(
-                "cortex.source_builder.run_command"
-            ) as mock_run:
+            with (
+                patch.object(self.builder, "fetch_source", return_value=source_dir),
+                patch.object(self.builder, "detect_build_dependencies", return_value=[]),
+                patch("cortex.source_builder.run_command") as mock_run,
+            ):
                 # Mock successful commands
                 mock_run.return_value = Mock(success=True, stdout="", stderr="")
 
@@ -316,4 +311,3 @@ class TestBuildDependencies:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-
