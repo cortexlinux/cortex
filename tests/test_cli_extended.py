@@ -52,7 +52,7 @@ class TestCortexCLIExtended(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             self.cli._get_api_key()
 
-        self.assertEqual("No AI provider configured", str(context.exception))
+        self.assertIn("No AI provider configured. Please set", str(context.exception))
 
     def test_get_provider_openai(self) -> None:
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=True):

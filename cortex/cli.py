@@ -92,11 +92,10 @@ class CortexCLI:
         if ollama_url:
             return "ollama"
 
-        # 4. Consolidated Error Message
-        self._print_error("No AI provider configured.")
-        cx_print(
-            "Please set ANTHROPIC_API_KEY, OPENAI_API_KEY, or configure Ollama.",
-            "info",
+        # 4. If no provider is found, raise an error with helpful guidance
+        raise ValueError(
+            "No AI provider configured. "
+            "Please set ANTHROPIC_API_KEY, OPENAI_API_KEY, or OLLAMA_BASE_URL environment variable."
         )
         raise ValueError("No AI provider configured")
 
