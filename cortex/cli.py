@@ -142,8 +142,9 @@ class CortexCLI:
 
         elif args.notify_action == "enable":
             mgr.config["enabled"] = True
-            # Addressing CodeRabbit feedback: Ideally should use a public method instead of private _save_config,
-            # but keeping as is for a simple fix (or adding a save method to NotificationManager would be best).
+            # Addressing CodeRabbit feedback: Ideally should use a public method
+            # instead of private _save_config, but keeping as is for a simple fix
+            # (or adding a save method to NotificationManager would be best).
             mgr._save_config()
             self._print_success("Notifications enabled")
             return 0
@@ -556,6 +557,9 @@ class CortexCLI:
         execute: bool = False,
         dry_run: bool = False,
         parallel: bool = False,
+        from_source: bool = False,
+        source_url: str | None = None,
+        version: str | None = None,
     ):
         # Validate input first
         is_valid, error = validate_install_request(software)
@@ -590,6 +594,10 @@ class CortexCLI:
         start_time = datetime.now()
 
         try:
+            # Handle --from-source flag
+            if from_source:
+                return self._install_from_source(software, execute, dry_run, source_url, version)
+
             self._print_status("🧠", "Understanding request...")
 
             interpreter = CommandInterpreter(api_key=api_key, provider=provider)
@@ -878,7 +886,8 @@ class CortexCLI:
                         packages += f" +{len(r.packages) - 2}"
 
                     print(
-                        f"{r.id:<18} {date:<20} {r.operation_type.value:<12} {packages:<30} {r.status.value:<15}"
+                        f"{r.id:<18} {date:<20} {r.operation_type.value:<12} "
+                        f"{packages:<30} {r.status.value:<15}"
                     )
 
                 return 0
@@ -1192,7 +1201,8 @@ class CortexCLI:
             return self._env_template_apply(env_mgr, args)
         else:
             self._print_error(
-                "Please specify: template list, template show <name>, or template apply <name> <app>"
+                "Please specify: template list, template show <name>, "
+                "or template apply <name> <app>"
             )
             return 1
 
@@ -1534,6 +1544,84 @@ class CortexCLI:
                 console.print(f"Error: {result.error_message}", style="red")
             return 1
 
+    def _install_from_source(
+        self,
+        package_name: str,
+        execute: bool,
+        dry_run: bool,
+        source_url: str | None,
+        version: str | None,
+    ) -> int:
+        """Handle installation from source."""
+        from cortex.source_builder import SourceBuilder
+
+        builder = SourceBuilder()
+
+        # Parse version from package name if specified (e.g., python@3.12)
+        if "@" in package_name and not version:
+            parts = package_name.split("@")
+            package_name = parts[0]
+            version = parts[1] if len(parts) > 1 and parts[1] else None
+
+        cx_print(f"Building {package_name} from source...", "info")
+        if version:
+            cx_print(f"Version: {version}", "info")
+
+        result = builder.build_from_source(
+            package_name=package_name,
+            version=version,
+            source_url=source_url,
+            use_cache=True,
+        )
+
+        if not result.success:
+            self._print_error(f"Build failed: {result.error_message}")
+            return 1
+
+        if result.cached:
+            cx_print(f"Using cached build for {package_name}", "info")
+
+        if dry_run:
+            cx_print("\nBuild commands (dry run):", "info")
+            for cmd in result.install_commands:
+                console.print(f"  • {cmd}")
+            return 0
+
+        if not execute:
+            cx_print("\nBuild completed. Install commands:", "info")
+            for cmd in result.install_commands:
+                console.print(f"  • {cmd}")
+            cx_print("Run with --execute to install", "info")
+            return 0
+
+        # Execute install commands
+        def progress_callback(current: int, total: int, step: InstallationStep) -> None:
+            status_emoji = "⏳"
+            if step.status == StepStatus.SUCCESS:
+                status_emoji = "✅"
+            elif step.status == StepStatus.FAILED:
+                status_emoji = "❌"
+            console.print(f"[{current}/{total}] {status_emoji} {step.description}")
+
+        coordinator = InstallationCoordinator(
+            commands=result.install_commands,
+            descriptions=[f"Install {package_name}" for _ in result.install_commands],
+            timeout=600,
+            stop_on_error=True,
+            progress_callback=progress_callback,
+        )
+
+        install_result = coordinator.execute()
+
+        if install_result.success:
+            self._print_success(f"{package_name} built and installed successfully!")
+            return 0
+        else:
+            self._print_error("Installation failed")
+            if install_result.error_message:
+                console.print(f"Error: {install_result.error_message}", style="red")
+            return 1
+
     # --------------------------
 
 
@@ -1653,6 +1741,21 @@ def main():
         "--parallel",
         action="store_true",
         help="Enable parallel execution for multi-step installs",
+    )
+    install_parser.add_argument(
+        "--from-source",
+        action="store_true",
+        help=("Build and install from source code when binaries unavailable"),
+    )
+    install_parser.add_argument(
+        "--source-url",
+        type=str,
+        help="URL to source code (for --from-source)",
+    )
+    install_parser.add_argument(
+        "--pkg-version",
+        type=str,
+        help="Version to build (for --from-source)",
     )
 
     # Import command - import dependencies from package manager files
@@ -1895,6 +1998,9 @@ def main():
                 execute=args.execute,
                 dry_run=args.dry_run,
                 parallel=args.parallel,
+                from_source=getattr(args, "from_source", False),
+                source_url=getattr(args, "source_url", None),
+                version=getattr(args, "pkg_version", None),
             )
         elif args.command == "import":
             return cli.import_deps(args)
