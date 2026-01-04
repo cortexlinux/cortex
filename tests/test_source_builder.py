@@ -252,15 +252,22 @@ class TestSourceBuilder:
 
             with (
                 patch.object(self.builder, "fetch_source", return_value=source_dir),
+                patch.object(self.builder, "detect_build_system", return_value="autotools"),
                 patch.object(self.builder, "detect_build_dependencies", return_value=[]),
+                patch.object(self.builder, "configure_build", return_value=["./configure"]),
+                patch.object(self.builder, "build", return_value=["make"]),
+                patch.object(self.builder, "install_build", return_value=["sudo make install"]),
                 patch("cortex.source_builder.run_command") as mock_run,
             ):
                 # Mock successful commands
                 mock_run.return_value = Mock(success=True, stdout="", stderr="")
 
                 result = self.builder.build_from_source("test-package", use_cache=False)
-                # Should succeed (or at least not fail on dependency check)
+                # Should succeed
                 assert result is not None
+                assert result.success
+                assert result.package_name == "test-package"
+                assert len(result.install_commands) > 0
 
 
 class TestBuildConfig:
