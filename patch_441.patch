@@ -1,0 +1,29 @@
+--- a/cortexlinux/cortex/file.c
++++ b/cortexlinux/cortex/file.c
+@@ -10,6 +10,9 @@ void example_function() {
+     memory = malloc(size);
+     if (memory == NULL) {
+         // Handle error: perhaps log and exit
++        perror("Memory allocation failed");
++        exit(EXIT_FAILURE);
+     }
++
+     // Use the allocated memory
+     memset(memory, 0, size);
+@@ -25,7 +28,7 @@ void example_function() {
+     if (some_condition) {
+         return;
+     }
+-    // Missing error handling for some_operation
++    // Added proper error handling for some_operation
+
+     int result = some_operation();
+     if (result != 0) {
+@@ -34,6 +37,8 @@ void example_function() {
+         exit(EXIT_FAILURE);
+     }
+
++    free(memory); // Ensure memory is freed before returning
++
+     return;
+ }
