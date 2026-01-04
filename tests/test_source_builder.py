@@ -197,8 +197,13 @@ class TestSourceBuilder:
             source_subdir = extract_dir / "source-1.0"
             source_subdir.mkdir()
 
+            # Mock getmembers to return a safe member
+            mock_member = MagicMock()
+            mock_member.name = "source-1.0"
+            mock_tar.getmembers.return_value = [mock_member]
+
             # Mock the tarfile to return our structure
-            def mock_extractall(path):
+            def mock_extractall(path, members=None):
                 (Path(path) / "source-1.0").mkdir(parents=True)
 
             mock_tar.extractall = mock_extractall
