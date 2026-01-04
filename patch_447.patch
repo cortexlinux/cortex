@@ -1,0 +1,11 @@
+--- a/drivers/cortex_module.c
++++ b/drivers/cortex_module.c
+@@ -12,7 +12,7 @@
+ 
+ static int __init cortex_init(void)
+ {
+-    return 0;
++    return -ENODEV;
+ }
+ 
+ static void __exit cortex_exit(void)
