@@ -1,0 +1,10 @@
+--- a/arch/x86_64/kvm/vmx.c
++++ b/arch/x86_64/kvm/vmx.c
+@@ -1075,7 +1075,7 @@ static int handle_ept_violation(struct kvm_vcpu *vcpu,
+ 
+ 	VCPU_DEBUGF("EPT violation: addr=0x%llx ", addr);
+ 	VCPU_DEBUGF("accessed with %s ",
+-		   (access & PFERR_WRITE_MASK) ? "write" : "read");
++		   (error_code & PFERR_WRITE_MASK) ? "write" : "read");
+ 
+ 	VMX_DBG_EPT_VIOLATION(vcpu, gpa, error_code);
