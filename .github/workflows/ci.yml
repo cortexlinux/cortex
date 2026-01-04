@@ -32,7 +32,7 @@ jobs:
         run: ruff check . --output-format=github
 
       - name: Check formatting with black
-        run: black --check . --exclude "(venv|\.venv|build|dist)"
+        run: black --check . --exclude "(venv|\.venv|build|dist|myenv)"
 
       - name: Type check with mypy
         run: mypy cortex --ignore-missing-imports --no-error-summary || true

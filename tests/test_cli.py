@@ -65,20 +65,20 @@ class TestCortexCLI(unittest.TestCase):
                 provider = self.cli._get_provider()
                 self.assertEqual(provider, "claude")
 
-    @patch("sys.stdout")
-    def test_print_status(self, mock_stdout):
+    @patch("cortex.cli.cx_print")
+    def test_print_status(self, mock_cx_print):
         self.cli._print_status("🧠", "Test message")
-        self.assertTrue(mock_stdout.write.called or print)
+        mock_cx_print.assert_called_once_with("Test message", "thinking")
 
-    @patch("sys.stderr")
-    def test_print_error(self, mock_stderr):
+    @patch("cortex.cli.cx_print")
+    def test_print_error(self, mock_cx_print):
         self.cli._print_error("Test error")
-        self.assertTrue(True)
+        mock_cx_print.assert_called_once_with("Error: Test error", "error")
 
-    @patch("sys.stdout")
-    def test_print_success(self, mock_stdout):
+    @patch("cortex.cli.cx_print")
+    def test_print_success(self, mock_cx_print):
         self.cli._print_success("Test success")
-        self.assertTrue(True)
+        mock_cx_print.assert_called_once_with("Test success", "success")
 
     @patch.dict(os.environ, {}, clear=True)
     def test_install_no_api_key(self):
