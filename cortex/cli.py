@@ -4,7 +4,7 @@ import os
 import sys
 import time
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from cortex.api_key_detector import auto_detect_api_key, setup_api_key
 from cortex.ask import AskHandler
@@ -24,6 +24,9 @@ from cortex.network_config import NetworkConfig
 from cortex.notification_manager import NotificationManager
 from cortex.stack_manager import StackManager
 from cortex.validators import validate_api_key, validate_install_request
+
+if TYPE_CHECKING:
+    from cortex.shell_env_analyzer import ShellEnvironmentAnalyzer
 
 # Suppress noisy log messages in normal operation
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -1449,7 +1452,7 @@ class CortexCLI:
             self._print_error(f"Unknown path action: {path_action}")
             return 1
 
-    def _env_path_list(self, analyzer, args: argparse.Namespace) -> int:
+    def _env_path_list(self, analyzer: "ShellEnvironmentAnalyzer", args: argparse.Namespace) -> int:
         """List PATH entries with status."""
         import os
 
@@ -1500,7 +1503,7 @@ class CortexCLI:
 
         return 0
 
-    def _env_path_add(self, analyzer, args: argparse.Namespace) -> int:
+    def _env_path_add(self, analyzer: "ShellEnvironmentAnalyzer", args: argparse.Namespace) -> int:
         """Add a path entry."""
         import os
         from pathlib import Path
@@ -1552,7 +1555,9 @@ class CortexCLI:
 
         return 0
 
-    def _env_path_remove(self, analyzer, args: argparse.Namespace) -> int:
+    def _env_path_remove(
+        self, analyzer: "ShellEnvironmentAnalyzer", args: argparse.Namespace
+    ) -> int:
         """Remove a path entry."""
         import os
 
@@ -1586,7 +1591,9 @@ class CortexCLI:
 
         return 0
 
-    def _env_path_dedupe(self, analyzer, args: argparse.Namespace) -> int:
+    def _env_path_dedupe(
+        self, analyzer: "ShellEnvironmentAnalyzer", args: argparse.Namespace
+    ) -> int:
         """Remove duplicate PATH entries."""
         import os
 
@@ -1626,7 +1633,9 @@ class CortexCLI:
 
         return 0
 
-    def _env_path_clean(self, analyzer, args: argparse.Namespace) -> int:
+    def _env_path_clean(
+        self, analyzer: "ShellEnvironmentAnalyzer", args: argparse.Namespace
+    ) -> int:
         """Clean PATH by removing duplicates and optionally missing paths."""
         import os
 

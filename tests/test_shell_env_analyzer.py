@@ -684,3 +684,82 @@ export EDITOR="nano"
 
                 content = fish_config.read_text()
                 assert 'set -gx FISH_VAR "fish_value"' in content
+
+
+class TestShellEscaping:
+    """Tests for shell string escaping and marker ID generation."""
+
+    def test_escape_shell_string_bash_special_chars(self):
+        """Test escaping special characters for bash."""
+        analyzer = ShellEnvironmentAnalyzer(shell=Shell.BASH)
+
+        # Test double quotes
+        assert analyzer._escape_shell_string('hello"world', Shell.BASH) == 'hello\\"world'
+        # Test dollar sign
+        assert analyzer._escape_shell_string("$HOME", Shell.BASH) == "\\$HOME"
+        # Test backtick
+        assert analyzer._escape_shell_string("hello`cmd`", Shell.BASH) == "hello\\`cmd\\`"
+        # Test backslash
+        assert analyzer._escape_shell_string("path\\to", Shell.BASH) == "path\\\\to"
+
+    def test_escape_shell_string_fish_special_chars(self):
+        """Test escaping special characters for fish."""
+        analyzer = ShellEnvironmentAnalyzer(shell=Shell.FISH)
+
+        # Test double quotes
+        assert analyzer._escape_shell_string('hello"world', Shell.FISH) == 'hello\\"world'
+        # Test dollar sign
+        assert analyzer._escape_shell_string("$HOME", Shell.FISH) == "\\$HOME"
+        # Fish doesn't use backticks for command substitution
+        assert analyzer._escape_shell_string("hello`cmd`", Shell.FISH) == "hello`cmd`"
+
+    def test_escape_shell_string_safe_path(self):
+        """Test that normal paths are unchanged."""
+        analyzer = ShellEnvironmentAnalyzer(shell=Shell.BASH)
+
+        assert analyzer._escape_shell_string("/usr/local/bin", Shell.BASH) == "/usr/local/bin"
+        assert (
+            analyzer._escape_shell_string("/home/user/.local/bin", Shell.BASH)
+            == "/home/user/.local/bin"
+        )
+
+    def test_generate_marker_id_absolute_path(self):
+        """Test marker ID for absolute paths preserves leading dash."""
+        analyzer = ShellEnvironmentAnalyzer(shell=Shell.BASH)
+
+        marker = analyzer._generate_marker_id("path", "/usr/local/bin")
+        assert marker == "path--usr-local-bin"
+        assert marker.startswith("path--")  # Leading dash preserved
+
+    def test_generate_marker_id_relative_path(self):
+        """Test marker ID for relative paths."""
+        analyzer = ShellEnvironmentAnalyzer(shell=Shell.BASH)
+
+        marker = analyzer._generate_marker_id("path", "usr/local/bin")
+        assert marker == "path-usr-local-bin"
+
+    def test_generate_marker_id_no_collision(self):
+        """Test that /a/b and a/b produce different markers."""
+        analyzer = ShellEnvironmentAnalyzer(shell=Shell.BASH)
+
+        marker_absolute = analyzer._generate_marker_id("path", "/a/b")
+        marker_relative = analyzer._generate_marker_id("path", "a/b")
+
+        assert marker_absolute != marker_relative
+        assert marker_absolute == "path--a-b"
+        assert marker_relative == "path-a-b"
+
+    def test_add_path_escapes_special_chars(self, tmp_path):
+        """Test that adding paths with special chars escapes them properly."""
+        bashrc = tmp_path / ".bashrc"
+        bashrc.write_text("# test\n")
+
+        analyzer = ShellEnvironmentAnalyzer(shell=Shell.BASH)
+
+        with patch.object(analyzer, "get_shell_config_path", return_value=bashrc):
+            # Path with dollar sign (could be mistaken for variable)
+            analyzer.add_path_to_config("/path/with$dollar", backup=False)
+
+            content = bashrc.read_text()
+            # Should be escaped
+            assert "\\$dollar" in content

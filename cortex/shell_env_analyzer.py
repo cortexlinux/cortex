@@ -18,6 +18,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -459,21 +460,22 @@ class ShellConfigEditor:
         filepath.parent.mkdir(parents=True, exist_ok=True)
 
         # Write to temp file in same directory, then rename
-        import tempfile
-
         fd, tmp_path = tempfile.mkstemp(
             dir=filepath.parent, prefix=f".{filepath.name}.", suffix=".tmp"
         )
+        fd_closed = False
         try:
             os.write(fd, content.encode("utf-8"))
             os.close(fd)
+            fd_closed = True
             # Preserve permissions if file exists
             if filepath.exists():
                 st = filepath.stat()
                 os.chmod(tmp_path, st.st_mode)
             os.replace(tmp_path, filepath)
         except Exception:
-            os.close(fd) if not os.get_inheritable(fd) else None
+            if not fd_closed:
+                os.close(fd)
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
             raise
@@ -533,11 +535,23 @@ class ShellEnvironmentAnalyzer:
             if not entry:
                 continue
 
-            # Find source if available
+            # Normalize the entry for comparison
+            normalized_entry = os.path.normpath(os.path.expanduser(entry))
+
+            # Find source if available - use exact path matching
             source = None
             for ps in path_sources:
-                if entry in ps.value:
-                    source = ps
+                # Split the source value by path separator and normalize each
+                source_paths = ps.value.split(os.pathsep)
+                for sp in source_paths:
+                    # Skip empty or variable references like $PATH
+                    if not sp or sp.startswith("$"):
+                        continue
+                    normalized_source = os.path.normpath(os.path.expanduser(sp))
+                    if normalized_entry == normalized_source:
+                        source = ps
+                        break
+                if source:
                     break
 
             is_duplicate = entry in seen
@@ -723,6 +737,41 @@ class ShellEnvironmentAnalyzer:
         else:
             return home / ".profile"
 
+    def _escape_shell_string(self, value: str, shell: Shell) -> str:
+        """Escape a string for safe use in shell commands.
+
+        Args:
+            value: The string to escape
+            shell: The target shell type
+
+        Returns:
+            Escaped string safe for embedding in shell commands
+        """
+        if shell == Shell.FISH:
+            # Fish uses different escaping rules
+            # Escape backslashes, double quotes, and dollar signs
+            escaped = value.replace("\\", "\\\\")
+            escaped = escaped.replace('"', '\\"')
+            escaped = escaped.replace("$", "\\$")
+            return escaped
+        else:
+            # Bash/Zsh: escape backslashes, double quotes, dollar signs, and backticks
+            escaped = value.replace("\\", "\\\\")
+            escaped = escaped.replace('"', '\\"')
+            escaped = escaped.replace("$", "\\$")
+            escaped = escaped.replace("`", "\\`")
+            return escaped
+
+    def _generate_marker_id(self, prefix: str, value: str) -> str:
+        """Generate a unique marker ID for a value.
+
+        Uses rstrip (not strip) to preserve leading '-' from absolute paths,
+        avoiding collisions between '/a/b' (-a-b) and 'a/b' (a-b).
+        """
+        # Replace path separators, only strip trailing dashes
+        sanitized = value.replace("/", "-").replace("\\", "-").rstrip("-")
+        return f"{prefix}-{sanitized}"
+
     def add_path_to_config(
         self,
         new_path: str,
@@ -734,21 +783,24 @@ class ShellEnvironmentAnalyzer:
         shell = shell or self.shell
         config_path = self.get_shell_config_path(shell)
 
+        # Escape the path for safe shell embedding
+        escaped_path = self._escape_shell_string(new_path, shell)
+
         if shell == Shell.FISH:
             if prepend:
-                content = f'set -gx PATH "{new_path}" $PATH'
+                content = f'set -gx PATH "{escaped_path}" $PATH'
             else:
-                content = f'set -gx PATH $PATH "{new_path}"'
+                content = f'set -gx PATH $PATH "{escaped_path}"'
         else:
             if prepend:
-                content = f'export PATH="{new_path}:$PATH"'
+                content = f'export PATH="{escaped_path}:$PATH"'
             else:
-                content = f'export PATH="$PATH:{new_path}"'
+                content = f'export PATH="$PATH:{escaped_path}"'
 
         return self.editor.add_to_config(
             config_path,
             content,
-            marker_id=f"path-{new_path.replace('/', '-').strip('-')}",
+            marker_id=self._generate_marker_id("path", new_path),
             backup=backup,
         )
 
@@ -762,7 +814,7 @@ class ShellEnvironmentAnalyzer:
         shell = shell or self.shell
         config_path = self.get_shell_config_path(shell)
 
-        marker_id = f"path-{target_path.replace('/', '-').strip('-')}"
+        marker_id = self._generate_marker_id("path", target_path)
         return self.editor.remove_from_config(config_path, marker_id=marker_id, backup=backup)
 
     def add_variable_to_config(
@@ -776,10 +828,13 @@ class ShellEnvironmentAnalyzer:
         shell = shell or self.shell
         config_path = self.get_shell_config_path(shell)
 
+        # Escape the value for safe shell embedding
+        escaped_value = self._escape_shell_string(value, shell)
+
         if shell == Shell.FISH:
-            content = f'set -gx {var_name} "{value}"'
+            content = f'set -gx {var_name} "{escaped_value}"'
         else:
-            content = f'export {var_name}="{value}"'
+            content = f'export {var_name}="{escaped_value}"'
 
         return self.editor.add_to_config(
             config_path,
