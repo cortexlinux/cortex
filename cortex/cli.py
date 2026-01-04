@@ -299,6 +299,54 @@ class CortexCLI:
         console.print(f"Installed {len(packages)} packages")
         return 0
 
+    # Run system health checks
+    def doctor(self) -> int:
+        """Run system health checks and diagnostics.
+
+        Returns:
+         Exit code: 0 if healthy, 1 if warnings, 2 if failures
+        """
+        from cortex.doctor import SystemDoctor
+
+        doctor = SystemDoctor()
+        return doctor.run_checks()
+
+    def script(self, args: argparse.Namespace) -> int:
+        """Handle cortex script commands"""
+        try:
+            from cortex.script_gen import ScriptGenerator
+
+            generator = ScriptGenerator()
+
+            if args.script_action == "generate":
+                generator.generate(
+                    filename=args.filename,
+                    stack=args.stack,
+                    format=args.format,
+                    dry_run=args.dry_run,
+                )
+                return 0
+
+            elif args.script_action == "test":
+                generator.test(filename=args.filename, sandbox=args.sandbox)
+                return 0
+
+            elif args.script_action == "history":
+                limit = args.limit
+                generator.show_history(limit=limit)
+                return 0
+            else:
+                console.print(f"[red]✗ Unknown script action: {args.script_action}[/red]")
+                return 1
+
+        except FileNotFoundError:
+            filename = getattr(args, "filename", "unknown")
+            console.print(f"[red]✗ Script file not found: {filename}[/red]")
+            return 1
+        except Exception as e:
+            console.print(f"[red]✗ Script command failed: {str(e)}[/red]")
+            return 1
+
     # --- Sandbox Commands (Docker-based package testing) ---
     def sandbox(self, args: argparse.Namespace) -> int:
         """Handle `cortex sandbox` commands for Docker-based package testing."""
@@ -1567,6 +1615,11 @@ def show_rich_help():
     table.add_row("stack <name>", "Install the stack")
     table.add_row("sandbox <cmd>", "Test packages in Docker sandbox")
     table.add_row("doctor", "System health check")
+    table.add_row(
+        "script generate <file_name> --stack <stack-name>", "Generate installation scripts"
+    )
+    table.add_row("script test <file_name>", "Validate script syntax")
+    table.add_row("script history", "View generation history")
 
     console.print(table)
     console.print()
@@ -1640,6 +1693,49 @@ def main():
     # Status command (includes comprehensive health checks)
     subparsers.add_parser("status", help="Show comprehensive system status and health checks")
 
+    # script generator command
+    script_parser = subparsers.add_parser(
+        "script", help="Generate installation scripts", aliases=["scripts"]
+    )
+    script_subs = script_parser.add_subparsers(dest="script_action", required=True)
+
+    # cortex script generate
+    generate_parser = script_subs.add_parser("generate", help="Generate installation script")
+    generate_parser.add_argument("filename", help="Output script filename (e.g., docker-setup.sh)")
+    generate_parser.add_argument(
+        "--stack",
+        "-s",
+        default="docker",
+        choices=["docker", "python", "nodejs", "ollama"],
+        help="Stack to install (default: docker)",
+    )
+    generate_parser.add_argument(
+        "--format",
+        "-f",
+        default="bash",
+        choices=["bash", "ansible"],
+        help="Output format (default: bash)",
+    )
+    generate_parser.add_argument(
+        "--dry-run", action="store_true", help="Preview script without writing to file"
+    )
+
+    # cortex script test
+    test_parser = script_subs.add_parser("test", help="Test generated script syntax")
+    test_parser.add_argument("filename", help="Script file to validate")
+    test_parser.add_argument(
+        "--no-sandbox",
+        dest="sandbox",
+        action="store_false",
+        help="Disable sandbox mode (sandbox is enabled by default)",
+    )
+    test_parser.set_defaults(sandbox=True)
+
+    # cortex script history
+    history_parser = script_subs.add_parser("history", help="Show script generation history")
+    history_parser.add_argument(
+        "--limit", "-l", type=int, default=10, help="Number of entries to show (default: 10)"
+    )
     # Ask command
     ask_parser = subparsers.add_parser("ask", help="Ask a question about your system")
     ask_parser.add_argument("question", type=str, help="Natural language question")
@@ -1907,6 +2003,10 @@ def main():
             return cli.notify(args)
         elif args.command == "stack":
             return cli.stack(args)
+        elif args.command == "doctor":
+            return cli.doctor()
+        elif args.command == "script":
+            return cli.script(args)
         elif args.command == "sandbox":
             return cli.sandbox(args)
         elif args.command == "cache":
