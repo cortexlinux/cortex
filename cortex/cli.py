@@ -519,6 +519,106 @@ class CortexCLI:
 
     # --- End Sandbox Commands ---
 
+    async def resolve(self, args: argparse.Namespace) -> int:
+        """
+        Handle the dependency resolution command asynchronously.
+        """
+        import re  # Move to top of method
+
+        from rich.prompt import Prompt
+
+        from cortex.resolver import DependencyResolver
+
+        try:
+            conflict_data = {
+                "package_a": {"name": args.package, "requires": args.version},
+                "package_b": {"name": args.package_b, "requires": args.version_b},
+                "dependency": args.dependency,
+            }
+
+            cx_header("AI Conflict Analysis")
+            cx_print(f"Analyzing conflicts for [bold]{args.dependency}[/bold]...", "thinking")
+
+            api_key = self._get_api_key()
+            provider = self._get_provider()
+            resolver = DependencyResolver(api_key=api_key, provider=provider)
+
+            results = await resolver.resolve(conflict_data)
+
+            if not results or results[0].get("type") == "Error":
+                error_msg = results[0].get("action") if results else "Unknown error"
+                self._print_error(f"Resolution failed: {error_msg}")
+                return 1
+
+            for s in results:
+                s_type = s.get("type", "Unknown")
+                color = "green" if s_type == "Recommended" else "yellow"
+                console.print(f"\n[{color}]Strategy {s['id']} ({s_type}):[/{color}]")
+                console.print(f"  [bold]Action:[/bold] {s['action']}")
+                console.print(f"  [bold]Risk:[/bold]    {s['risk']}")
+
+            choices = [str(s.get("id")) for s in results]
+            choice = Prompt.ask("\nSelect strategy to apply", choices=choices, default=choices[0])
+            selected = next((s for s in results if str(s.get("id")) == choice), None)
+
+            if selected:
+                cx_print(f"Applying strategy {choice}...", "info")
+                action = selected.get("action", "")
+                match = re.search(r"Use\s+(\S+)\s+(.+)", action)
+
+                if match:
+                    package_name = match.group(1)
+                    version_constraint = match.group(2).strip("^~ ")
+                    manifest_path = "requirements.txt"
+
+                    if os.path.exists(manifest_path):
+                        try:
+                            with open(manifest_path) as f:
+                                lines = f.readlines()
+
+                            new_lines = []
+                            updated = False
+                            for line in lines:
+                                if not line.strip() or line.startswith("#"):
+                                    new_lines.append(line)
+                                    continue
+
+                                parts = re.split(r"[=<>~!]", line)
+                                current_pkg_name = parts[0].strip()
+
+                                if current_pkg_name == package_name:
+                                    new_lines.append(f"{package_name}=={version_constraint}\n")
+                                    updated = True
+                                else:
+                                    new_lines.append(line)
+
+                            if not updated:
+                                new_lines.append(f"{package_name}=={version_constraint}\n")
+
+                            with open(manifest_path, "w") as f:
+                                f.writelines(new_lines)
+
+                            status_msg = (
+                                f"Updated {manifest_path}"
+                                if updated
+                                else f"Added to {manifest_path}"
+                            )
+                            cx_print(f"✓ {status_msg} with {package_name}", "success")
+                        except Exception as file_err:
+                            self._print_error(f"Could not update manifest: {file_err}")
+                    else:
+                        cx_print(
+                            f"Advisory: Manual update required for {package_name} to {version_constraint}.",
+                            "warning",
+                        )
+
+                self._print_success("✓ Conflict resolved successfully")
+                return 0
+
+        except Exception as e:
+            self._print_error(f"Resolution process failed: {e}")
+            return 1
+
     def ask(self, question: str) -> int:
         """Answer a natural language question about the system."""
         api_key = self._get_api_key()
@@ -1695,6 +1795,17 @@ def main():
     rollback_parser.add_argument("id", help="Installation ID")
     rollback_parser.add_argument("--dry-run", action="store_true")
 
+    # Dependencies command
+    deps_parser = subparsers.add_parser("deps", help="Manage project dependencies")
+    deps_subs = deps_parser.add_subparsers(dest="deps_action")
+
+    resolve_parser = deps_subs.add_parser("resolve", help="AI-powered conflict resolution")
+    resolve_parser.add_argument("--package", required=True, help="Name of package A")
+    resolve_parser.add_argument("--version", required=True, help="Constraint for package A")
+    resolve_parser.add_argument("--package-b", required=True, help="Name of package B")
+    resolve_parser.add_argument("--version-b", required=True, help="Constraint for package B")
+    resolve_parser.add_argument("--dependency", required=True, help="Conflicting dependency")
+
     # --- New Notify Command ---
     notify_parser = subparsers.add_parser("notify", help="Manage desktop notifications")
     notify_subs = notify_parser.add_subparsers(dest="notify_action", help="Notify actions")
@@ -1902,6 +2013,14 @@ def main():
             return cli.history(limit=args.limit, status=args.status, show_id=args.show_id)
         elif args.command == "rollback":
             return cli.rollback(args.id, dry_run=args.dry_run)
+        elif args.command == "deps":
+            if args.deps_action == "resolve":
+                import asyncio
+
+                return asyncio.run(cli.resolve(args))
+            deps_parser.print_help()
+            return 1
+
         # Handle the new notify command
         elif args.command == "notify":
             return cli.notify(args)
