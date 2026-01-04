@@ -1,0 +1,17 @@
+diff --git a/cortex/core.py b/cortex/core.py
+index somehash..anotherhash 100644
+--- a/cortex/core.py
++++ b/cortex/core.py
+@@ -83,7 +83,11 @@ class Core:
+ 
+     def get_config(self):
+         with self.session() as session:
+-            config = session.query(Config).first()
++            config = session.query(Config).first()
++            if not config:
++                config = Config()
++                config.add({'debug_mode': False})
++                session.add(config)
+             return config
+ 
+     def get_module(self, module_name):
