@@ -99,9 +99,15 @@ class APIKeyDetector:
         """Validate that a cached key still works."""
         env_var = self._get_env_var_name(provider)
 
+        # Always check environment variable first - it takes priority
+        existing_env_value = os.environ.get(env_var)
+        if existing_env_value:
+            # Environment variable exists and takes priority over cached file
+            return (True, existing_env_value, provider, "environment")
+
         if source == "environment":
-            value = os.environ.get(env_var)
-            return (True, value, provider, source) if value else None
+            # Cache said env, but env is empty - cache is stale
+            return None
         else:
             key = self._extract_key_from_file(Path(source), env_var)
             if key:

@@ -155,6 +155,35 @@ class TestAPIKeyDetector:
             result = self._detect_with_mocked_home(detector, temp_home)
             self._assert_found_key(result, "sk-ant-cortex", "anthropic")
 
+    def test_env_var_priority_over_cached_file(self, temp_home):
+        """Test that environment variable takes priority over cached file source.
+
+        This tests a bug fix where a stale cache pointing to a file would
+        overwrite a valid environment variable with an invalid key.
+        """
+        # Setup: cache points to a file with a DIFFERENT key than env var
+        detector = self._setup_detector_with_home(temp_home, "ANTHROPIC_API_KEY=sk-ant-stale\n")
+
+        # Pre-populate cache to point to the file
+        cache_data = {
+            "provider": "anthropic",
+            "source": str(temp_home / ".cortex" / ".env"),
+            "key_hint": "sk-ant-sta...",
+        }
+        cache_file = temp_home / ".cortex" / ".api_key_cache"
+        cache_file.write_text(json.dumps(cache_data))
+
+        with patch("pathlib.Path.home", return_value=temp_home):
+            # Set a VALID key in environment (different from file)
+            with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-ant-valid-env-key"}, clear=True):
+                found, key, provider, source = detector.detect()
+
+                # Should use env var, NOT the stale file
+                assert found is True
+                assert key == "sk-ant-valid-env-key"
+                assert provider == "anthropic"
+                assert source == "environment"
+
     def test_no_key_found(self, detector):
         """Test when no key is found."""
         with patch.dict(os.environ, {}, clear=True):
