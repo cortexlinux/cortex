@@ -1,0 +1,36 @@
+{
+  "permission_auditor": {
+    "version": "1.0.0",
+    "settings": {
+      "default_scan_path": ".",
+      "recursive_scan": true,
+      "max_depth": 8,
+      "check_docker": false,
+      "output_format": "text",
+      "exclude_patterns": [
+        "**/.git/*",
+        "**/node_modules/*",
+        "/proc/*",
+        "/sys/*",
+        "/dev/*"
+      ],
+      "severity_levels": {
+        "CRITICAL": ["777"],
+        "HIGH": ["world_writable"],
+        "MEDIUM": ["group_writable_sensitive"]
+      },
+      "safe_permissions": {
+        "directories": "755",
+        "regular_files": "644", 
+        "executable_files": "750",
+        "sensitive_files": "600"
+      }
+    },
+    "docker": {
+      "scan_containers": true,
+      "max_containers": 3,
+      "check_uid_mapping": true,
+      "timeout_seconds": 30
+    }
+  }
+}
