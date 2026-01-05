@@ -27,13 +27,8 @@ from cortex.validators import validate_api_key, validate_install_request
 # Suppress noisy log messages in normal operation
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("cortex.installation_history").setLevel(logging.ERROR)
-logger = logging.getLogger(__name__)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
-
-def _is_interactive():
-    return sys.stdin.isatty()
 
 
 class CortexCLI:
@@ -41,17 +36,6 @@ class CortexCLI:
         self.spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         self.spinner_idx = 0
         self.verbose = verbose
-
-    def _build_prompt_with_stdin(self, user_prompt: str) -> str:
-        """
-        Combine optional stdin context with user prompt.
-        """
-        stdin_data = getattr(self, "stdin_data", None)
-        if stdin_data:
-            return (
-                "Context (from stdin):\n" f"{stdin_data}\n\n" "User instruction:\n" f"{user_prompt}"
-            )
-        return user_prompt
 
     def _debug(self, message: str):
         """Print debug info only in verbose mode"""
@@ -565,10 +549,6 @@ class CortexCLI:
         if not is_valid:
             self._print_error(error)
             return 1
-        api_key = self._get_api_key()
-        if not api_key:
-            self._print_error("No API key configured")
-            return 1
 
         # Special-case the ml-cpu stack:
         # The LLM sometimes generates outdated torch==1.8.1+cpu installs
@@ -583,20 +563,11 @@ class CortexCLI:
                 "pip3 install jupyter numpy pandas"
             )
 
+        api_key = self._get_api_key()
+        if not api_key:
+            return 1
+
         provider = self._get_provider()
-
-        if provider == "fake":
-            interpreter = CommandInterpreter(api_key="fake", provider="fake")
-            commands = interpreter.parse(self._build_prompt_with_stdin(f"install {software}"))
-
-            print("\nGenerated commands:")
-            for i, cmd in enumerate(commands, 1):
-                print(f"  {i}. {cmd}")
-            if execute:
-                print(f"\n{software} installed successfully!")
-
-            return 0
-        # --------------------------------------------------------------------------
         self._debug(f"Using provider: {provider}")
         self._debug(f"API key: {api_key[:10]}...{api_key[-4:]}")
 
@@ -609,8 +580,6 @@ class CortexCLI:
             self._print_status("🧠", "Understanding request...")
 
             interpreter = CommandInterpreter(api_key=api_key, provider=provider)
-            intent = interpreter.extract_intent(software)
-            install_mode = intent.get("install_mode", "system")
 
             self._print_status("📦", "Planning installation...")
 
@@ -618,20 +587,7 @@ class CortexCLI:
                 self._animate_spinner("Analyzing system requirements...")
             self._clear_line()
 
-            # ---------- Build command-generation prompt ----------
-            if install_mode == "python":
-                base_prompt = (
-                    f"install {software}. "
-                    "Use pip and Python virtual environments. "
-                    "Do NOT use sudo or system package managers."
-                )
-            else:
-                base_prompt = f"install {software}"
-
-            prompt = self._build_prompt_with_stdin(base_prompt)
-            # ---------------------------------------------------
-
-            commands = interpreter.parse(prompt)
+            commands = interpreter.parse(f"install {software}")
 
             if not commands:
                 self._print_error(
@@ -652,55 +608,6 @@ class CortexCLI:
             print("\nGenerated commands:")
             for i, cmd in enumerate(commands, 1):
                 print(f"  {i}. {cmd}")
-
-            # ---------- User confirmation ----------
-            if execute:
-                if not _is_interactive():
-                    choice = "y"
-
-                else:
-                    print("\nDo you want to proceed with these commands?")
-                    print("  [y] Yes, execute")
-                    print("  [e] Edit commands")
-                    print("  [n] No, cancel")
-
-                    choice = input("Enter choice [y/e/n]: ").strip().lower()
-
-                if choice == "n":
-                    print("❌ Installation cancelled by user.")
-                    return 0
-
-                elif choice == "e":
-                    if not _is_interactive():
-                        self._print_error("Cannot edit commands in non-interactive mode")
-                        return 1
-
-                    edited_commands = []
-                    while True:
-                        line = input("> ").strip()
-                        if not line:
-                            break
-                        edited_commands.append(line)
-
-                    if not edited_commands:
-                        print("❌ No commands provided. Cancelling.")
-                        return 1
-
-                    commands = edited_commands
-
-                    print("\n✅ Updated commands:")
-                    for i, cmd in enumerate(commands, 1):
-                        print(f"  {i}. {cmd}")
-
-                    confirm = input("\nExecute edited commands? [y/n]: ").strip().lower()
-                    if confirm != "y":
-                        print("❌ Installation cancelled.")
-                        return 0
-
-                elif choice != "y":
-                    print("❌ Invalid choice. Cancelling.")
-                    return 1
-            # -------------------------------------
 
             if dry_run:
                 print("\n(Dry run mode - commands not executed)")

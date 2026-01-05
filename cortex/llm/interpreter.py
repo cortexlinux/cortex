@@ -584,7 +584,7 @@ Respond with ONLY this JSON format (no explanations):
                 "domain": "unknown",
                 "install_mode": "system",
                 "description": user_input,
-                "ambiguous": False,
+                "ambiguous": True,
                 "confidence": 1.0,
             }
         else:
