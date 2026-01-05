@@ -20,6 +20,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+
 from cortex.cli import CortexCLI
 
 try:
