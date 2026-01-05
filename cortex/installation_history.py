@@ -314,11 +314,13 @@ class InstallationHistory:
                         # Filter out flags and invalid package names
                         if pkg and not pkg.startswith("-") and len(pkg) > 1:
                             # Extract version if present (e.g., package==1.0.0 or package=1.0.0)
-                            # Use possessive-like pattern to prevent backtracking
-                            version_match = re.match(r"^([^=]+)=+(.+)$", pkg)
-                            if version_match:
-                                name = version_match.group(1).strip()
-                                version = version_match.group(2).strip()
+                            # Use string split instead of regex to avoid ReDoS
+                            if "=" in pkg:
+                                # Split on first '=' to get name, rest is version (may have leading '=')
+                                name, version = pkg.split("=", 1)
+                                # Handle == by stripping leading '=' from version
+                                version = version.lstrip("=").strip()
+                                name = name.strip()
                             else:
                                 name = pkg
                                 version = None

@@ -36,9 +36,9 @@ def test_singleton_thread_safety_transaction_history():
 
     # All threads should get the SAME instance
     unique_instances = len(set(results))
-    assert unique_instances == 1, (
-        f"Multiple singleton instances created! Found {unique_instances} different instances"
-    )
+    assert (
+        unique_instances == 1
+    ), f"Multiple singleton instances created! Found {unique_instances} different instances"
 
 
 def test_singleton_thread_safety_hardware_detection():
@@ -58,9 +58,9 @@ def test_singleton_thread_safety_hardware_detection():
 
     # All threads should get the SAME instance
     unique_instances = len(set(results))
-    assert unique_instances == 1, (
-        f"Multiple detector instances created! Found {unique_instances} different instances"
-    )
+    assert (
+        unique_instances == 1
+    ), f"Multiple detector instances created! Found {unique_instances} different instances"
 
 
 def test_singleton_thread_safety_degradation_manager():
@@ -80,9 +80,9 @@ def test_singleton_thread_safety_degradation_manager():
 
     # All threads should get the SAME instance
     unique_instances = len(set(results))
-    assert unique_instances == 1, (
-        f"Multiple manager instances created! Found {unique_instances} different instances"
-    )
+    assert (
+        unique_instances == 1
+    ), f"Multiple manager instances created! Found {unique_instances} different instances"
 
 
 def test_connection_pool_concurrent_reads():
@@ -213,9 +213,9 @@ def test_hardware_detection_parallel():
 
     # All results should be identical (same hardware)
     unique_results = len(set(results))
-    assert unique_results == 1, (
-        f"Inconsistent hardware detection! Got {unique_results} different results: {set(results)}"
-    )
+    assert (
+        unique_results == 1
+    ), f"Inconsistent hardware detection! Got {unique_results} different results: {set(results)}"
 
 
 def test_connection_pool_timeout():
