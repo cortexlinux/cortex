@@ -1905,6 +1905,18 @@ def main():
     cache_subs = cache_parser.add_subparsers(dest="cache_action", help="Cache actions")
     cache_subs.add_parser("stats", help="Show cache statistics")
 
+    # --- Config Command (Issue #42 - Preferences Management) ---
+    config_parser = subparsers.add_parser(
+        "config", help="Manage user preferences and conflict resolution settings"
+    )
+    config_parser.add_argument(
+        "action",
+        choices=["list", "get", "set", "reset", "export", "import", "validate"],
+        help="Action to perform",
+    )
+    config_parser.add_argument("key", nargs="?", help="Preference key (for get/set/export/import)")
+    config_parser.add_argument("value", nargs="?", help="Value to set (for set action)")
+
     # --- Sandbox Commands (Docker-based package testing) ---
     sandbox_parser = subparsers.add_parser(
         "sandbox", help="Test packages in isolated Docker sandbox"
@@ -2089,6 +2101,8 @@ def main():
                 return cli.cache_stats()
             parser.print_help()
             return 1
+        elif args.command == "config":
+            return cli.config(args.action, args.key, args.value)
         elif args.command == "env":
             return cli.env(args)
         else:
