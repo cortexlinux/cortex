@@ -816,25 +816,21 @@ def detect_gpu_mode() -> str:
 
 def estimate_gpu_battery_impact() -> dict[str, Any]:
     """
-    Estimate battery impact of GPU usage based on detected GPU mode.
+    Detect whether an NVIDIA GPU is present and accessible on the system.
 
-    Provides heuristic estimates of power draw and battery life impact for
-    different GPU configurations. Does not perform real-time power measurement
-    and is safe to call without root privileges.
+    This function checks for the availability of an NVIDIA GPU by attempting
+    to invoke the `nvidia-smi` command using a non-privileged subprocess call.
+    It does not require root access and is safe to call in user-space
+    environments.
 
     Returns:
-        dict[str, Any]: Dictionary containing:
-            - mode (str): Detected GPU mode ("Integrated", "NVIDIA", or "Hybrid")
-            - current (str): Current power profile
-              ("integrated", "nvidia_active", or "hybrid_idle")
-            - estimates (dict): Power and impact estimates for each profile:
-                - "integrated": {"power": str, "impact": str}
-                - "hybrid_idle": {"power": str, "impact": str}
-                - "nvidia_active": {"power": str, "impact": str}
+        bool: True if an NVIDIA GPU is detected via `nvidia-smi`,
+        False if the command is unavailable or no NVIDIA GPU is detected.
 
     Note:
-        Estimates are heuristic approximations. Actual power draw varies
-        significantly based on hardware, workload, and system configuration.
+        This is a best-effort detection method. It may return False on systems
+        where NVIDIA drivers are installed but the GPU is powered down,
+        unavailable, or `nvidia-smi` is not present in PATH.
     """
     mode = detect_gpu_mode()
     nvidia_active = detect_nvidia_gpu()
