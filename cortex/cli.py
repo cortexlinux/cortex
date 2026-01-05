@@ -1355,8 +1355,9 @@ class CortexCLI:
         current_lang = prefs.get("language", "en")
 
         if new_language:
-            # Set new language
-            if not lang_mgr.is_supported(new_language):
+            # Resolve language (accepts codes like 'es' or names like 'Spanish', 'Español')
+            resolved = lang_mgr.resolve_language(new_language)
+            if not resolved:
                 self._print_error(f"Language '{new_language}' is not supported")
                 cx_print("Supported languages:", "info")
                 for code, name in lang_mgr.get_available_languages().items():
@@ -1364,11 +1365,11 @@ class CortexCLI:
                 return 1
 
             # Save preference
-            prefs["language"] = new_language.lower()
+            prefs["language"] = resolved
             config_mgr._save_preferences(prefs)
 
-            lang_name = lang_mgr.get_language_name(new_language)
-            cx_print(f"✓ Language set to {lang_name} ({new_language})", "success")
+            lang_name = lang_mgr.get_language_name(resolved)
+            cx_print(f"✓ Language set to {lang_name} ({resolved})", "success")
             cx_print("This will be used for all future Cortex commands.", "info")
             return 0
         else:
@@ -1720,7 +1721,12 @@ def main():
         "--language",
         "-L",
         metavar="CODE",
-        help="Set display language (e.g., en, es, de, ja, zh, ko, ar, hi, ru, it)",
+        help="Set display language for this command (e.g., en, es, de, ja)",
+    )
+    parser.add_argument(
+        "--set-language",
+        metavar="LANG",
+        help="Set and save display language (e.g., 'English', 'es', 'Español', 'German')",
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -1979,6 +1985,32 @@ def main():
     # --------------------------
 
     args = parser.parse_args()
+
+    # Handle --set-language flag (persists setting)
+    set_lang = getattr(args, "set_language", None)
+    if set_lang:
+        lang_mgr = LanguageManager()
+        resolved = lang_mgr.resolve_language(set_lang)
+
+        if resolved:
+            # Persist the language preference
+            config_mgr = ConfigManager()
+            prefs = config_mgr._load_preferences()
+            prefs["language"] = resolved
+            config_mgr._save_preferences(prefs)
+
+            lang_name = lang_mgr.get_language_name(resolved)
+            cx_print(f"✓ Language set to {lang_name} ({resolved})", "success")
+
+            # If no other command, exit successfully
+            if not args.command:
+                return 0
+        else:
+            cx_print(f"Language '{set_lang}' is not supported.", "error")
+            cx_print("Supported languages:", "info")
+            for code, name in lang_mgr.get_available_languages().items():
+                console.print(f"  [green]{code}[/green] - {name}")
+            return 1
 
     if not args.command:
         show_rich_help()

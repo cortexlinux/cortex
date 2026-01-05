@@ -49,6 +49,35 @@ class LanguageManager:
         "ko": "한국어",
     }
 
+    # Reverse mapping: human-readable names to codes (case-insensitive lookup)
+    NAME_TO_CODE: dict[str, str] = {
+        # English names
+        "english": "en",
+        "spanish": "es",
+        "hindi": "hi",
+        "japanese": "ja",
+        "arabic": "ar",
+        "portuguese": "pt",
+        "french": "fr",
+        "german": "de",
+        "italian": "it",
+        "russian": "ru",
+        "chinese": "zh",
+        "korean": "ko",
+        # Native names (lowercase for lookup)
+        "español": "es",
+        "हिन्दी": "hi",
+        "日本語": "ja",
+        "العربية": "ar",
+        "português": "pt",
+        "français": "fr",
+        "deutsch": "de",
+        "italiano": "it",
+        "русский": "ru",
+        "中文": "zh",
+        "한국어": "ko",
+    }
+
     # Map system locale codes to cortex language codes
     LOCALE_MAPPING: dict[str, str] = {
         "en": "en",
@@ -107,25 +136,29 @@ class LanguageManager:
         5. English fallback
 
         Args:
-            cli_arg: Language code from CLI argument (highest priority)
+            cli_arg: Language code or name from CLI argument (highest priority)
 
         Returns:
             Validated language code
         """
-        # Priority 1: CLI argument
-        if cli_arg and self.is_supported(cli_arg):
-            logger.debug(f"Using CLI language: {cli_arg}")
-            return cli_arg
-        elif cli_arg:
-            logger.warning(f"Language '{cli_arg}' not supported. Falling back to detection.")
+        # Priority 1: CLI argument (accepts both codes and names)
+        if cli_arg:
+            resolved = self.resolve_language(cli_arg)
+            if resolved:
+                logger.debug(f"Using CLI language: {resolved}")
+                return resolved
+            else:
+                logger.warning(f"Language '{cli_arg}' not supported. Falling back to detection.")
 
-        # Priority 2: Environment variable
-        env_lang = os.environ.get("CORTEX_LANGUAGE", "").strip().lower()
-        if env_lang and self.is_supported(env_lang):
-            logger.debug(f"Using CORTEX_LANGUAGE env var: {env_lang}")
-            return env_lang
-        elif env_lang:
-            logger.warning(f"Language '{env_lang}' in CORTEX_LANGUAGE not supported.")
+        # Priority 2: Environment variable (accepts both codes and names)
+        env_lang = os.environ.get("CORTEX_LANGUAGE", "").strip()
+        if env_lang:
+            resolved = self.resolve_language(env_lang)
+            if resolved:
+                logger.debug(f"Using CORTEX_LANGUAGE env var: {resolved}")
+                return resolved
+            else:
+                logger.warning(f"Language '{env_lang}' in CORTEX_LANGUAGE not supported.")
 
         # Priority 3: Config file preference
         if self.prefs_manager:
@@ -194,17 +227,45 @@ class LanguageManager:
             logger.debug(f"Error detecting system language: {e}")
             return None
 
+    def resolve_language(self, language: str) -> str | None:
+        """
+        Resolve a language code or name to a standard code.
+
+        Accepts both:
+        - Language codes: 'en', 'es', 'de'
+        - Human-readable names: 'English', 'Spanish', 'Español', 'German'
+
+        Args:
+            language: Language code or human-readable name
+
+        Returns:
+            Resolved language code, or None if not recognized
+        """
+        lang_lower = language.lower().strip()
+
+        # Direct code match
+        if lang_lower in self.SUPPORTED_LANGUAGES:
+            return lang_lower
+
+        # Human-readable name match
+        if lang_lower in self.NAME_TO_CODE:
+            return self.NAME_TO_CODE[lang_lower]
+
+        return None
+
     def is_supported(self, language: str) -> bool:
         """
         Check if language is supported.
 
+        Accepts both language codes and human-readable names.
+
         Args:
-            language: Language code
+            language: Language code or name (e.g., 'en', 'English', 'Español')
 
         Returns:
-            True if language is in SUPPORTED_LANGUAGES
+            True if language is recognized
         """
-        return language.lower() in self.SUPPORTED_LANGUAGES
+        return self.resolve_language(language) is not None
 
     def get_available_languages(self) -> dict[str, str]:
         """
