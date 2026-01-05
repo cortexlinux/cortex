@@ -1,0 +1,343 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: write
+  actions: read
+  security-events: write
+
+jobs:
+  # Gate job to check if we should run (for issue_comment events)
+  check-trigger:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+      pr_number: ${{ steps.check.outputs.pr_number }}
+      pr_sha: ${{ steps.check.outputs.pr_sha }}
+    steps:
+      - name: Check trigger conditions
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER_FROM_PR: ${{ github.event.pull_request.number }}
+          PR_SHA_FROM_PR: ${{ github.event.pull_request.head.sha }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          IS_PR_COMMENT: ${{ github.event.issue.pull_request && 'true' || 'false' }}
+        run: |
+          if [ "$EVENT_NAME" == "pull_request" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "pr_number=$PR_NUMBER_FROM_PR" >> $GITHUB_OUTPUT
+            echo "pr_sha=$PR_SHA_FROM_PR" >> $GITHUB_OUTPUT
+          elif [ "$EVENT_NAME" == "issue_comment" ]; then
+            # Check if comment is on a PR and contains /retest
+            if [ "$IS_PR_COMMENT" == "true" ]; then
+              if echo "$COMMENT_BODY" | grep -qiE '^\s*/retest\s*$'; then
+                echo "should_run=true" >> $GITHUB_OUTPUT
+                echo "pr_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+                # Fetch the PR head SHA
+                PR_SHA=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                  "https://api.github.com/repos/${{ github.repository }}/pulls/$ISSUE_NUMBER" \
+                  | jq -r '.head.sha')
+                echo "pr_sha=$PR_SHA" >> $GITHUB_OUTPUT
+              else
+                echo "should_run=false" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "should_run=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Add reaction to retest comment
+        if: github.event_name == 'issue_comment' && steps.check.outputs.should_run == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -s -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
+            -d '{"content": "rocket"}'
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    needs: check-trigger
+    if: needs.check-trigger.outputs.should_run == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check-trigger.outputs.pr_sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install linting tools
+        run: |
+          python -m pip install -U pip
+          pip install ruff black mypy
+
+      - name: Lint with ruff
+        run: ruff check . --output-format=github
+
+      - name: Check formatting with black
+        run: black --check . --exclude "(venv|\.venv|build|dist)"
+
+      - name: Type check with mypy
+        run: mypy cortex --ignore-missing-imports --no-error-summary || true
+        continue-on-error: true
+
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    needs: [check-trigger, lint]
+    if: needs.check-trigger.outputs.should_run == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check-trigger.outputs.pr_sha }}
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install -e .
+          pip install pytest pytest-cov pytest-timeout pytest-asyncio pytest-mock
+
+      - name: Run tests with coverage
+        env:
+          ANTHROPIC_API_KEY: "test-key-for-ci"
+          OPENAI_API_KEY: "test-key-for-ci"
+        run: |
+          pytest tests/ -v --tb=short \
+            --cov=cortex \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --cov-fail-under=0 \
+            --timeout=60 \
+            --ignore=tests/integration
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.11'
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-${{ matrix.python-version }}
+          fail_ci_if_error: false
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: check-trigger
+    if: needs.check-trigger.outputs.should_run == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check-trigger.outputs.pr_sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install security tools
+        run: |
+          python -m pip install -U pip
+          pip install bandit safety
+
+      - name: Run bandit security scan
+        run: bandit -r cortex -ll -ii --format json --output bandit-report.json || true
+
+      - name: Check for known vulnerabilities
+        run: |
+          pip install -e .
+          safety check --json --output safety-report.json || true
+        continue-on-error: true
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            safety-report.json
+
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    needs: check-trigger
+    if: needs.check-trigger.outputs.should_run == 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check-trigger.outputs.pr_sha }}
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          queries: +security-extended,security-and-quality
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:python"
+
+  build:
+    name: Build Package
+    runs-on: ubuntu-latest
+    needs: [check-trigger, lint, test]
+    if: needs.check-trigger.outputs.should_run == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check-trigger.outputs.pr_sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build tools
+        run: |
+          python -m pip install -U pip
+          pip install build twine
+
+      - name: Build package
+        run: python -m build
+
+      - name: Check package
+        run: twine check dist/*
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  # Final status check that reports overall result
+  status-report:
+    name: PR Check Status
+    runs-on: ubuntu-latest
+    needs: [check-trigger, lint, test, security, codeql, build]
+    if: always() && needs.check-trigger.outputs.should_run == 'true'
+    steps:
+      - name: Report status
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_SHA="${{ needs.check-trigger.outputs.pr_sha }}"
+          
+          # Check all job results
+          LINT_RESULT="${{ needs.lint.result }}"
+          TEST_RESULT="${{ needs.test.result }}"
+          SECURITY_RESULT="${{ needs.security.result }}"
+          CODEQL_RESULT="${{ needs.codeql.result }}"
+          BUILD_RESULT="${{ needs.build.result }}"
+          
+          echo "Lint: $LINT_RESULT"
+          echo "Test: $TEST_RESULT"
+          echo "Security: $SECURITY_RESULT"
+          echo "CodeQL: $CODEQL_RESULT"
+          echo "Build: $BUILD_RESULT"
+          
+          # Determine overall status
+          if [ "$LINT_RESULT" == "success" ] && \
+             [ "$TEST_RESULT" == "success" ] && \
+             [ "$SECURITY_RESULT" == "success" ] && \
+             [ "$CODEQL_RESULT" == "success" ] && \
+             [ "$BUILD_RESULT" == "success" ]; then
+            STATE="success"
+            DESC="All PR checks passed"
+          else
+            STATE="failure"
+            FAILED=""
+            [ "$LINT_RESULT" != "success" ] && FAILED="$FAILED lint"
+            [ "$TEST_RESULT" != "success" ] && FAILED="$FAILED test"
+            [ "$SECURITY_RESULT" != "success" ] && FAILED="$FAILED security"
+            [ "$CODEQL_RESULT" != "success" ] && FAILED="$FAILED codeql"
+            [ "$BUILD_RESULT" != "success" ] && FAILED="$FAILED build"
+            DESC="Failed checks:$FAILED"
+          fi
+          
+          curl -s -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/statuses/$PR_SHA" \
+            -d "{\"state\":\"$STATE\",\"description\":\"$DESC\",\"context\":\"PR Checks\"}"
+
+      - name: Comment on retest completion
+        if: github.event_name == 'issue_comment'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER="${{ needs.check-trigger.outputs.pr_number }}"
+          
+          # Check all job results
+          LINT_RESULT="${{ needs.lint.result }}"
+          TEST_RESULT="${{ needs.test.result }}"
+          SECURITY_RESULT="${{ needs.security.result }}"
+          CODEQL_RESULT="${{ needs.codeql.result }}"
+          BUILD_RESULT="${{ needs.build.result }}"
+          
+          if [ "$LINT_RESULT" == "success" ] && \
+             [ "$TEST_RESULT" == "success" ] && \
+             [ "$SECURITY_RESULT" == "success" ] && \
+             [ "$CODEQL_RESULT" == "success" ] && \
+             [ "$BUILD_RESULT" == "success" ]; then
+            COMMENT="✅ **Retest completed successfully!**\n\nAll checks passed:\n- ✅ Lint\n- ✅ Test\n- ✅ Security\n- ✅ CodeQL\n- ✅ Build"
+          else
+            COMMENT="❌ **Retest completed with failures**\n\nCheck results:\n"
+            [ "$LINT_RESULT" == "success" ] && COMMENT="$COMMENT- ✅ Lint\n" || COMMENT="$COMMENT- ❌ Lint\n"
+            [ "$TEST_RESULT" == "success" ] && COMMENT="$COMMENT- ✅ Test\n" || COMMENT="$COMMENT- ❌ Test\n"
+            [ "$SECURITY_RESULT" == "success" ] && COMMENT="$COMMENT- ✅ Security\n" || COMMENT="$COMMENT- ❌ Security\n"
+            [ "$CODEQL_RESULT" == "success" ] && COMMENT="$COMMENT- ✅ CodeQL\n" || COMMENT="$COMMENT- ❌ CodeQL\n"
+            [ "$BUILD_RESULT" == "success" ] && COMMENT="$COMMENT- ✅ Build" || COMMENT="$COMMENT- ❌ Build"
+          fi
+          
+          curl -s -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
+            -d "{\"body\": \"$COMMENT\"}"
+
