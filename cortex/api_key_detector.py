@@ -120,6 +120,7 @@ class APIKeyDetector:
                         if value == "ollama":
                             return (True, "ollama-local", "ollama", str(env_file))
             except OSError:
+                # Ignore errors reading env file; treat as no configured provider
                 pass
         return None
 
