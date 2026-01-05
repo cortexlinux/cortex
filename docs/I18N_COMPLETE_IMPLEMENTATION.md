@@ -3,7 +3,7 @@
 **Project**: GitHub Issue #93 – Multi-Language CLI Support  
 **Status**: ✅ **COMPLETE & PRODUCTION READY**  
 **Date**: December 29, 2025  
-**Languages Supported**: 10 (English, Spanish, Hindi, Japanese, Arabic, German, Italian, Russian, Chinese, Korean)
+**Languages Supported**: 12 (English, Spanish, Hindi, Japanese, Arabic, Portuguese, French, German, Italian, Russian, Chinese, Korean)
 
 ---
 
@@ -28,7 +28,7 @@
 
 A comprehensive, **production-ready multi-language (i18n) support system** has been implemented for Cortex Linux. This solution provides:
 
-✅ **10 Languages Out-of-the-Box**: Complete support with fallback to English  
+✅ **12 Languages Out-of-the-Box**: Complete support with fallback to English  
 ✅ **1,296+ Translation Strings**: Full coverage of CLI interface  
 ✅ **Zero Breaking Changes**: Completely backward compatible  
 ✅ **Modular Architecture**: 5 core Python modules (~1,000 lines)  
@@ -73,7 +73,8 @@ cortex/
     ├── ru.json                    # Russian (108 keys)
     ├── zh.json                    # Chinese Simplified (108 keys)
     └── ko.json                    # Korean (108 keys)
-    # Future: pt.json (Portuguese), fr.json (French)
+    ├── pt.json                    # Portuguese (108 keys)
+    └── fr.json                    # French (108 keys)
 
 docs/
 └── I18N_COMPLETE_IMPLEMENTATION.md  # This comprehensive guide
@@ -188,7 +189,7 @@ git push origin feature/add-language-xx
 
 ## Supported Languages
 
-### Language Table (10 Languages)
+### Language Table (12 Languages)
 
 | Code | Language | Native Name | RTL | Status |
 |------|----------|------------|-----|--------|
@@ -297,10 +298,9 @@ class LanguageManager:
         """Auto-detect system language from locale"""
 ```
 
-**Supported Languages Registry** (10 languages):
-- English, Spanish, Hindi, Japanese, Arabic
-- German, Italian, Russian, Chinese (Simplified), Korean
-- _Planned: Portuguese, French_
+**Supported Languages Registry** (12 languages):
+- English, Spanish, Hindi, Japanese, Arabic, Portuguese
+- French, German, Italian, Russian, Chinese (Simplified), Korean
 
 ### 3. Pluralization Module (`pluralization.py`)
 
@@ -451,7 +451,7 @@ csv_content = handler.export_missing_for_translation()
 **Key Features**:
 - 12 logical namespaces per language file
 - 108 total keys per language
-- 1,080+ total translation strings across all 10 languages
+- 1,296+ total translation strings across all 12 languages
 - Variable placeholders with `{variable}` syntax
 - Pluralization with ICU MessageFormat syntax
 - UTF-8 encoding for all languages
@@ -1228,7 +1228,7 @@ EOF
 
 The Cortex Linux i18n implementation provides a **complete, production-ready multi-language support system** with:
 
-- ✅ 10 languages supported (1,080+ translation strings)
+- ✅ 12 languages supported (1,296+ translation strings)
 - ✅ Modular, maintainable architecture (~1,000 lines)
 - ✅ Zero breaking changes (fully backward compatible)
 - ✅ Graceful fallback (English fallback for missing keys)

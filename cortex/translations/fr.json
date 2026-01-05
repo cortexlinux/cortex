@@ -1,0 +1,158 @@
+{
+  "common": {
+    "yes": "Oui",
+    "no": "Non",
+    "continue": "Continuer",
+    "cancel": "Annuler",
+    "error": "Erreur",
+    "success": "Succès",
+    "warning": "Avertissement",
+    "confirm": "Êtes-vous sûr ?",
+    "loading": "Chargement",
+    "please_wait": "Veuillez patienter...",
+    "back": "Retour",
+    "next": "Suivant",
+    "exit": "Quitter"
+  },
+
+  "cli": {
+    "help": "Afficher ce message d'aide",
+    "version": "Afficher les informations de version",
+    "verbose": "Activer la sortie détaillée",
+    "quiet": "Supprimer les sorties non essentielles",
+    "dry_run": "Prévisualiser les modifications sans les appliquer",
+    "force": "Forcer l'exécution sans confirmation",
+    "output_format": "Format de sortie (text, json, yaml)"
+  },
+
+  "install": {
+    "prompt": "Que souhaitez-vous installer ?",
+    "checking_deps": "Vérification des dépendances pour {package}",
+    "resolving": "Résolution des dépendances des paquets...",
+    "downloading": "Téléchargement de {package_count, plural, one {# paquet} other {# paquets}}",
+    "installing": "Installation de {package}...",
+    "success": "{package} installé avec succès",
+    "failed": "L'installation de {package} a échoué : {error}",
+    "dry_run": "[SIMULATION] Installerait {packages}",
+    "dry_run_note": "Mode simulation - commandes non exécutées",
+    "already_installed": "{package} est déjà installé (version {version})",
+    "updating": "Mise à jour de {package}...",
+    "verifying": "Vérification de l'installation de {package}",
+    "install_time": "Installation terminée en {time}s",
+    "requires": "Nécessite : {dependencies}",
+    "generated_commands": "Commandes générées",
+    "execute_note": "Pour exécuter ces commandes, utilisez le flag --execute"
+  },
+
+  "remove": {
+    "prompt": "Que souhaitez-vous supprimer ?",
+    "removing": "Suppression de {packages}...",
+    "success": "{package} supprimé avec succès",
+    "failed": "La suppression de {package} a échoué : {error}",
+    "not_installed": "{package} n'est pas installé",
+    "dry_run": "[SIMULATION] Supprimerait {packages}",
+    "requires_confirmation": "Cela supprimera {count} paquet(s). Continuer ?"
+  },
+
+  "search": {
+    "prompt": "Rechercher des paquets",
+    "searching": "Recherche de '{query}'...",
+    "found": "{count, plural, one {# paquet trouvé} other {# paquets trouvés}}",
+    "not_found": "Aucun paquet trouvé pour '{query}'",
+    "results": "Résultats de recherche pour '{query}' :",
+    "installed": "Installé",
+    "available": "Disponible",
+    "description": "Description",
+    "version": "Version"
+  },
+
+  "config": {
+    "language_set": "Langue définie sur {language}",
+    "language_not_found": "Langue '{language}' non trouvée. Utilisation de l'anglais.",
+    "current_language": "Langue actuelle : {language}",
+    "available_languages": "Langues disponibles : {languages}",
+    "saved": "Configuration sauvegardée",
+    "reset": "Configuration réinitialisée aux valeurs par défaut",
+    "invalid_key": "Clé de configuration invalide : {key}",
+    "invalid_value": "Valeur invalide pour {key} : {value}"
+  },
+
+  "errors": {
+    "network": "Erreur réseau : {details}",
+    "permission": "Permission refusée : {details}",
+    "invalid_package": "Paquet '{package}' non trouvé",
+    "disk_space": "Espace disque insuffisant ({needed}Go nécessaires, {available}Go disponibles)",
+    "api_key_missing": "Clé API non configurée. Exécutez 'cortex wizard' pour la configurer.",
+    "timeout": "L'opération a expiré après {seconds} secondes",
+    "parse_error": "Échec de l'analyse de la réponse : {details}",
+    "invalid_input": "Entrée invalide : {details}",
+    "operation_failed": "L'opération a échoué : {details}",
+    "unexpected": "Une erreur inattendue s'est produite. Veuillez réessayer.",
+    "no_commands": "Aucune commande générée. Veuillez réessayer avec une demande différente."
+  },
+
+  "prompts": {
+    "confirm_install": "Installer {packages} ? (o/n)",
+    "confirm_remove": "Supprimer {packages} ? (o/n)",
+    "select_version": "Sélectionnez la version pour {package} :",
+    "enter_api_key": "Entrez votre clé API {provider} :",
+    "confirm_dry_run": "Ceci est une simulation. Continuer pour voir ce qui serait fait ?"
+  },
+
+  "status": {
+    "checking": "Vérification du système...",
+    "understanding": "Compréhension de la demande...",
+    "planning": "Planification de l'installation...",
+    "analyzing": "Analyse des exigences système...",
+    "detected_os": "OS détecté : {os} {version}",
+    "detected_arch": "Architecture : {arch}",
+    "hardware_info": "Cœurs CPU : {cores}, RAM : {ram}Go",
+    "checking_updates": "Vérification des mises à jour...",
+    "up_to_date": "Le système est à jour",
+    "updates_available": "{count, plural, one {# mise à jour disponible} other {# mises à jour disponibles}}"
+  },
+
+  "wizard": {
+    "welcome": "Bienvenue sur Cortex Linux !",
+    "select_language": "Sélectionnez votre langue :",
+    "api_key": "Entrez votre clé API (ou appuyez sur Entrée pour ignorer) :",
+    "provider": "Quel fournisseur d'IA souhaitez-vous utiliser ?",
+    "complete": "Configuration terminée ! Exécutez 'cortex install <paquet>' pour commencer.",
+    "skip_setup": "Ignorer la configuration pour l'instant ?"
+  },
+
+  "history": {
+    "view": "Historique d'installation",
+    "date": "Date",
+    "action": "Action",
+    "packages": "Paquets",
+    "status": "Statut",
+    "no_history": "Pas encore d'historique d'installation",
+    "clear_confirm": "Effacer tout l'historique ? Cette action est irréversible."
+  },
+
+  "notifications": {
+    "update_available": "Mise à jour disponible : {version}",
+    "install_success": "{package} installé avec succès",
+    "install_failed": "Échec de l'installation de {package}",
+    "security_update": "Mise à jour de sécurité disponible pour {package}",
+    "api_error": "Erreur API : {details}"
+  },
+
+  "help": {
+    "usage": "Utilisation :",
+    "examples": "Exemples :",
+    "options": "Options :",
+    "description": "Description :",
+    "subcommands": "Sous-commandes :",
+    "see_help": "Voir 'cortex {command} --help' pour plus d'informations"
+  },
+
+  "demo": {
+    "title": "Démo de Cortex Linux",
+    "scenario": "Scénario : {description}",
+    "starting": "Démarrage de la démo...",
+    "step": "Étape {number} : {description}",
+    "complete": "Démo terminée !"
+  }
+}
