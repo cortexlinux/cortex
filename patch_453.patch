@@ -1,0 +1,19 @@
+--- a/src/cortex/file_handler.c
++++ b/src/cortex/file_handler.c
+@@ -123,6 +123,8 @@
+     if (fp == NULL) {
+         return -ENOMEM;
+     }
++    // 确保文件句柄在所有退出路径上都被关闭
++    goto cleanup;
+ 
+     // 处理文件内容...
+ 
+@@ -130,4 +132,6 @@
+     if (some_error_condition) {
+         return -EIO;
+     }
++
++cleanup:
+     fclose(fp);
+     return 0;
