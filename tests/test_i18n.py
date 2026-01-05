@@ -32,7 +32,6 @@ from cortex.i18n import (
     translate,
 )
 
-
 # =============================================================================
 # Translator Tests
 # =============================================================================
@@ -414,7 +413,7 @@ class TestLanguageManager:
     def test_locale_mapping_coverage(self):
         """Test various locale mappings."""
         manager = LanguageManager()
-        
+
         # Test that common locales are mapped
         assert "en_US" in manager.LOCALE_MAPPING
         assert "es_ES" in manager.LOCALE_MAPPING
@@ -692,7 +691,7 @@ class TestFallbackHandler:
         handler = FallbackHandler()
         handler.handle_missing("key1", "es")
         handler.handle_missing("key2", "de")
-        
+
         missing = handler.get_missing_translations()
         assert "key1" in missing
         assert "key2" in missing
@@ -715,13 +714,13 @@ class TestFallbackHandler:
         """missing_count returns correct count."""
         handler = FallbackHandler()
         assert handler.missing_count() == 0
-        
+
         handler.handle_missing("key1", "es")
         assert handler.missing_count() == 1
-        
+
         handler.handle_missing("key2", "de")
         assert handler.missing_count() == 2
-        
+
         # Same key again doesn't increase count (it's a set)
         handler.handle_missing("key1", "fr")
         assert handler.missing_count() == 2
@@ -732,7 +731,7 @@ class TestFallbackHandler:
         handler.handle_missing("key1", "es")
         handler.handle_missing("key2", "de")
         assert handler.missing_count() == 2
-        
+
         handler.clear()
         assert handler.missing_count() == 0
         assert handler.has_missing_translations() is False
@@ -742,9 +741,9 @@ class TestFallbackHandler:
         handler = FallbackHandler()
         handler.handle_missing("install.new_key", "es")
         handler.handle_missing("config.test", "de")
-        
+
         csv_content = handler.export_missing_for_translation()
-        
+
         assert "key,namespace" in csv_content
         assert "install.new_key" in csv_content
         assert "config.test" in csv_content
@@ -755,11 +754,11 @@ class TestFallbackHandler:
         """export_missing_for_translation creates file with secure permissions."""
         handler = FallbackHandler()
         handler.handle_missing("test.key", "es")
-        
+
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "test_export.csv"
             handler.export_missing_for_translation(output_path=output_path)
-            
+
             assert output_path.exists()
             content = output_path.read_text()
             assert "test.key" in content
@@ -768,7 +767,7 @@ class TestFallbackHandler:
         """report_summary with no missing translations."""
         handler = FallbackHandler()
         report = handler.report_summary()
-        
+
         assert "Missing Translations Report" in report
         assert "Total Missing Keys: 0" in report
         assert "No missing translations found!" in report
@@ -779,9 +778,9 @@ class TestFallbackHandler:
         handler.handle_missing("install.key1", "es")
         handler.handle_missing("install.key2", "es")
         handler.handle_missing("config.key1", "de")
-        
+
         report = handler.report_summary()
-        
+
         assert "Missing Translations Report" in report
         assert "Total Missing Keys: 3" in report
         assert "install: 2 missing" in report
@@ -814,7 +813,7 @@ class TestI18nIntegration:
     def test_all_languages_load(self):
         """All translation files load without errors."""
         languages = ["en", "es", "de", "it", "ru", "zh", "ja", "ko", "ar", "hi"]
-        
+
         for lang in languages:
             t = Translator(lang)
             result = t.get("common.yes")
@@ -825,7 +824,7 @@ class TestI18nIntegration:
         """All languages have common translation keys."""
         languages = ["en", "es", "de", "it", "ru", "zh", "ja", "ko", "ar", "hi"]
         common_keys = ["common.yes", "common.no", "common.error", "common.success"]
-        
+
         for lang in languages:
             t = Translator(lang)
             for key in common_keys:
@@ -836,7 +835,7 @@ class TestI18nIntegration:
         """Translator works with LanguageManager detection."""
         manager = LanguageManager()
         detected = manager.detect_language(cli_arg="ja")
-        
+
         t = Translator(detected)
         result = t.get("common.yes")
         assert result == "はい"
@@ -845,11 +844,11 @@ class TestI18nIntegration:
         """RTL languages are properly detected."""
         rtl_languages = ["ar"]
         ltr_languages = ["en", "es", "de", "ja", "zh", "ko", "ru", "hi"]
-        
+
         for lang in rtl_languages:
             t = Translator(lang)
             assert t.is_rtl() is True, f"{lang} should be RTL"
-        
+
         for lang in ltr_languages:
             t = Translator(lang)
             assert t.is_rtl() is False, f"{lang} should be LTR"
@@ -857,7 +856,7 @@ class TestI18nIntegration:
     def test_variable_interpolation_all_languages(self):
         """Variable interpolation works for all languages."""
         languages = ["en", "es", "de", "it", "ru", "zh", "ja", "ko", "ar", "hi"]
-        
+
         for lang in languages:
             t = Translator(lang)
             result = t.get("install.success", package="test-pkg")
@@ -914,7 +913,7 @@ class TestEdgeCases:
         mock_prefs = MagicMock()
         mock_prefs.load.side_effect = Exception("Config error")
         manager = LanguageManager(prefs_manager=mock_prefs)
-        
+
         with patch.dict(os.environ, {}, clear=True):
             with patch.object(manager, "get_system_language", return_value=None):
                 result = manager.detect_language(cli_arg=None)
@@ -929,7 +928,7 @@ class TestEdgeCases:
     def test_translation_file_integrity(self):
         """Translation files are valid JSON."""
         translations_dir = Path(__file__).parent.parent / "cortex" / "translations"
-        
+
         for json_file in translations_dir.glob("*.json"):
             with open(json_file, encoding="utf-8") as f:
                 try:
