@@ -62,4 +62,3 @@ def test_short_query(fake_interpreter):
 def test_sentence_style_query(fake_interpreter):
     commands = fake_interpreter.parse("can you please install a database for me")
     assert commands
-
