@@ -413,7 +413,7 @@ class BatchInstaller:
                     )
 
                     result = coordinator.execute()
-                
+
                 pkg.result = result
                 pkg.end_time = time.time()
 

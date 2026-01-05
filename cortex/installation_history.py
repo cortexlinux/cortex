@@ -83,11 +83,11 @@ class InstallationHistory:
         """Ensure database directory exists and is writable"""
         path = Path(self.db_path)
         db_dir = path.parent
-        
+
         try:
             # Try to create directory if missing
             db_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # Check if we can actually write to this location
             # by attempting to open/create the file
             test_file = db_dir / ".cortex_write_test"
