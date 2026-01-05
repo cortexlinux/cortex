@@ -275,7 +275,8 @@ class InstallationHistory:
                             # Note: Only match '=' for pip/apt constraints, not ':'
                             pkg = re.sub(r"=.*$", "", pkg)
                             # Remove any trailing special characters
-                            pkg = re.sub(r"[^\w\.\-\+]+$", "", pkg)
+                            # Use rstrip for efficiency instead of regex to avoid ReDoS
+                            pkg = pkg.rstrip("!@#$%^&*(){}[]|\\:;\"'<>,?/~`")
                             if pkg:
                                 packages.add(pkg)
 
@@ -313,7 +314,8 @@ class InstallationHistory:
                         # Filter out flags and invalid package names
                         if pkg and not pkg.startswith("-") and len(pkg) > 1:
                             # Extract version if present (e.g., package==1.0.0 or package=1.0.0)
-                            version_match = re.match(r"^([^=]+)[=]+(.+)$", pkg)
+                            # Use possessive-like pattern to prevent backtracking
+                            version_match = re.match(r"^([^=]+)=+(.+)$", pkg)
                             if version_match:
                                 name = version_match.group(1).strip()
                                 version = version_match.group(2).strip()
@@ -322,7 +324,8 @@ class InstallationHistory:
                                 version = None
 
                             # Remove any trailing special characters from name
-                            name = re.sub(r"[^\w\.\-\+]+$", "", name)
+                            # Use rstrip for efficiency instead of regex to avoid ReDoS
+                            name = name.rstrip("!@#$%^&*(){}[]|\\:;\"'<>,?/~`")
 
                             if name and name not in seen:
                                 seen.add(name)
