@@ -1,0 +1,14 @@
+diff --git a/src/drivers/network/ethernet.c b/src/drivers/network/ethernet.c
+index abcdef1..1234567 100644
+--- a/src/drivers/network/ethernet.c
++++ b/src/drivers/network/ethernet.c
+@@ -10,7 +10,7 @@
+ #include <linux/netdevice.h>
+ 
+ static int ethernet_open(struct net_device *dev)
+ {
+-    return 0;
++    return eth_open(dev);
+ }
+ 
+ static void ethernet_close(struct net_device *dev)
