@@ -106,10 +106,12 @@ class TestCortexCLIExtended(unittest.TestCase):
     @patch.object(CortexCLI, "_get_api_key", return_value="sk-test-key")
     @patch.object(CortexCLI, "_animate_spinner", return_value=None)
     @patch.object(CortexCLI, "_clear_line", return_value=None)
+    @patch("cortex.cli.LLMRouter")
     @patch("cortex.cli.CommandInterpreter")
     def test_install_dry_run(
         self,
         mock_interpreter_class,
+        _mock_llm_router,
         _mock_clear_line,
         _mock_spinner,
         _mock_get_api_key,
@@ -128,10 +130,12 @@ class TestCortexCLIExtended(unittest.TestCase):
     @patch.object(CortexCLI, "_get_api_key", return_value="sk-test-key")
     @patch.object(CortexCLI, "_animate_spinner", return_value=None)
     @patch.object(CortexCLI, "_clear_line", return_value=None)
+    @patch("cortex.cli.LLMRouter")
     @patch("cortex.cli.CommandInterpreter")
     def test_install_no_execute(
         self,
         mock_interpreter_class,
+        _mock_llm_router,
         _mock_clear_line,
         _mock_spinner,
         _mock_get_api_key,
@@ -150,12 +154,14 @@ class TestCortexCLIExtended(unittest.TestCase):
     @patch.object(CortexCLI, "_get_api_key", return_value="sk-test-key")
     @patch.object(CortexCLI, "_animate_spinner", return_value=None)
     @patch.object(CortexCLI, "_clear_line", return_value=None)
+    @patch("cortex.cli.LLMRouter")
     @patch("cortex.cli.CommandInterpreter")
     @patch("cortex.cli.InstallationCoordinator")
     def test_install_with_execute_success(
         self,
         mock_coordinator_class,
         mock_interpreter_class,
+        _mock_llm_router,
         _mock_clear_line,
         _mock_spinner,
         _mock_get_api_key,
@@ -181,12 +187,14 @@ class TestCortexCLIExtended(unittest.TestCase):
     @patch.object(CortexCLI, "_get_api_key", return_value="sk-test-key")
     @patch.object(CortexCLI, "_animate_spinner", return_value=None)
     @patch.object(CortexCLI, "_clear_line", return_value=None)
+    @patch("cortex.cli.LLMRouter")
     @patch("cortex.cli.CommandInterpreter")
     @patch("cortex.cli.InstallationCoordinator")
     def test_install_with_execute_failure(
         self,
         mock_coordinator_class,
         mock_interpreter_class,
+        _mock_llm_router,
         _mock_clear_line,
         _mock_spinner,
         _mock_get_api_key,
@@ -212,10 +220,12 @@ class TestCortexCLIExtended(unittest.TestCase):
     @patch.object(CortexCLI, "_get_api_key", return_value="sk-test-key")
     @patch.object(CortexCLI, "_animate_spinner", return_value=None)
     @patch.object(CortexCLI, "_clear_line", return_value=None)
+    @patch("cortex.cli.LLMRouter")
     @patch("cortex.cli.CommandInterpreter")
     def test_install_no_commands_generated(
         self,
         mock_interpreter_class,
+        _mock_llm_router,
         _mock_clear_line,
         _mock_spinner,
         _mock_get_api_key,
@@ -233,10 +243,12 @@ class TestCortexCLIExtended(unittest.TestCase):
     @patch.object(CortexCLI, "_get_api_key", return_value="sk-test-key")
     @patch.object(CortexCLI, "_animate_spinner", return_value=None)
     @patch.object(CortexCLI, "_clear_line", return_value=None)
+    @patch("cortex.cli.LLMRouter")
     @patch("cortex.cli.CommandInterpreter")
     def test_install_value_error(
         self,
         mock_interpreter_class,
+        _mock_llm_router,
         _mock_clear_line,
         _mock_spinner,
         _mock_get_api_key,
@@ -254,10 +266,12 @@ class TestCortexCLIExtended(unittest.TestCase):
     @patch.object(CortexCLI, "_get_api_key", return_value="sk-test-key")
     @patch.object(CortexCLI, "_animate_spinner", return_value=None)
     @patch.object(CortexCLI, "_clear_line", return_value=None)
+    @patch("cortex.cli.LLMRouter")
     @patch("cortex.cli.CommandInterpreter")
     def test_install_runtime_error(
         self,
         mock_interpreter_class,
+        _mock_llm_router,
         _mock_clear_line,
         _mock_spinner,
         _mock_get_api_key,
@@ -275,10 +289,12 @@ class TestCortexCLIExtended(unittest.TestCase):
     @patch.object(CortexCLI, "_get_api_key", return_value="sk-test-key")
     @patch.object(CortexCLI, "_animate_spinner", return_value=None)
     @patch.object(CortexCLI, "_clear_line", return_value=None)
+    @patch("cortex.cli.LLMRouter")
     @patch("cortex.cli.CommandInterpreter")
     def test_install_unexpected_error(
         self,
         mock_interpreter_class,
+        _mock_llm_router,
         _mock_clear_line,
         _mock_spinner,
         _mock_get_api_key,
