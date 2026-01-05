@@ -29,8 +29,25 @@ from pathlib import Path
 
 VERSION = "1.0.0"
 AUTHOR = "Security Team"
-import json
-from pathlib import Path
+
+# ANSI color codes for terminal output
+class Colors:
+    RED = '\033[91m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[94m'
+    CYAN = '\033[96m'
+    MAGENTA = '\033[95m'
+    WHITE = '\033[97m'
+    BOLD = '\033[1m'
+    END = '\033[0m'
+
+# System paths to exclude from scanning
+EXCLUDE_PATHS = [
+    '/proc', '/sys', '/dev', '/run',
+    '/tmp/.X11-unix',  # NOSONAR: X11 Unix sockets (temporary, safe to exclude)
+    '/tmp/.ICE-unix'   # NOSONAR: ICE Unix sockets (temporary, safe to exclude)
+]
 
 def load_config(config_path=None):
     """Load configuration from JSON file."""
@@ -60,24 +77,6 @@ def load_config(config_path=None):
             print(f"{Colors.YELLOW}[!] Config error: {e}, using defaults{Colors.END}")
     
     return default_config
-    
-# ANSI color codes for terminal output
-class Colors:
-    RED = '\033[91m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    CYAN = '\033[96m'
-    MAGENTA = '\033[95m'
-    WHITE = '\033[97m'
-    BOLD = '\033[1m'
-    END = '\033[0m'
-
-# System paths to exclude from scanning
-EXCLUDE_PATHS = [
-    '/proc', '/sys', '/dev', '/run',
-    '/tmp/.X11-unix', '/tmp/.ICE-unix'
-]
 
 # Special files with recommended permissions
 SPECIAL_FILES = {
@@ -454,7 +453,7 @@ def check_file_permissions(filepath: str):
             }
         
         # Check 3: World-readable sensitive files
-        if permissions & 0o004:  # others can read
+        if permissions & 0ostat_info.st_modestat_info.st_modestat_info.st_mode004:  # others can read
             # Check if this is a sensitive system file
             sensitive_files = ['/etc/shadow', '/etc/gshadow', '/etc/sudoers']
             if filepath in sensitive_files:
@@ -1210,7 +1209,6 @@ def main():
         if indices:
             print(f"\n{Colors.BLUE}[*] Preview of {len(indices)} fixes (dry run):{Colors.END}")
             # Fix: add missing function import or implementation
-            from auditor import apply_selected_fixes
             results = apply_selected_fixes(all_findings, indices, dry_run=True)
             
             for result in results:

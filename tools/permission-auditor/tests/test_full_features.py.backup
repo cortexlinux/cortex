@@ -1,4 +1,4 @@
-0~#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Comprehensive test of all Permission Auditor features.
 Tests all requirements from the bounty specification.
@@ -37,19 +37,16 @@ def test_requirement_1_777_detection():
     """Test 1: Scan for 777 permissions."""
     print_header("TEST 1: 777 PERMISSION DETECTION")
     
-    # Create test file with 777 - NOSONAR: This is intentional for security testing
+    # Create test file with 777
     with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
         f.write("Test file with dangerous 777 permissions")
         temp_path = f.name
     
     try:
-        # SECURITY TEST: Creating intentionally dangerous permissions to test scanner
-        # This file is in temp directory and will be deleted immediately after test
-        os.chmod(temp_path, 0o777)  # NOSONAR - intentional security test
+        os.chmod(temp_path, 0o777)
         
-        print(f"Created SECURITY TEST file: {temp_path}")
-        print(f"Set permissions to: 777 (octal: {oct(os.stat(temp_path).st_mode)[-3:]}) - FOR TESTING ONLY")
-        print("⚠️  NOTE: This is an intentional security test file. It will be deleted.")
+        print(f"Created test file: {temp_path}")
+        print(f"Set permissions to: 777 (octal: {oct(os.stat(temp_path).st_mode)[-3:]})")
         
         # Test detection
         result = check_file_permissions(temp_path)
@@ -67,25 +64,21 @@ def test_requirement_1_777_detection():
     finally:
         if os.path.exists(temp_path):
             os.unlink(temp_path)
-            print(f"🧹 Test file cleaned up: {temp_path}")
 
 def test_requirement_1_world_writable_detection():
     """Test 1: Scan for world-writable permissions."""
     print_header("TEST 1: WORLD-WRITABLE PERMISSION DETECTION")
     
-    # Create test file with 666 (world-writable) - NOSONAR: Security test
+    # Create test file with 666 (world-writable)
     with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
         f.write("Test file with world-writable permissions")
         temp_path = f.name
     
     try:
-        # SECURITY TEST: Creating world-writable file for scanner testing
-        # File is isolated in temp directory for safety
-        os.chmod(temp_path, 0o666)  # NOSONAR - intentional world-writable test
+        os.chmod(temp_path, 0o666)
         
-        print(f"Created SECURITY TEST file: {temp_path}")
-        print(f"Set permissions to: 666 (world-writable) - FOR TESTING ONLY")
-        print("⚠️  NOTE: This is an intentional security test file. It will be deleted.")
+        print(f"Created test file: {temp_path}")
+        print(f"Set permissions to: 666 (world-writable)")
         
         # Test detection
         result = check_file_permissions(temp_path)
@@ -102,7 +95,6 @@ def test_requirement_1_world_writable_detection():
     finally:
         if os.path.exists(temp_path):
             os.unlink(temp_path)
-            print(f"🧹 Test file cleaned up: {temp_path}")
 
 def test_requirement_2_plain_english_explanations():
     """Test 2: Explain issues in plain English."""
@@ -284,13 +276,11 @@ def test_requirement_4_single_command_fixes():
         temp_path = f.name
     
     try:
-        # SECURITY TEST: Set intentionally dangerous permissions for testing
-        # NOSONAR: This is a test file in temp directory
-        os.chmod(temp_path, 0o777)  # NOSONAR - intentional test for security scanner
+        # Set dangerous permissions
+        os.chmod(temp_path, 0o777)
         original_perms = oct(os.stat(temp_path).st_mode & 0o777)[-3:]
-        print(f"Created SECURITY TEST file: {temp_path}")
-        print(f"Original permissions: {original_perms} - INTENTIONALLY DANGEROUS FOR TESTING")
-        print("⚠️  This file is in temp directory and will be deleted after test.")
+        print(f"Created test file: {temp_path}")
+        print(f"Original permissions: {original_perms}")
         
         # Get username safely
         def get_safe_username():
@@ -406,7 +396,6 @@ def test_requirement_4_single_command_fixes():
             except:
                 pass
             os.unlink(temp_path)
-            print(f"🧹 Test cleanup complete: {temp_path}")
 
 def test_requirement_5_docker_support():
     """Test 5: Handles Docker/container UID mapping."""
@@ -629,11 +618,6 @@ def main():
     print("║      Testing all bounty requirements                     ║")
     print("╚══════════════════════════════════════════════════════════╝")
     print(f"{Colors.END}")
-    
-    print(f"\n{Colors.YELLOW}⚠️  SECURITY TEST NOTE: This suite creates intentionally dangerous")
-    print("   file permissions (777, 666) in isolated temp directories")
-    print("   to test the security scanner. All test files are deleted")
-    print("   immediately after each test.{Colors.END}")
     
     test_results = []
     

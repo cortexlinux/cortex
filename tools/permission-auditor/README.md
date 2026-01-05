@@ -42,8 +42,8 @@ For each issue, you'll get:
 
 ```bash
 # Clone and run immediately
-git clone https://github.com/altynai9128/permission-auditor2.git
-cd permission-auditor2
+git clone https://github.com/cortexlinux/cortex.git
+cd cortex/tools/permission-auditor
 
 # Run directly from source
 python3 src/auditor.py 

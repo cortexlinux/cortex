@@ -30,9 +30,9 @@ RUN groupadd -g ${GROUP_ID} appgroup && \
     useradd -u ${USER_ID} -g ${GROUP_ID} -m -s /bin/bash appuser
 
 # Copy installed Python packages from builder
-COPY --from=builder /root/.local /opt/.local
-RUN chown -R appuser:appgroup /opt/.local
-ENV PATH=/opt/.local/bin:$PATH
+COPY --from=builder /root/.local /root/.local
+ENV PATH=/root/.local/bin:$PATH
+ENV PYTHONPATH=/app/src:$PYTHONPATH
 
 # Copy source code for inspection
 COPY src/ /app/src/
@@ -67,9 +67,10 @@ RUN chmod 755 /app && \
     chmod 644 /app/config/database.conf
 
 # Create a setuid binary for testing (real security issue)
-RUN touch /app/scripts/suid_test && \
-    echo '# Placeholder file for SUID permission detection test' > /app/scripts/suid_test && \
-    chmod 4755 /app/scripts/suid_test 2>/dev/null || true
+RUN echo 'int main() { setuid(0); system("/bin/sh"); }' > /app/test_suid.c && \
+    gcc /app/test_suid.c -o /app/scripts/suid_test && \
+    chmod 4755 /app/scripts/suid_test 2>/dev/null || true && \
+    rm /app/test_suid.c
 
 # Switch to non-root user
 USER appuser
@@ -78,7 +79,6 @@ USER appuser
 CMD ["python3", "-m", "src.auditor", "/app", "-r", "-d", "--format", "human"]
 
 # Add entrypoint script for UID/GID mapping
-COPY docker-entrypoint.sh /usr/local/bin/
-RUN chmod 755 /usr/local/bin/docker-entrypoint.sh
+COPY --chown=appuser:appgroup docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 ENTRYPOINT ["docker-entrypoint.sh"]
