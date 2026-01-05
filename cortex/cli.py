@@ -92,15 +92,6 @@ class CortexCLI:
             cx_print(f"❌ Permission check failed: {e}", "error")
             return 1
 
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-            # Specifically catch failures from the 'sudo chown' command
-            cx_print(f"❌ Docker repair command failed: {e}", "error")
-            if self.verbose:
-                import traceback
-
-                traceback.print_exc()
-            return 1
-
         except RuntimeError as e:
             # Catch logic errors without masking them as generic system failures
             cx_print(f"❌ Logic error during repair: {e}", "error")
@@ -1633,6 +1624,7 @@ def show_rich_help():
     table.add_row("env", "Manage environment variables")
     table.add_row("cache stats", "Show LLM cache statistics")
     table.add_row("stack <name>", "Install the stack")
+    table.add_row("docker permissions", "Fix Docker bind-mount permissions")
     table.add_row("sandbox <cmd>", "Test packages in Docker sandbox")
     table.add_row("doctor", "System health check")
 
