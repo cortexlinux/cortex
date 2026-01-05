@@ -238,9 +238,9 @@ class TestConfigurationManagement(unittest.TestCase):
         # Verify success
         self.assertEqual(result, 0)
 
-        # Verify output contains settings (in YAML format)
+        # Verify output contains settings (using key=value format)
         output = mock_stdout.getvalue()
-        self.assertIn("model:", output)
+        self.assertIn("ai.model", output)
         self.assertIn("gpt-4", output)
 
     @patch("sys.stdout", new_callable=StringIO)
