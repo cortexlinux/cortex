@@ -1,0 +1,28 @@
+--- a/src/memory_manager.c
++++ b/src/memory_manager.c
+@@ -23,7 +23,7 @@ void* allocate_memory(size_t size) {
+     return ptr;
+ }
+ 
+-void deallocate_memory(void* ptr) {
++void deallocate_memory(void** ptr) {
+     if (ptr != NULL) {
+         free(ptr);
+         ptr = NULL;
+@@ -31,6 +31,8 @@ void deallocate_memory(void* ptr) {
+ }
+ 
+ void* reallocate_memory(void* old_ptr, size_t new_size) {
++    if (old_ptr == NULL) return malloc(new_size);
++
+     void* new_ptr = realloc(old_ptr, new_size);
+     if (!new_ptr) {
+         // Handle error: allocation failed
+@@ -41,6 +43,7 @@ void* reallocate_memory(void* old_ptr, size_t new_size) {
+ }
+ 
+ void memory_dump() {
++    // Implement memory dump functionality
+     printf("Memory usage report:\n");
+     // Add code to print current memory statistics
+ }
