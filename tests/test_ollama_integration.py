@@ -44,6 +44,7 @@ def get_available_ollama_model() -> str | None:
                     model_name = parts[0]
                     return model_name
     except Exception:
+        # Best-effort helper: on any error, behave as if no models are available.
         pass
     return None
 
