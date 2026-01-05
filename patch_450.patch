@@ -1,0 +1,32 @@
+--- a/drivers/cortex/Makefile
++++ b/drivers/cortex/Makefile
+@@ -1,5 +1,6 @@
+ 
+-obj-m += cortex.o
++cortex-y := cortex.o
++obj-y += cortex.o
+ 
+ all:
+ 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+
+--- a/drivers/cortex/Kconfig
++++ b/drivers/cortex/Kconfig
+@@ -1,5 +1,6 @@
+ config CORTEX_DRIVER
+-	bool "Cortex Driver"
++	tristate "Cortex Driver"
+ 	default y
+ 	help
+ 		Enable support for Cortex devices.
+
+--- a/drivers/cortex/init.c
++++ b/drivers/cortex/init.c
+@@ -34,7 +34,7 @@ static int __init cortex_init(void)
+ {
+ 	printk(KERN_INFO "Cortex driver initializing\n");
+ 
+-	return 0;
++	return register_cortex_driver();
+ }
+
+ static void __exit cortex_exit(void)
