@@ -1,0 +1,18 @@
+--- a/src/module.c
++++ b/src/module.c
+@@ -23,7 +23,7 @@ void handle_data(char *data) {
+     char *buffer = malloc(strlen(data) + 1);
+     if (!buffer) {
+         // 处理内存分配失败的情况
+-        return;
++        return -ENOMEM;
+     }
+     strcpy(buffer, data);
+ 
+@@ -40,6 +40,8 @@ void handle_data(char *data) {
+     free(buffer);
+ }
+ 
++// 新增错误处理函数
++int handle_error(int error_code) {
+ // 其他代码...
