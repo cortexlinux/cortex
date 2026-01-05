@@ -1,0 +1,11 @@
+--- a/src/components/IssueList.js
++++ b/src/components/IssueList.js
+@@ -15,7 +15,7 @@ const IssueList = ({ issues }) => {
+     );
+   };
+ 
+-  if (!issues.length) return <div className="empty">没有问题。</div>;
++  if (!issues.length) return <div className="empty">没有问题或错误。</div>;
+ 
+   return (
+     <div className="issue-list">
