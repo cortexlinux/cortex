@@ -1,0 +1,20 @@
+diff --git a/src/somefile.c b/src/somefile.c
+index 1234567..89abcde 100644
+--- a/src/somefile.c
++++ b/src/somefile.c
+@@ -10,12 +10,15 @@ void some_function() {
+     int resource = acquire_resource();
+     if (resource == -1) {
+         return;
++    }
++
++    // 使用资源...
++    use_resource(resource);
+     }
+ 
+-    // 使用资源...
+-    use_resource(resource);
+-
+     // 释放资源
+     release_resource(resource);
+ }
