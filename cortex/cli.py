@@ -70,7 +70,7 @@ class CortexCLI:
 
         domain = intent.get("domain", "unknown")
         confidence = intent.get("confidence", 0.0)
-
+        
         # Consider ambiguous if domain unknown or confidence too low
         # Handle cases where confidence might not be numeric (e.g., Mock objects in tests)
         try:
@@ -84,17 +84,15 @@ class CortexCLI:
 
         return False
 
-    def _clarification_prompt(
-        self, user_input: str, interpreter: CommandInterpreter, intent: dict | None = None
-    ) -> str:
+    def _clarification_prompt(self, user_input: str, interpreter: CommandInterpreter, intent: dict | None = None) -> str:
         base_msg = (
             "Your request is ambiguous and cannot be executed safely.\n\n"
             "Please clarify what you want."
         )
-
+        
         # Generate dynamic suggestions using LLM
         suggestions = self._generate_suggestions(interpreter, user_input, intent)
-
+        
         if suggestions:
             base_msg += "\n\nSuggestions:"
             for i, sug in enumerate(suggestions, 1):
@@ -104,29 +102,24 @@ class CortexCLI:
             base_msg += '\n- "machine learning tools for Python"'
             base_msg += '\n- "web server for static sites"'
             base_msg += '\n- "database for small projects"'
-
+        
         base_msg += f'\n\nOriginal request: "{user_input}"'
         return base_msg
 
-    def _generate_suggestions(
-        self, interpreter: CommandInterpreter, user_input: str, intent: dict | None = None
-    ) -> list[str]:
+    def _generate_suggestions(self, interpreter: CommandInterpreter, user_input: str, intent: dict | None = None) -> list[str]:
         """Generate suggestion alternatives for ambiguous requests."""
         domain_hint = ""
         if intent and intent.get("domain") != "unknown":
             domain_hint = f" in the {intent['domain']} domain"
-
+        
         prompt = f"Suggest 3 clearer, more specific installation requests similar to: '{user_input}'{domain_hint}.\n\nFormat your response as:\n1. suggestion one\n2. suggestion two\n3. suggestion three"
-
+        
         try:
             if interpreter.provider.name == "openai":
                 response = interpreter.client.chat.completions.create(
                     model=interpreter.model,
                     messages=[
-                        {
-                            "role": "system",
-                            "content": "You are a helpful assistant that suggests installation requests. Be specific and relevant.",
-                        },
+                        {"role": "system", "content": "You are a helpful assistant that suggests installation requests. Be specific and relevant."},
                         {"role": "user", "content": prompt},
                     ],
                     temperature=0.3,
@@ -144,14 +137,12 @@ class CortexCLI:
                 content = response.content[0].text.strip()
             elif interpreter.provider.name == "ollama":
                 full_prompt = f"System: You are a helpful assistant that suggests installation requests. Be specific and relevant.\n\nUser: {prompt}"
-                data = json.dumps(
-                    {
-                        "model": interpreter.model,
-                        "prompt": full_prompt,
-                        "stream": False,
-                        "options": {"temperature": 0.3},
-                    }
-                ).encode("utf-8")
+                data = json.dumps({
+                    "model": interpreter.model,
+                    "prompt": full_prompt,
+                    "stream": False,
+                    "options": {"temperature": 0.3},
+                }).encode("utf-8")
                 req = urllib.request.Request(
                     f"{interpreter.ollama_url}/api/generate",
                     data=data,
@@ -165,33 +156,33 @@ class CortexCLI:
                 return [
                     f"install {user_input} with more details",
                     f"set up {user_input} environment",
-                    f"configure {user_input} tools",
+                    f"configure {user_input} tools"
                 ]
             else:
                 return []
-
+            
             # Parse numbered list from content
             suggestions = []
-            lines = content.split("\n")
+            lines = content.split('\n')
             for line in lines:
                 line = line.strip()
-                if line and (line[0].isdigit() and line[1:3] in [". ", ") "]):
-                    suggestion = line.split(". ", 1)[-1].split(") ", 1)[-1].strip()
+                if line and (line[0].isdigit() and line[1:3] in ['. ', ') ']):
+                    suggestion = line.split('. ', 1)[-1].split(') ', 1)[-1].strip()
                     if suggestion:
                         suggestions.append(suggestion)
-
+            
             if len(suggestions) >= 3:
                 return suggestions[:3]
-
+            
         except Exception as e:
             # Log error in debug mode
             pass
-
+        
         # Fallback suggestions
         return [
             "machine learning tools for Python",
-            "web server for static sites",
-            "database for small projects",
+            "web server for static sites", 
+            "database for small projects"
         ]
 
     def _debug(self, message: str):
@@ -756,16 +747,12 @@ class CortexCLI:
             intent = interpreter.extract_intent(software)
             if self._is_ambiguous_request(software, intent):
                 domain = intent.get("domain", "unknown") if intent else "unknown"
-
+                
                 if domain != "unknown" and _is_interactive():
                     # Ask for confirmation of detected domain
-                    domain_display = domain.replace("_", " ")
-                    confirm = (
-                        input(f"Did you mean to install {domain_display} tools? [y/n]: ")
-                        .strip()
-                        .lower()
-                    )
-                    if confirm == "y":
+                    domain_display = domain.replace('_', ' ')
+                    confirm = input(f"Did you mean to install {domain_display} tools? [y/n]: ").strip().lower()
+                    if confirm == 'y':
                         # Confirm intent and proceed
                         intent["action"] = "install"
                         intent["confidence"] = 1.0
@@ -773,37 +760,27 @@ class CortexCLI:
                     else:
                         # Fall back to clarification
                         print(self._clarification_prompt(software, interpreter, intent))
-                        clarified = input(
-                            "\nPlease provide a clearer request (or press Enter to cancel): "
-                        ).strip()
+                        clarified = input("\nPlease provide a clearer request (or press Enter to cancel): ").strip()
                         if clarified:
-                            return self.install(
-                                clarified, execute, dry_run, parallel, api_key, provider
-                            )
+                            return self.install(clarified, execute, dry_run, parallel, api_key, provider)
                         return 1
                 else:
                     # Domain unknown or non-interactive, show clarification
                     print(self._clarification_prompt(software, interpreter, intent))
                     if _is_interactive():
-                        clarified = input(
-                            "\nPlease provide a clearer request (or press Enter to cancel): "
-                        ).strip()
+                        clarified = input("\nPlease provide a clearer request (or press Enter to cancel): ").strip()
                         if clarified:
-                            return self.install(
-                                clarified, execute, dry_run, parallel, api_key, provider
-                            )
+                            return self.install(clarified, execute, dry_run, parallel, api_key, provider)
                     return 1
-
+            
             # Display intent reasoning
-            action = intent.get("action", "install")
-            action_display = action if action != "unknown" else "install"
-            description = intent.get("description", software)
-            domain = intent.get("domain", "general")
-            confidence = intent.get("confidence", 0.0)
-            print(
-                f"I understood you want to {action_display} {description} in the {domain} domain (confidence: {confidence:.1%})"
-            )
-
+            action = intent.get('action', 'install')
+            action_display = action if action != 'unknown' else 'install'
+            description = intent.get('description', software)
+            domain = intent.get('domain', 'general')
+            confidence = intent.get('confidence', 0.0)
+            print(f"I understood you want to {action_display} {description} in the {domain} domain (confidence: {confidence:.1%})")
+            
             install_mode = intent.get("install_mode", "system")
 
             self._print_status("📦", "Planning installation...")
