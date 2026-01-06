@@ -1,0 +1,93 @@
+name: DevOps Stack
+description: Complete DevOps toolchain with Docker, Kubernetes, Terraform, Ansible, and CI/CD tools
+version: 1.0.0
+author: Cortex Linux
+packages:
+  - docker.io
+  - docker-compose
+  - kubectl
+  - git
+  - curl
+  - wget
+  - ansible
+  - terraform
+  - jenkins
+  - gitlab-runner
+
+steps:
+  - command: apt update
+    description: Update package lists
+    requires_root: true
+  - command: apt install -y apt-transport-https ca-certificates curl gnupg lsb-release
+    description: Install prerequisites for Docker
+    requires_root: true
+  - command: install -m 0755 -d /etc/apt/keyrings
+    description: Create keyrings directory
+    requires_root: true
+  - command: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    description: Add Docker GPG key
+    requires_root: true
+  - command: chmod a+r /etc/apt/keyrings/docker.gpg
+    description: Set key permissions
+    requires_root: true
+  - command: echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+    description: Add Docker repository
+    requires_root: true
+  - command: apt update
+    description: Update package lists with Docker repo
+    requires_root: true
+  - command: apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    description: Install Docker
+    requires_root: true
+  - command: systemctl start docker
+    description: Start Docker service
+    requires_root: true
+    rollback: systemctl stop docker
+  - command: systemctl enable docker
+    description: Enable Docker on boot
+    requires_root: true
+    rollback: systemctl disable docker
+  - command: curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    description: Download kubectl
+    requires_root: false
+  - command: install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+    description: Install kubectl
+    requires_root: true
+  - command: rm kubectl
+    description: Clean up kubectl download
+    requires_root: false
+  - command: apt install -y ansible terraform git
+    description: Install Ansible, Terraform, and Git
+    requires_root: true
+
+hardware_requirements:
+  min_ram_mb: 4096
+  min_cores: 4
+  min_storage_mb: 20480
+
+post_install:
+  - echo "DevOps stack installed successfully"
+  - echo "Docker version: $(docker --version)"
+  - echo "Kubernetes: $(kubectl version --client --short 2>/dev/null || echo 'installed')"
+  - echo "Terraform: $(terraform --version | head -n1)"
+  - echo "Ansible: $(ansible --version | head -n1)"
+
+verification_commands:
+  - docker --version
+  - docker ps
+  - kubectl version --client
+  - terraform --version
+  - ansible --version
+  - git --version
+  - systemctl is-active docker
+
+metadata:
+  category: devops
+  tags:
+    - docker
+    - kubernetes
+    - terraform
+    - ansible
+    - ci-cd
+    - infrastructure
+

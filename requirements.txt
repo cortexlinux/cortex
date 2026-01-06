@@ -8,6 +8,8 @@ requests>=2.32.4
 # Configuration
 PyYAML>=6.0.0
 
+# YAML parsing for template system
+PyYAML>=6.0
 # Environment variable loading from .env files
 python-dotenv>=1.0.0
 
