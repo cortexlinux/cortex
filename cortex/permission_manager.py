@@ -11,7 +11,8 @@ import subprocess
 
 from cortex.branding import console
 
-# Standard project directories to ignore during scans
+# Standard project directories to ignore during scans.
+# Grouped into a constant to allow easy extension without modifying logic.
 EXCLUDED_DIRS = {
     "venv",
     ".venv",
@@ -19,119 +20,152 @@ EXCLUDED_DIRS = {
     "__pycache__",
     "node_modules",
     ".pytest_cache",
+    "dist",
+    "build",
+    ".tox",
+    ".mypy_cache",
 }
 
 
 class PermissionManager:
-    """Manages and fixes Docker-related file permission issues for bind mounts."""
+    """Manages and fixes Docker-related file permission issues for bind mounts.
+
+    Attributes:
+        base_path (str): The root directory of the project to scan.
+        host_uid (int): The UID of the current host user.
+        host_gid (int): The GID of the current host user.
+    """
 
     def __init__(self, base_path: str):
-        """Initialize the manager with the project base path.
+        """Initialize the manager with the project base path and host identity.
 
         Args:
             base_path: The root directory of the project to scan.
+
+        Raises:
+            NotImplementedError: If the operating system is native Windows (outside WSL),
+                as Unix UID/GID logic is inapplicable.
         """
         self.base_path = base_path
-        # Cache current system IDs to avoid multiple system calls
-        self.host_uid = os.getuid() if platform.system() != "Windows" else 1000
-        self.host_gid = os.getgid() if platform.system() != "Windows" else 1000
+
+        # Validate environment compatibility.
+        # Native Windows handles file ownership via Docker Desktop settings,
+        # making Unix-style permission repairs unnecessary and potentially misleading.
+        if platform.system() == "Windows":
+            if "microsoft" not in platform.uname().release.lower():
+                raise NotImplementedError(
+                    "PermissionManager requires a Linux environment or WSL. "
+                    "Native Windows handles file ownership differently via Docker Desktop settings."
+                )
+
+        # Cache system identities to avoid repeated syscalls during fix operations.
+        self.host_uid = os.getuid()
+        self.host_gid = os.getgid()
 
     def diagnose(self) -> list[str]:
-        """Scans for files not owned by the current host user.
+        """Scans for files where ownership does not match the active host user.
 
         Returns:
-            list[str]: A list of full file paths with ownership mismatches.
+            List[str]: A list of full file paths requiring ownership reclamation.
         """
         mismatched_files = []
         for root, dirs, files in os.walk(self.base_path):
-            # Efficiently skip excluded directories by modifying dirs in-place
+            # Prune excluded directories in-place to optimize the recursive walk.
             dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS]
 
             for name in files:
                 full_path = os.path.join(root, name)
                 try:
-                    # Catch any file not owned by the current user
-                    # This handles both root (0) and other container-specific UIDs
+                    # Capture files owned by root or mismatched container UIDs.
                     if os.stat(full_path).st_uid != self.host_uid:
                         mismatched_files.append(full_path)
                 except (PermissionError, FileNotFoundError):
+                    # Skip files that are inaccessible or moved during the scan.
                     continue
         return mismatched_files
 
     def generate_compose_settings(self) -> str:
-        """Generates the recommended user mapping for docker-compose.yml.
+        """Generates a YAML snippet for correct user mapping in Docker Compose.
 
         Returns:
-            str: A formatted YAML snippet for the user directive.
+            str: A formatted YAML snippet utilizing the host user's UID/GID.
         """
-        # Provides the exact configuration needed to prevent future issues
         return (
             f'    user: "{self.host_uid}:{self.host_gid}"\n'
-            "    # Or for better portability across different machines:\n"
+            "    # Note: Indentation is 4 spaces. Adjust as needed for your file.\n"
             '    # user: "${UID}:${GID}"'
         )
 
     def check_compose_config(self) -> None:
-        """Checks if docker-compose.yml contains correct user mapping."""
-        compose_path = os.path.join(self.base_path, "docker-compose.yml")
-        if os.path.exists(compose_path):
-            try:
-                with open(compose_path, encoding="utf-8") as f:
-                    content = f.read()
+        """Analyzes docker-compose.yml for missing 'user' directives using YAML parsing.
 
-                if "user:" not in content:
-                    console.print(
-                        "\n[bold yellow]💡 Recommended Docker-Compose settings:[/bold yellow]"
-                    )
-                    console.print(self.generate_compose_settings())
-            except Exception:
-                # Silently fail if file is unreadable to avoid blocking the main flow
-                pass
+        This method avoids false positives (like occurrences in comments) by
+        performing a structural analysis of the service definitions.
+        """
+        compose_path = os.path.join(self.base_path, "docker-compose.yml")
+        if not os.path.exists(compose_path):
+            return
+
+        try:
+            import yaml
+
+            with open(compose_path, encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+
+            services = data.get("services", {})
+            # If at least one service has a user mapping, we consider the file valid.
+            has_user_mapping = any("user" in svc for svc in services.values())
+
+            if not has_user_mapping:
+                console.print(
+                    "\n[bold yellow]💡 Recommended Docker-Compose settings:[/bold yellow]"
+                )
+                console.print(self.generate_compose_settings())
+        except (ImportError, Exception):
+            # Silently fallback if PyYAML is missing or the file is malformed.
+            pass
 
     def fix_permissions(self, execute: bool = False) -> bool:
-        """Attempts to change ownership of files back to the host user.
+        """Repairs file ownership via sudo or provides a dry-run summary.
 
         Args:
-            execute: If True, applies changes. If False, performs a dry-run.
+            execute: If True, applies ownership changes. Defaults to False (dry-run).
 
         Returns:
-            bool: True if repairs succeeded or no mismatches found, False otherwise.
+            bool: True if operations succeeded or no mismatches were detected.
         """
-        # 1. Run the diagnosis internally to get the list of files
         mismatches = self.diagnose()
 
         if not mismatches:
             console.print("[bold green]✅ No permission mismatches detected.[/bold green]")
             return True
 
-        # 2. Handle Dry-Run mode (The "Real Implementation" of the flag)
         if not execute:
             console.print(
-                f"\n[bold cyan]📋 [Dry-run][/bold cyan] Found {len(mismatches)} files owned by root/other UIDs."
+                f"\n[bold cyan]📋 [Dry-run][/bold cyan] Found {len(mismatches)} files mismatched."
             )
             for path in mismatches[:5]:
                 console.print(f"  • {path}")
             if len(mismatches) > 5:
                 console.print(f"  ... and {len(mismatches) - 5} more.")
-
             console.print("\n[bold yellow]👉 Run with --execute to apply repairs.[/bold yellow]")
             return True
-
-        # 3. Handle Real Execution (Only runs if execute=True)
-        if platform.system() == "Windows":
-            console.print("[red]Error: Permission repairs are only supported on Linux/WSL.[/red]")
-            return False
 
         console.print(
             f"[bold core_blue]🔧 Applying repairs to {len(mismatches)} paths...[/bold core_blue]"
         )
+
+        # Process in batches to avoid shell ARG_MAX limits on large projects.
+        BATCH_SIZE = 100
         try:
-            subprocess.run(
-                ["sudo", "chown", f"{self.host_uid}:{self.host_gid}"] + mismatches,
-                check=True,
-                capture_output=True,
-                timeout=60,
-            )
+            for i in range(0, len(mismatches), BATCH_SIZE):
+                batch = mismatches[i : i + BATCH_SIZE]
+                subprocess.run(
+                    ["sudo", "chown", f"{self.host_uid}:{self.host_gid}"] + batch,
+                    check=True,
+                    capture_output=True,
+                    timeout=60,
+                )
             console.print("[bold green]✅ Ownership reclaimed successfully![/bold green]")
             return True
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, PermissionError) as e:

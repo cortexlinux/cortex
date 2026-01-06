@@ -41,42 +41,46 @@ class CortexCLI:
 
     # Define a method to handle Docker-specific permission repairs
     def docker_permissions(self, args: argparse.Namespace) -> int:
-        """Handle the diagnosis and repair of Docker file permissions."""
+        """Handle the diagnosis and repair of Docker file permissions.
+
+        Args:
+            args: The parsed command-line arguments containing the execution flags.
+
+        Returns:
+            int: 0 if successful or no issues found, 1 if an error occurred.
+        """
         from cortex.permission_manager import PermissionManager
 
         try:
             manager = PermissionManager(os.getcwd())
             cx_print("🔍 Scanning for Docker-related permission issues...", "info")
 
-            # Check configuration settings before scanning files
+            # Validate Docker Compose configurations for missing user mappings
             manager.check_compose_config()
 
-            # Get flags from argparse
-            # --execute: actually run the fix
-            # --yes: can still be used to skip internal confirmations if you add them later
+            # Retrieve execution context from argparse
             execute_flag = getattr(args, "execute", False)
-            auto_confirm = getattr(args, "yes", False)
 
-            # Pass the execute flag to the manager.
-            # If execute_flag is False, PermissionManager will handle the Dry-run output.
-            # If execute_flag is True, it will attempt the repair.
+            # Delegate logic to PermissionManager. If execute is False, a dry-run
+            # report is generated. If True, sudo repairs are attempted in batches.
             if manager.fix_permissions(execute=execute_flag):
-                # We only show this success message if it wasn't a dry run
                 if execute_flag:
                     cx_print("✨ Permissions fixed successfully!", "success")
                 return 0
-            else:
-                # If fix_permissions returns False, it handled the error printing already
-                return 1
 
-        except (PermissionError, FileNotFoundError, OSError) as e:
-            # Report issues related to system access or missing files
-            cx_print(f"❌ Permission check failed: {e}", "error")
             return 1
 
+        except (PermissionError, FileNotFoundError, OSError) as e:
+            # Handle system-level access issues or missing project files
+            cx_print(f"❌ Permission check failed: {e}", "error")
+            return 1
         except RuntimeError as e:
-            # Catch logic errors without masking them as generic system failures
+            # Catch logic-specific errors without masking them as system failures
             cx_print(f"❌ Logic error during repair: {e}", "error")
+            return 1
+        except Exception as e:
+            # Final safety net for unexpected runtime exceptions
+            cx_print(f"❌ Unexpected error: {e}", "error")
             return 1
 
     def _debug(self, message: str):
@@ -1579,7 +1583,12 @@ class CortexCLI:
 
 
 def show_rich_help():
-    """Display beautifully formatted help using Rich"""
+    """Display a beautifully formatted help table using the Rich library.
+
+    This function outputs the primary command menu, providing descriptions
+    for all core Cortex utilities including installation, environment
+    management, and container tools.
+    """
     from rich.table import Table
 
     show_banner(show_version=True)
@@ -1589,11 +1598,12 @@ def show_rich_help():
     console.print("[dim]Just tell Cortex what you want to install.[/dim]")
     console.print()
 
-    # Commands table
+    # Initialize a table to display commands with specific column styling
     table = Table(show_header=True, header_style="bold cyan", box=None)
     table.add_column("Command", style="green")
     table.add_column("Description")
 
+    # Command Rows
     table.add_row("ask <question>", "Ask about your system")
     table.add_row("demo", "See Cortex in action")
     table.add_row("wizard", "Configure API key")
