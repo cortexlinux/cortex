@@ -30,7 +30,7 @@ Cortex recursively scans your system `PATH` for signature binaries to determine 
 
 - **Web Server:** Detected via `nginx`, `apache2`, or `httpd`.
 - **Database Server:** Detected via `psql`, `mysql`, `mongod`, or `redis-server`.
-- **ML Workstation:** Detected via `nvidia-smi`, `nvcc`, or `python3`.
+- **ML Workstation:** Detected via `nvidia-smi`, `nvcc`, or `jupyter`, `conda`.
 
 ### 2. Role-Based Recommendations
 

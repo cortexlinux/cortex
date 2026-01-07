@@ -21,7 +21,10 @@ def test_role_detection(temp_cortex_dir):
     manager = RoleManager(env_path=env_path)
 
     # Mock shutil.which to simulate 'nginx' being installed
-    with patch("shutil.which", side_effect=lambda x: "/usr/bin/nginx" if x == "nginx" else None):
+    with patch(
+        "cortex.role_manager.shutil.which",
+        side_effect=lambda x: "/usr/bin/nginx" if x == "nginx" else None,
+    ):
         detected = manager.detect_active_roles()
         assert "Web Server" in detected
         assert "ML Workstation" not in detected
@@ -140,3 +143,7 @@ def test_learn_package_json_error(temp_cortex_dir):
     # The method should catch the error and overwrite/initialize a valid structure
     manager.learn_package("ml-workstation", "numpy")
     assert learned_file.exists()
+
+    # Verify the file now contains valid JSON with the learned package
+    data = json.loads(learned_file.read_text())
+    assert "numpy" in data.get("ml-workstation", [])

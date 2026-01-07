@@ -3,13 +3,14 @@ Role management and system personality detection for Cortex.
 Handles identification of system purpose and suggests relevant software stacks.
 """
 
+import copy
 import fcntl
 import logging
 import os
 import re
 import shutil
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ class RoleManager:
         },
         "ML Workstation": {
             "slug": ROLE_ML_WORKSTATION,
-            "binaries": ["nvidia-smi", "nvcc", "python3"],
+            "binaries": ["nvidia-smi", "nvcc", "conda", "jupyter"],
             "recommendations": [
                 "CUDA Toolkit",
                 "PyTorch",
@@ -66,7 +67,7 @@ class RoleManager:
         self.custom_roles_file = self.env_file.parent / "custom_roles.json"
 
         # We use a copy of ROLE_DEFINITIONS to avoid mutating the class constant
-        self.roles = self.ROLE_DEFINITIONS.copy()
+        self.roles = copy.deepcopy(self.ROLE_DEFINITIONS)
         self._load_custom_roles()
 
     def _load_custom_roles(self) -> None:
@@ -174,65 +175,76 @@ class RoleManager:
         return [config["slug"] for config in self.roles.values()]
 
     def learn_package(self, role_slug: str, package_name: str) -> None:
-        """Records a successfully installed package as a recommendation for a role.
-
-        This allows Cortex to build a local intelligence of which packages
-        are commonly used within specific system personalities.
-
-        Args:
-            role_slug: The identifier of the role (e.g., 'ml-workstation').
-            package_name: The name of the package to associate with the role.
         """
-        # We store learned patterns in a separate JSON to preserve .env cleanliness
+        Records a successfully installed package as a recommendation for a role.
+
+        This builds local intelligence of which packages are commonly used
+        within specific system personalities.
+        """
+        # Define the separate storage file to maintain .env cleanliness
         learned_file = self.env_file.parent / "learned_roles.json"
 
         def modifier(existing_json: str, key: str, value: str) -> str:
             import json
 
             try:
+                # Safely handle empty files or malformed JSON
                 data = json.loads(existing_json) if existing_json else {}
             except json.JSONDecodeError:
                 data = {}
 
             if key not in data:
                 data[key] = []
+
+            # Only add the package if it's not already recorded
             if value not in data[key]:
                 data[key].append(value)
+
             return json.dumps(data, indent=4)
 
         try:
-            # We reuse the locking logic to ensure learned_roles.json isn't corrupted
-            # We temporarily point self.env_file to the learned_file for the write
-            original_env = self.env_file
-            self.env_file = learned_file
-            try:
-                self._locked_read_modify_write(role_slug, package_name, modifier)
-            finally:
-                self.env_file = original_env
+            # Use target_file to ensure thread-safe writes to learned_roles.json
+            # without mutating the global state of the manager instance.
+            self._locked_read_modify_write(
+                role_slug, package_name, modifier, target_file=learned_file
+            )
         except Exception as e:
             logger.error(f"Failed to learn package {package_name} for role {role_slug}: {e}")
 
-    def _locked_read_modify_write(self, key: str, value: str, modifier_func: Any) -> None:
+    def _locked_read_modify_write(
+        self, key: str, value: str, modifier_func: Any, target_file: Path | None = None
+    ) -> None:
         """
-        Performs a thread-safe and process-safe write to the configuration file.
+        Performs a thread-safe and process-safe write to a configuration file.
+        Defaults to self.env_file unless target_file is provided.
         """
-        self.env_file.parent.mkdir(parents=True, exist_ok=True)
-        lock_file = self.env_file.with_suffix(".lock")
+        # Use target_file if provided, otherwise fall back to the default env_file
+        target = target_file or self.env_file
+
+        # Ensure directory exists
+        target.parent.mkdir(parents=True, exist_ok=True)
+
+        # Define lock and temp files based on the target
+        lock_file = target.with_suffix(".lock")
         lock_file.touch(exist_ok=True)
 
         with open(lock_file, "r+") as lock_fd:
+            # Acquire exclusive lock
             fcntl.flock(lock_fd, fcntl.LOCK_EX)
             try:
-                # Read current state
-                existing = self.env_file.read_text() if self.env_file.exists() else ""
+                # Read current state from the correct target
+                existing = target.read_text() if target.exists() else ""
 
-                # Modify
+                # Apply the modification logic
                 updated = modifier_func(existing, key, value)
 
-                # Atomic write via temporary file
-                temp_file = self.env_file.with_suffix(".tmp")
+                # Atomic write via temporary file to prevent corruption
+                temp_file = target.with_suffix(".tmp")
                 temp_file.write_text(updated)
                 temp_file.chmod(0o600)
-                temp_file.replace(self.env_file)
+
+                # Atomic swap
+                temp_file.replace(target)
             finally:
+                # Release lock
                 fcntl.flock(lock_fd, fcntl.LOCK_UN)
