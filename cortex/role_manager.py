@@ -9,6 +9,7 @@ import logging
 import os
 import re
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -212,7 +213,11 @@ class RoleManager:
             logger.error(f"Failed to learn package {package_name} for role {role_slug}: {e}")
 
     def _locked_read_modify_write(
-        self, key: str, value: str, modifier_func: Any, target_file: Path | None = None
+        self,
+        key: str,
+        value: str,
+        modifier_func: Callable[[str, str, str], str],
+        target_file: Path | None = None,
     ) -> None:
         """
         Performs a thread-safe and process-safe write to a configuration file.

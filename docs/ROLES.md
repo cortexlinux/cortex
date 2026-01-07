@@ -90,18 +90,16 @@ $ cortex role set ml-workstation
 
 ### Thread-Safe Persistence
 
-The tool utilizes `fcntl` for advisory record locking to ensure your configuration remains consistent across multiple CLI sessions:
+The tool utilizes `fcntl` for advisory record locking to ensure your configuration remains consistent. (See `role_manager.py:_locked_read_modify_write` for full implementation details).
 
 ```python
-import fcntl
-
-# Thread-safe and process-safe atomic write logic
+# Simplified illustration of the locking logic
 with open(lock_file, "r+") as lock_fd:
     fcntl.flock(lock_fd, fcntl.LOCK_EX)
     try:
         # Atomic read-modify-write cycle
         updated_content = modifier(existing_content, key, value)
-        temp_file.replace(self.env_file)
+        temp_file.replace(target)
     finally:
         fcntl.flock(lock_fd, fcntl.LOCK_UN)
 ```
