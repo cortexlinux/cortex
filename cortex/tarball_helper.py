@@ -7,12 +7,12 @@ and suggests package alternatives when available.
 Pain Point #21 Solution: Prevents build failures from missing headers and dependencies.
 """
 
+import logging
+import os
 import re
 import subprocess
 import tarfile
 import tempfile
-import logging
-import os
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
