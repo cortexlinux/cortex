@@ -12,6 +12,8 @@ import sqlite3
 import subprocess
 from typing import Any
 
+from cortex.config_utils import get_ollama_model
+
 
 class SystemInfoGatherer:
     """Gathers local system information for context-aware responses."""
@@ -140,7 +142,6 @@ class AskHandler:
         api_key: str,
         provider: str = "claude",
         model: str | None = None,
-        offline: bool = False,
     ):
         """Initialize the ask handler.
 
@@ -148,11 +149,9 @@ class AskHandler:
             api_key: API key for the LLM provider
             provider: Provider name ("openai", "claude", or "ollama")
             model: Optional model name override
-            offline: If True, only use cached responses
         """
         self.api_key = api_key
         self.provider = provider.lower()
-        self.offline = offline
         self.model = model or self._default_model()
         self.info_gatherer = SystemInfoGatherer()
 
@@ -172,10 +171,17 @@ class AskHandler:
         elif self.provider == "claude":
             return "claude-sonnet-4-20250514"
         elif self.provider == "ollama":
-            return "llama3.2"
+            return self._get_ollama_model()
         elif self.provider == "fake":
             return "fake"
         return "gpt-4"
+
+    def _get_ollama_model(self) -> str:
+        """Determine which Ollama model to use.
+
+        Delegates to the shared ``get_ollama_model()`` utility function.
+        """
+        return get_ollama_model()
 
     def _initialize_client(self):
         if self.provider == "openai":
@@ -312,9 +318,6 @@ Rules:
             )
             if cached is not None and len(cached) > 0:
                 return cached[0]
-
-        if self.offline:
-            raise RuntimeError("Offline mode: no cached response available for this question")
 
         # Call LLM
         try:

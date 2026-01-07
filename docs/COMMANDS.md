@@ -10,15 +10,14 @@ This document provides a comprehensive reference for all commands available in t
 | `cortex install <pkg>` | Install software |
 | `cortex demo` | See Cortex in action |
 | `cortex wizard` | Configure API key |
-| `cortex status` | Show system status |
-| `cortex doctor` | Run system health check |
+| `cortex status` | Show comprehensive system status and health checks |
 | `cortex history` | View installation history |
 | `cortex rollback <id>` | Undo an installation |
 | `cortex stack <name>` | Install a pre-built package stack |
+| `cortex sandbox <cmd>` | Test packages in Docker sandbox |
+| `cortex docker permissions` | Fix Docker bind-mount permissions |
 | `cortex cache stats` | Show LLM cache statistics |
 | `cortex notify` | Manage desktop notifications |
-| `cortex check-pref` | Check user preferences |
-| `cortex edit-pref` | Edit user preferences |
 
 ---
 
@@ -27,7 +26,6 @@ This document provides a comprehensive reference for all commands available in t
 ```bash
 cortex --version, -V    # Show version
 cortex --verbose, -v    # Show detailed output
-cortex --offline        # Use cached responses only (no network calls)
 cortex --help, -h       # Show help message
 ```
 
@@ -102,7 +100,7 @@ cortex wizard
 
 ### `cortex status`
 
-Show current system status including API provider configuration and security features.
+Show comprehensive system status and run health checks to diagnose potential issues.
 
 **Usage:**
 ```bash
@@ -110,27 +108,30 @@ cortex status
 ```
 
 **Output includes:**
-- Configured API provider
-- Firejail availability (sandboxing)
-- Environment configuration status
 
----
+**System Configuration:**
+- Configured API provider (Claude, OpenAI, or Ollama)
+- Security features (Firejail availability)
 
-### `cortex doctor`
+**Python & Dependencies:**
+- Python version compatibility
+- Required package installation status
 
-Run comprehensive system health checks to diagnose potential issues.
+**GPU & Acceleration:**
+- GPU driver detection (NVIDIA/AMD)
+- CUDA/ROCm availability
 
-**Usage:**
-```bash
-cortex doctor
-```
+**AI & Services:**
+- Ollama installation and running status
 
-**Checks performed:**
-- API key validation
-- Network connectivity
-- Package manager availability
-- Security tool status (Firejail)
-- Python environment health
+**System Resources:**
+- Available disk space
+- System memory (RAM)
+
+**Exit codes:**
+- `0`: All checks passed, system is healthy
+- `1`: Warnings found, system can operate but has recommendations
+- `2`: Critical failures found, system may not work properly
 
 ---
 
@@ -262,6 +263,101 @@ cortex cache stats
 
 ---
 
+### `cortex sandbox`
+
+Test packages in isolated Docker containers before installing to the main system. Requires Docker.
+
+**Usage:**
+```bash
+cortex sandbox <action> [options]
+```
+
+**Actions:**
+| Action | Description |
+|--------|-------------|
+| `create <name>` | Create a sandbox environment |
+| `install <name> <pkg>` | Install package in sandbox |
+| `test <name> [pkg]` | Run automated tests in sandbox |
+| `promote <name> <pkg>` | Install tested package on main system |
+| `cleanup <name>` | Remove sandbox environment |
+| `list` | List all sandbox environments |
+| `exec <name> <cmd...>` | Execute command in sandbox |
+
+**Options:**
+| Flag | Description |
+|------|-------------|
+| `--image <img>` | Docker image for create (default: ubuntu:22.04) |
+| `--dry-run` | Preview promote without executing |
+| `-y, --yes` | Skip confirmation for promote |
+| `-f, --force` | Force cleanup even if running |
+
+**Examples:**
+```bash
+# Create a sandbox
+cortex sandbox create test-env
+
+# Install package in sandbox
+cortex sandbox install test-env nginx
+
+# Run tests
+cortex sandbox test test-env
+
+# Promote to main system
+cortex sandbox promote test-env nginx
+
+# Cleanup
+cortex sandbox cleanup test-env
+
+# Use custom base image
+cortex sandbox create debian-test --image debian:12
+```
+
+**Notes:**
+- Docker must be installed and running
+- Promotion runs fresh `apt install` on host (not container export)
+- Some commands (`systemctl`, `service`) are blocked in sandbox
+- See [SANDBOX.md](SANDBOX.md) for full documentation
+
+---
+
+### `cortex docker`
+
+Manage Docker-related utilities and system configurations.
+
+**Usage:**
+```bash
+cortex docker  [options]
+```
+
+**Actions:**
+
+| Action | Description |
+|--------|-------------|
+| `permissions` | Fix ownership issues for files created by containers in bind-mounted directories. |
+
+**Options:**
+
+| Flag | Description |
+|------|-------------|
+| `-y, --yes` | Skip the confirmation prompt for permission repairs. |
+
+**Examples:**
+```bash
+# Scan and fix permission issues interactively
+cortex docker permissions
+
+# Fix permissions without a prompt (non-interactive)
+cortex docker permissions --yes
+```
+
+**Notes:**
+
+- This command identifies files owned by `root` or other container UIDs and returns ownership to the host user.
+- It automatically excludes standard environment directories like `.git`, `node_modules`, and `venv`.
+- The tool also validates `docker-compose.yml` and suggests correct `user:` mapping if missing.
+
+---
+
 ### `cortex notify`
 
 Manage desktop notification settings for installation events.
@@ -293,58 +389,6 @@ cortex notify dnd 22:00 08:00
 
 # Send test notification
 cortex notify send "Test message" --title "Test" --level normal
-```
-
----
-
-### `cortex check-pref`
-
-View user preferences and configuration.
-
-**Usage:**
-```bash
-cortex check-pref [key]
-```
-
-**Examples:**
-```bash
-# Show all preferences
-cortex check-pref
-
-# Show specific preference
-cortex check-pref default_provider
-```
-
----
-
-### `cortex edit-pref`
-
-Modify user preferences.
-
-**Usage:**
-```bash
-cortex edit-pref <action> [key] [value]
-```
-
-**Actions:**
-| Action | Description |
-|--------|-------------|
-| `set` | Set a preference value |
-| `add` | Add/update a preference |
-| `delete` | Remove a preference |
-| `list` | List all preferences |
-| `validate` | Validate current preferences |
-
-**Examples:**
-```bash
-# Set a preference
-cortex edit-pref set default_provider openai
-
-# List all preferences
-cortex edit-pref list
-
-# Validate preferences
-cortex edit-pref validate
 ```
 
 ---
@@ -381,13 +425,10 @@ cortex install nginx --dry-run
 # 1. Run the setup wizard
 cortex wizard
 
-# 2. Check system status
+# 2. Check system status and run health checks
 cortex status
 
-# 3. Run health check
-cortex doctor
-
-# 4. Try a dry-run installation
+# 3. Try a dry-run installation
 cortex install nginx --dry-run
 ```
 

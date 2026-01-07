@@ -5,8 +5,8 @@
 <h1 align="center">Cortex Linux</h1>
 
 <p align="center">
-  <strong>AI-Powered Package Manager for Debian/Ubuntu</strong><br>
-  Install software using natural language. No more memorizing package names.
+  <strong>Cortex is an AI layer for Linux Debian/Ubuntu</strong><br>
+ Instead of memorizing commands, googling errors, and copy-pasting from Stack Overflow — describe what you need.
 </p>
 
 <p align="center">
@@ -40,8 +40,8 @@
 
 ## What is Cortex?
 
-Cortex is an AI-native package manager that understands what you want to install, even when you don't know the exact package name.
-
+<strong>Cortex is an AI layer for Linux Debian/Ubuntu</strong><br>
+Instead of memorizing commands, googling errors, and copy-pasting from Stack Overflow — describe what you need.
 ```bash
 # Instead of googling "what's the package name for PDF editing on Ubuntu?"
 cortex install "something to edit PDFs"
@@ -67,6 +67,7 @@ cortex install "tools for video compression"
 | **Dry-Run Default** | Preview all commands before execution |
 | **Sandboxed Execution** | Commands run in Firejail isolation |
 | **Full Rollback** | Undo any installation with `cortex rollback` |
+| **Docker Permission Fixer** | Fix root-owned bind mount issues automatically |
 | **Audit Trail** | Complete history in `~/.cortex/history.db` |
 | **Hardware-Aware** | Detects GPU, CPU, memory for optimized packages |
 | **Multi-LLM Support** | Works with Claude, GPT-4, or local Ollama models |
@@ -79,7 +80,7 @@ cortex install "tools for video compression"
 
 - **OS:** Ubuntu 22.04+ / Debian 12+
 - **Python:** 3.10 or higher
-- **API Key:** [Anthropic](https://console.anthropic.com) or [OpenAI](https://platform.openai.com)
+- **API Key:** [Anthropic](https://console.anthropic.com) or [OpenAI](https://platform.openai.com) *(optional - use Ollama for free local inference)*
 
 ### Installation
 
@@ -95,12 +96,22 @@ source venv/bin/activate
 # 3. Install Cortex
 pip install -e .
 
-# 4. Configure API key
+# 4. Configure AI Provider (choose one):
+
+## Option A: Ollama (FREE - Local LLM, no API key needed)
+python scripts/setup_ollama.py
+
+## Option B: Claude (Cloud API - Best quality)
 echo 'ANTHROPIC_API_KEY=your-key-here' > .env
+
+## Option C: OpenAI (Cloud API - Alternative)
+echo 'OPENAI_API_KEY=your-key-here' > .env
 
 # 5. Verify installation
 cortex --version
 ```
+
+> **💡 Zero-Config:** If you already have API keys from Claude CLI (`~/.config/anthropic/`) or OpenAI CLI (`~/.config/openai/`), Cortex will auto-detect them! Environment variables work immediately without prompting. See [Zero Config API Keys](docs/ZERO_CONFIG_API_KEYS.md).
 
 ### First Run
 
@@ -128,9 +139,6 @@ cortex history
 
 # Rollback an installation
 cortex rollback <installation-id>
-
-# Check system preferences
-cortex check-pref
 ```
 
 ### Command Reference
@@ -140,9 +148,10 @@ cortex check-pref
 | `cortex install <query>` | Install packages matching natural language query |
 | `cortex install <query> --dry-run` | Preview installation plan (default) |
 | `cortex install <query> --execute` | Execute the installation |
+| `cortex docker permissions` | Fix file ownership for Docker bind mounts |
+| `cortex sandbox <cmd>` | Test packages in Docker sandbox |
 | `cortex history` | View all past installations |
 | `cortex rollback <id>` | Undo a specific installation |
-| `cortex check-pref` | Display current preferences |
 | `cortex --version` | Show version information |
 | `cortex --help` | Display help message |
 
@@ -249,16 +258,27 @@ Found a vulnerability? Please report it responsibly:
 ## Troubleshooting
 
 <details>
-<summary><strong>"ANTHROPIC_API_KEY not set"</strong></summary>
+<summary><strong>"No API key found"</strong></summary>
+
+Cortex auto-detects API keys from multiple locations. If none are found:
 
 ```bash
-# Verify .env file exists
-cat .env
-# Should show: ANTHROPIC_API_KEY=sk-ant-...
+# Option 1: Set environment variables (used immediately, no save needed)
+export ANTHROPIC_API_KEY=sk-ant-your-key
+cortex install nginx --dry-run
 
-# If missing, create it:
-echo 'ANTHROPIC_API_KEY=your-actual-key' > .env
+# Option 2: Save directly to Cortex config
+echo 'ANTHROPIC_API_KEY=sk-ant-your-key' > ~/.cortex/.env
+
+# Option 3: Use Ollama (free, local, no key needed)
+export CORTEX_PROVIDER=ollama
+python scripts/setup_ollama.py
+
+# Option 4: If you have Claude CLI installed, Cortex will find it automatically
+# Just run: cortex install nginx --dry-run
 ```
+
+See [Zero Config API Keys](docs/ZERO_CONFIG_API_KEYS.md) for details.
 </details>
 
 <details>
@@ -318,6 +338,7 @@ pip install -e .
 - [x] Hardware detection (GPU/CPU/Memory)
 - [x] Firejail sandboxing
 - [x] Dry-run preview mode
+- [x] Docker bind-mount permission fixer
 
 ### In Progress
 - [ ] Conflict resolution UI

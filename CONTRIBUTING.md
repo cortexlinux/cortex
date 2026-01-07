@@ -5,6 +5,7 @@ Thank you for your interest in contributing to Cortex Linux! We're building the 
 ## Table of Contents
 
 - [Code of Conduct](#code-of-conduct)
+- [Contributor License Agreement (CLA)](#contributor-license-agreement-cla)
 - [Getting Started](#getting-started)
 - [Development Setup](#development-setup)
 - [How to Contribute](#how-to-contribute)
@@ -23,9 +24,60 @@ We are committed to providing a welcoming and inclusive environment. Please:
 
 - Be respectful and considerate
 - Use welcoming and inclusive language
+- Write in clear, professional English in all communications (issues, PRs, comments, and documentation)
 - Accept constructive criticism gracefully
 - Focus on what's best for the community
 - Show empathy towards other community members
+
+---
+
+## Contributor License Agreement (CLA)
+
+**All contributors must sign our CLA before their first PR can be merged.**
+
+### Why a CLA?
+
+The CLA protects you, the project, and all users by clarifying intellectual property rights:
+- You have the right to contribute the code
+- AI Venture Holdings LLC can distribute Cortex Linux
+- Your rights to your own code are preserved
+
+### How to Sign
+
+1. Read the [CLA document](CLA.md)
+2. [Open a CLA Signature Request](https://github.com/cortexlinux/cortex/issues/new?template=cla-signature.yml)
+3. Fill out the form and submit
+4. A maintainer will add you to the signers list
+5. Comment `recheck` on your PR to re-verify
+
+Once signed, all your future PRs will pass CLA verification automatically.
+
+**[Read the full CLA](CLA.md)**
+
+### Corporate Contributors
+
+If contributing on behalf of your employer:
+1. Have an authorized representative complete the [Corporate CLA](CLA-CORPORATE.md)
+2. Email to legal@aiventureholdings.com
+3. Include GitHub usernames and email domains to be covered
+
+### For Maintainers
+
+To add a new signer, edit [`.github/cla-signers.json`](.github/cla-signers.json):
+
+```json
+{
+  "individuals": [
+    {
+      "name": "Jane Doe",
+      "github_username": "janedoe",
+      "emails": ["jane@example.com"],
+      "signed_date": "2024-12-29",
+      "cla_version": "1.0"
+    }
+  ]
+}
+```
 
 ---
 
@@ -128,7 +180,8 @@ pip install pytest pytest-cov pytest-mock black pylint mypy bandit
    - `bounty` - Has cash reward
    - `priority:high` - Important issues
 3. Comment "I'd like to work on this" to claim an issue
-4. Wait for assignment before starting (prevents duplicate work)
+4. **Wait for assignment before starting work** (prevents duplicate effort)
+5. Once assigned, please raise your PR within approximately one week. If there's no progress or update within this timeframe, we may unassign the issue to give others a chance to contribute. If you need more time, just let us know in the issue comments.
 
 ---
 
@@ -136,12 +189,19 @@ pip install pytest pytest-cov pytest-mock black pylint mypy bandit
 
 ### Before Submitting
 
+- [ ] CLA signed (bot will prompt you on first PR)
 - [ ] Code follows style guide
 - [ ] All tests pass (`pytest tests/ -v`)
 - [ ] New code has tests (aim for >80% coverage)
 - [ ] Documentation is updated if needed
 - [ ] Commit messages are clear
 - [ ] Branch is up to date with `main`
+
+### Demo Evidence
+
+- **Bug fixes**: Before/after screen recording (with repro steps in description)
+- **Features**: Short demo video showing the feature in action
+- Keep videos lightweight (GIF/MP4), no secrets or personal data
 
 ### PR Template
 
@@ -158,6 +218,13 @@ Closes #123
 - [ ] Breaking change
 - [ ] Documentation update
 
+## AI Disclosure
+Please indicate if you used AI tools during development:
+- [ ] No AI used
+- [ ] AI/IDE/Agents used (please describe below)
+
+If AI was used, briefly explain which tools and how they assisted (e.g., "Used GitHub Copilot for autocomplete suggestions" or "Used ChatGPT to help debug a regex pattern").
+
 ## Testing
 How did you test these changes?
 
@@ -167,13 +234,30 @@ How did you test these changes?
 - [ ] Documentation updated
 ```
 
+### Git Workflow
+
+**Please do not force push to your branch.** Always use merge commits to incorporate upstream changes:
+
+```bash
+# Keep your branch up to date with main
+git fetch upstream
+git merge upstream/main
+
+# Do NOT use:
+# git push --force
+# git rebase upstream/main (followed by force push)
+```
+
+Merge commits preserve history and make it easier for reviewers to track changes. Force pushing can cause confusion and may overwrite collaborative work.
+
 ### Review Process
 
-1. **Automated checks** run on PR creation
-2. **Maintainer review** within 48-72 hours
-3. **Address feedback** if changes requested
-4. **Approval** from at least one maintainer
-5. **Merge** by maintainer
+1. **CLA verification** - Bot checks for signature
+2. **Automated checks** run on PR creation
+3. **Maintainer review** within 48-72 hours
+4. **Address feedback** if changes requested
+5. **Approval** from at least one maintainer
+6. **Merge** by maintainer
 
 ---
 
