@@ -383,8 +383,10 @@ def test_scan_directory_permission_error(tmp_path, mocker):
     auditor = PermissionAuditor(verbose=True)
 
     # Mock rglob to raise PermissionError
-    mocker.patch.object(tmp_path, "rglob", side_effect=PermissionError("Mocked permission error"))
-
+    mocker.patch(
+        "cortex.permissions.auditor_fixer.Path.rglob",
+        side_effect=PermissionError("Mocked permission error"),
+    )
     result = auditor.scan_directory(tmp_path)
 
     assert isinstance(result, dict)
@@ -407,8 +409,7 @@ def test_scan_directory_file_access_error(tmp_path, mocker):
     mock_item.stat.side_effect = OSError("Mocked access error")
 
     # Mock rglob to return our mock item
-    mocker.patch.object(tmp_path, "rglob", return_value=[mock_item])
-
+    mocker.patch("cortex.permissions.auditor_fixer.Path.rglob", return_value=[mock_item])
     result = auditor.scan_directory(tmp_path)
 
     assert isinstance(result, dict)
@@ -424,8 +425,7 @@ def test_fix_permissions_os_error(tmp_path, mocker):
     test_file.write_text("test")
 
     # Mock chmod to raise OSError
-    mocker.patch.object(test_file, "chmod", side_effect=OSError("Mocked OSError"))
-
+    mocker.patch("pathlib.Path.chmod", side_effect=OSError("Mocked OSError"))
     result = auditor.fix_permissions(test_file, "644", dry_run=False)
 
     assert "Error changing permissions" in result
