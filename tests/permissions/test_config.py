@@ -3,6 +3,7 @@ Tests for permission configuration module.
 """
 
 import pytest
+
 from cortex.permissions import config
 
 
