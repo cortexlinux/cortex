@@ -85,8 +85,10 @@ class RoleManager:
             custom_data = json.loads(self.custom_roles_file.read_text())
             # Merge custom roles into the active roles dictionary
             self.roles.update(custom_data)
-        except Exception as e:
-            logger.error(f"Failed to load custom roles from {self.custom_roles_file}: {e}")
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in {self.custom_roles_file}: {e}")
+        except (OSError, PermissionError) as e:
+            logger.error(f"Cannot read {self.custom_roles_file}: {e}")
 
     def detect_active_roles(self) -> list[str]:
         """
@@ -120,9 +122,7 @@ class RoleManager:
         # Validate that the slug exists in our definitions to prevent
         # persisting invalid configurations to the .env file.
         if role_slug not in self.get_all_slugs():
-            raise ValueError(
-                f"Invalid role slug: {role_slug}. " f"Valid slugs: {self.get_all_slugs()}"
-            )
+            raise ValueError(f"Invalid role slug: {role_slug}. Valid slugs: {self.get_all_slugs()}")
 
         def modifier(existing_content: str, key: str, value: str) -> str:
             if f"{key}=" in existing_content:
