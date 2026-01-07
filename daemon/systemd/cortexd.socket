@@ -3,8 +3,10 @@ Description=Cortex Daemon Socket
 Documentation=https://github.com/cortexlinux/cortex
 
 [Socket]
-ListenStream=%t/cortex.sock
+ListenStream=/run/cortex/cortex.sock
+SocketMode=0666
 Accept=no
 
 [Install]
 WantedBy=sockets.target
+

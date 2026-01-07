@@ -1,6 +1,6 @@
 #!/bin/bash
 # Build script for cortexd daemon
-# Usage: ./daemon/scripts/build.sh [Release|Debug]
+# Usage: ./scripts/build.sh [Release|Debug]
 
 set -e
 
@@ -11,34 +11,46 @@ BUILD_DIR="${SCRIPT_DIR}/build"
 echo "=== Building cortexd ==="
 echo "Build Type: $BUILD_TYPE"
 echo "Build Directory: $BUILD_DIR"
+echo ""
 
-# Check dependencies
-echo "Checking dependencies..."
-which cmake > /dev/null || {
-    echo "Error: cmake not found. Install with: sudo apt install cmake"
-    exit 1
+# Check for required tools
+check_tool() {
+    if ! command -v "$1" &> /dev/null; then
+        echo "Error: $1 not found. Install with: $2"
+        exit 1
+    fi
 }
+
+echo "Checking build tools..."
+check_tool cmake "sudo apt install cmake"
+check_tool pkg-config "sudo apt install pkg-config"
+check_tool g++ "sudo apt install build-essential"
 
 # Check for required libraries
-pkg-config --exists systemd || {
-    echo "Error: systemd-dev not found. Install with: sudo apt install libsystemd-dev"
-    exit 1
+check_lib() {
+    if ! pkg-config --exists "$1" 2>/dev/null; then
+        echo "Error: $1 not found. Install with: sudo apt install $2"
+        exit 1
+    fi
 }
 
-pkg-config --exists openssl || {
-    echo "Error: OpenSSL not found. Install with: sudo apt install libssl-dev"
-    exit 1
-}
+echo "Checking dependencies..."
+check_lib libsystemd libsystemd-dev
+check_lib openssl libssl-dev
+check_lib sqlite3 libsqlite3-dev
+check_lib uuid uuid-dev
 
-pkg-config --exists sqlite3 || {
-    echo "Error: SQLite3 not found. Install with: sudo apt install libsqlite3-dev"
-    exit 1
-}
+# Check for llama.cpp (optional)
+if [ -f /usr/local/lib/libllama.so ] || [ -f /usr/lib/libllama.so ]; then
+    echo "✓ llama.cpp found"
+    HAVE_LLAMA=1
+else
+    echo "⚠ llama.cpp not found (LLM features will be limited)"
+    echo "  Install from: https://github.com/ggerganov/llama.cpp"
+    HAVE_LLAMA=0
+fi
 
-pkg-config --exists uuid || {
-    echo "Error: uuid not found. Install with: sudo apt install uuid-dev"
-    exit 1
-}
+echo ""
 
 # Create build directory
 mkdir -p "$BUILD_DIR"
@@ -47,15 +59,19 @@ cd "$BUILD_DIR"
 # Run CMake
 echo "Running CMake..."
 cmake -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
-       -DCMAKE_CXX_FLAGS="-std=c++17 -Wall -Wextra -Wpedantic" \
-       "$SCRIPT_DIR"
+      -DBUILD_TESTS=OFF \
+      "$SCRIPT_DIR"
 
 # Build
+echo ""
 echo "Building..."
 make -j"$(nproc)"
 
+# Show result
 echo ""
-echo "✓ Build successful!"
+echo "=== Build Complete ==="
+echo ""
 echo "Binary: $BUILD_DIR/cortexd"
+ls -lh "$BUILD_DIR/cortexd"
 echo ""
-echo "To install: sudo ./daemon/scripts/install.sh"
+echo "To install: sudo ./scripts/install.sh"

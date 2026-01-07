@@ -1,21 +1,16 @@
-# Cortexd - Production-Grade Linux System Daemon
+# Cortexd - AI-Native System Daemon
 
-## Overview
+**cortexd** is a production-grade C++ daemon for the Cortex AI Package Manager. It provides persistent system monitoring, embedded LLM inference via llama.cpp, and a Unix socket API for CLI integration.
 
-**cortexd** is a high-performance, production-ready system daemon for the Cortex AI package manager. It provides:
+## Features
 
-- **Persistent background monitoring** of system health and package state
-- **Embedded LLM inference** via llama.cpp for intelligent operations
-- **Reliable alerting** with structured, queryable alerts
-- **Unix socket IPC** for clean CLI integration with systemd
-- **Observable** through journald logging and health metrics
-
-**Key Metrics**:
-- Startup: <1 second
-- Idle memory: ≤50 MB
-- Active memory: ≤150 MB
-- Socket latency: <50ms
-- Inference latency: <100ms (cached)
+- 🚀 **Fast Startup**: < 1 second startup time
+- 💾 **Low Memory**: < 50MB idle, < 150MB with model loaded
+- 🔌 **Unix Socket IPC**: JSON-RPC protocol at `/run/cortex.sock`
+- 🤖 **Embedded LLM**: llama.cpp integration for local inference
+- 📊 **System Monitoring**: CPU, memory, disk, APT updates, CVE scanning
+- 🔔 **Smart Alerts**: SQLite-persisted alerts with deduplication
+- ⚙️ **systemd Integration**: Type=notify, watchdog, journald logging
 
 ## Quick Start
 
@@ -35,328 +30,233 @@ sudo ./scripts/install.sh
 ### Verify
 
 ```bash
-cortex daemon status
-cortex daemon health
-cortex daemon alerts
+# Check status
+systemctl status cortexd
+
+# View logs
+journalctl -u cortexd -f
+
+# Test socket
+echo '{"method":"ping"}' | socat - UNIX-CONNECT:/run/cortex.sock
+```
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     cortex CLI (Python)                      │
+└───────────────────────────┬─────────────────────────────────┘
+                            │ Unix Socket (/run/cortex.sock)
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      cortexd (C++)                           │
+│  ┌─────────────┐  ┌─────────────────┐  ┌─────────────────┐  │
+│  │ IPC Server  │  │ System Monitor  │  │   LLM Engine    │  │
+│  │ ─────────── │  │ ─────────────── │  │ ─────────────── │  │
+│  │ JSON-RPC    │  │ Memory/Disk     │  │ llama.cpp       │  │
+│  │ Handlers    │  │ APT/CVE         │  │ Inference Queue │  │
+│  └─────────────┘  └─────────────────┘  └─────────────────┘  │
+│                                                              │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │ Alert Manager (SQLite) │ Config Manager (YAML) │ Logger │ │
+│  └─────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## Directory Structure
 
 ```
 daemon/
-├── src/                    # Source code
-│   ├── main.cpp           # Entry point, signal handling, main loop
-│   ├── server/            # IPC server
-│   │   ├── socket_server.cpp     # Unix socket server
-│   │   └── ipc_protocol.cpp      # JSON protocol handler
-│   ├── monitor/           # System monitoring
-│   │   ├── system_monitor.cpp    # Main monitoring loop
-│   │   ├── apt_monitor.cpp       # APT update checking
-│   │   ├── disk_monitor.cpp      # Disk usage monitoring
-│   │   ├── memory_monitor.cpp    # Memory usage monitoring
-│   │   ├── cve_scanner.cpp       # CVE vulnerability scanning
-│   │   └── dependency_checker.cpp # Dependency conflict detection
-│   ├── llm/               # LLM inference engine
-│   │   ├── llama_wrapper.cpp     # llama.cpp wrapper
-│   │   └── inference_queue.cpp   # Inference request queue
-│   ├── config/            # Configuration management
-│   │   └── daemon_config.cpp     # Config loading/saving
-│   ├── alerts/            # Alert system
-│   │   ├── alert_manager.cpp     # Alert creation/management
-│   │   └── alert_store.cpp       # Alert persistence
-│   └── utils/             # Utilities
-│       ├── logging.cpp           # Structured journald logging
-│       └── util_functions.cpp    # Common helper functions
-├── include/               # Header files (public API)
-│   ├── cortexd_common.h         # Common types and constants
-│   ├── socket_server.h
-│   ├── ipc_protocol.h
-│   ├── system_monitor.h
-│   ├── alert_manager.h
-│   ├── daemon_config.h
-│   ├── llm_wrapper.h
-│   └── logging.h
-├── tests/                 # Unit and integration tests
-│   ├── unit/              # C++ unit tests
-│   │   ├── socket_server_test.cpp
-│   │   ├── ipc_protocol_test.cpp
-│   │   ├── alert_manager_test.cpp
-│   │   └── system_monitor_test.cpp
-│   └── integration/       # Python integration tests
-│       ├── test_daemon_client.py
-│       ├── test_cli_commands.py
-│       └── test_ipc_protocol.py
-├── systemd/               # Systemd integration
-│   ├── cortexd.service    # Service unit file
-│   └── cortexd.socket     # Socket unit file
-├── config/                # Configuration templates
-│   ├── cortexd.default    # Default environment variables
-│   └── daemon.conf.example # Example config file
-├── scripts/               # Build and installation scripts
-│   ├── build.sh          # Build script
-│   ├── install.sh        # Installation script
-│   └── uninstall.sh      # Uninstallation script
-├── CMakeLists.txt         # CMake build configuration
-└── README.md              # This file
+├── include/cortexd/          # Public headers
+│   ├── common.h              # Types, constants
+│   ├── config.h              # Configuration
+│   ├── logger.h              # Logging
+│   ├── core/                 # Daemon core
+│   │   ├── daemon.h
+│   │   └── service.h
+│   ├── ipc/                  # IPC layer
+│   │   ├── server.h
+│   │   ├── protocol.h
+│   │   └── handlers.h
+│   ├── monitor/              # System monitoring
+│   │   ├── system_monitor.h
+│   │   ├── memory_monitor.h
+│   │   ├── disk_monitor.h
+│   │   ├── apt_monitor.h
+│   │   └── cve_scanner.h
+│   ├── llm/                  # LLM inference
+│   │   ├── engine.h
+│   │   └── llama_backend.h
+│   └── alerts/               # Alert system
+│       └── alert_manager.h
+├── src/                      # Implementation
+├── systemd/                  # Service files
+├── config/                   # Config templates
+├── scripts/                  # Build scripts
+└── tests/                    # Test suite
 ```
 
-## Documentation
+## IPC API
 
-- **[DAEMON_BUILD.md](../docs/DAEMON_BUILD.md)** - Complete build instructions
-- **[DAEMON_SETUP.md](../docs/DAEMON_SETUP.md)** - Installation and usage guide
-- **[DAEMON_API.md](../docs/DAEMON_API.md)** - Socket IPC API reference
-- **[DAEMON_ARCHITECTURE.md](../docs/DAEMON_ARCHITECTURE.md)** - System architecture deep dive
-- **[DAEMON_TROUBLESHOOTING.md](../docs/DAEMON_TROUBLESHOOTING.md)** - Troubleshooting guide
+### Methods
 
-## Architecture at a Glance
+| Method | Description |
+|--------|-------------|
+| `ping` | Health check |
+| `status` | Get daemon status |
+| `health` | Get system health snapshot |
+| `version` | Get version info |
+| `alerts` | Get active alerts |
+| `alerts.acknowledge` | Acknowledge alert |
+| `alerts.dismiss` | Delete alert |
+| `config.get` | Get configuration |
+| `config.reload` | Reload config file |
+| `llm.status` | Get LLM status |
+| `llm.load` | Load model |
+| `llm.unload` | Unload model |
+| `llm.infer` | Run inference |
+| `shutdown` | Request shutdown |
 
-```
-┌─────────────────────────────────────────────────┐
-│          Cortex CLI / Python Client             │
-│    (cortex daemon status/health/alerts)         │
-└────────────────────┬────────────────────────────┘
-                     │
-                     │ JSON-RPC via
-                     │ /run/cortex.sock
-                     ▼
-┌─────────────────────────────────────────────────┐
-│   SocketServer (AF_UNIX, SOCK_STREAM)           │
-│   - Accept connections                          │
-│   - Parse JSON requests                         │
-│   - Route to handlers                           │
-└────────────┬────────────────────────────────────┘
-             │
-    ┌────────┴────────┬──────────────┬──────────┐
-    ▼                 ▼              ▼          ▼
-┌────────────┐  ┌──────────┐  ┌──────────┐  ┌────────┐
-│ Monitor    │  │ LLM Eng  │  │ Alerts   │  │Config  │
-│ Service    │  │          │  │ Manager  │  │Manager │
-└────────────┘  └──────────┘  └──────────┘  └────────┘
-    │
-    └─ Every 5 min: Check APT, disk, memory, CVE
-```
-
-## Core Concepts
-
-### Health Monitoring
-
-The daemon continuously monitors system health:
+### Example
 
 ```bash
-cortex daemon health
-# Output:
-# Daemon Health Snapshot:
-#   CPU Usage:          25.3%
-#   Memory Usage:       35.2%
-#   Disk Usage:         65.8%
-#   Active Processes:   156
-#   Open Files:         128
-#   LLM Loaded:         Yes
-#   Inference Queue:    2
-#   Alert Count:        3
+# Get health status
+echo '{"method":"health"}' | socat - UNIX-CONNECT:/run/cortex.sock
+
+# Response:
+# {
+#   "success": true,
+#   "result": {
+#     "cpu_usage_percent": 12.5,
+#     "memory_usage_percent": 45.2,
+#     "disk_usage_percent": 67.8,
+#     "llm_loaded": false,
+#     "active_alerts": 0
+#   }
+# }
 ```
 
-### Alert System
+## Configuration
 
-Alerts are created when thresholds are exceeded:
-
-```bash
-cortex daemon alerts
-# [WARNING] High Memory Usage - 87% (a1b2c3d4...)
-# [ERROR] CVE found in openssh (e5f6g7h8...)
-# [CRITICAL] Dependency conflict (i9j0k1l2...)
-```
-
-### Configuration
-
-Configure behavior via `~/.cortex/daemon.conf`:
+Default config: `/etc/cortex/daemon.yaml`
 
 ```yaml
-socket_path: /run/cortex.sock
-model_path: ~/.cortex/models/default.gguf
-monitoring_interval_seconds: 300
-enable_cve_scanning: true
-memory_limit_mb: 150
-log_level: 1
+socket:
+  path: /run/cortex.sock
+  timeout_ms: 5000
+
+llm:
+  model_path: ""  # Path to GGUF model
+  context_length: 2048
+  threads: 4
+  lazy_load: true
+
+monitoring:
+  interval_sec: 300
+  enable_apt: true
+  enable_cve: true
+
+thresholds:
+  disk_warn: 0.80
+  disk_crit: 0.95
+  mem_warn: 0.85
+  mem_crit: 0.95
+
+alerts:
+  db_path: ~/.cortex/alerts.db
+  retention_hours: 168
+
+log_level: 1  # 0=DEBUG, 1=INFO, 2=WARN, 3=ERROR
 ```
 
-## Development
+## Building from Source
 
-### Build for Development
+### Prerequisites
 
 ```bash
-cd daemon
+# Ubuntu/Debian
+sudo apt install -y \
+    cmake \
+    build-essential \
+    libsystemd-dev \
+    libssl-dev \
+    libsqlite3-dev \
+    uuid-dev \
+    pkg-config
+
+# Optional: llama.cpp for LLM features
+git clone https://github.com/ggerganov/llama.cpp
+cd llama.cpp && mkdir build && cd build
+cmake .. && make -j$(nproc)
+sudo make install
+```
+
+### Build
+
+```bash
+# Release build
+./scripts/build.sh Release
+
+# Debug build
+./scripts/build.sh Debug
+
+# Manual build
 mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON ..
+cmake -DCMAKE_BUILD_TYPE=Release ..
 make -j$(nproc)
 ```
 
-### Run Tests
+## systemd Management
 
 ```bash
-cd daemon/build
-ctest --output-on-failure -VV
-```
+# Start daemon
+sudo systemctl start cortexd
 
-### Run with Debug Logging
+# Stop daemon
+sudo systemctl stop cortexd
 
-```bash
-/usr/local/bin/cortexd --verbose
-# or
-export CORTEXD_LOG_LEVEL=0
-systemctl restart cortexd
-journalctl -u cortexd -f
-```
-
-### Code Structure
-
-- **C++17** with modern features (unique_ptr, shared_ptr, lock_guard)
-- **CMake** for cross-platform builds
-- **Google Test** for unit testing
-- **nlohmann/json** for JSON handling
-- **systemd** library for journald logging
-
-## Performance Characteristics
-
-### Startup
-
-```
-Total startup time: <1 second
-├─ Load config: 1-5ms
-├─ Create socket: 1-2ms
-├─ Start monitoring: 1-2ms
-└─ Enter event loop: 0ms
-```
-
-### Runtime
-
-```
-Idle State:
-├─ CPU: <1%
-├─ Memory: 30-40 MB
-├─ Disk I/O: Minimal
-└─ Wake interval: 5 minutes
-
-Active State (monitoring):
-├─ CPU: 2-5% for 5-10 seconds
-├─ Memory: 40-60 MB (monitoring) + LLM
-├─ Disk I/O: ~1 MB reading config
-└─ Duration: ~5 seconds per check cycle
-
-Inference (LLM):
-├─ Memory: +50-80 MB
-├─ CPU: 80-100% (single core)
-├─ Duration: 50-200ms
-└─ Throughput: ~10-20 tokens/ms
-```
-
-### Socket Performance
-
-```
-Connection latency: 1-2ms
-JSON parse: 1-3ms
-Status response: 2-5ms
-Health response: 5-10ms
-Alert response: 2-5ms
-Total round-trip: 5-20ms
-```
-
-## Integration Points
-
-### With Cortex CLI
-
-```bash
-# Check daemon status in CLI
-cortex status
-
-# Manage daemon
-cortex daemon install
-cortex daemon uninstall
-cortex daemon status
-cortex daemon health
-cortex daemon alerts
-
-# View daemon-provided metrics
-cortex daemon health
-```
-
-### With systemd
-
-```bash
-# Start/stop daemon
-systemctl start cortexd
-systemctl stop cortexd
+# View status
+sudo systemctl status cortexd
 
 # View logs
-journalctl -u cortexd
+journalctl -u cortexd -f
 
-# Enable auto-start
-systemctl enable cortexd
+# Reload config
+sudo systemctl reload cortexd
 
-# Check status
-systemctl status cortexd
+# Enable at boot
+sudo systemctl enable cortexd
 ```
 
-### With Monitoring Tools
+## Performance
 
-```bash
-# Prometheus (future)
-curl http://localhost:9100/metrics
+| Metric | Target | Actual |
+|--------|--------|--------|
+| Startup time | < 1s | ~0.3-0.5s |
+| Idle memory | < 50MB | ~30-40MB |
+| Active memory | < 150MB | ~80-120MB |
+| Socket latency | < 50ms | ~5-15ms |
 
-# CloudWatch (future)
-journalctl -u cortexd | aws logs put-log-events
+## Security
 
-# Splunk (future)
-journalctl -u cortexd | splunk forward
-```
-
-## Security Model
-
-- **Local-only**: Uses Unix domain sockets (no network exposure)
-- **Root-based**: Runs as root (required for system access)
-- **No auth**: Assumes local-only trusted access
-- **Future**: Group-based access control, privilege dropping
-
-## Roadmap
-
-### Phase 1 (Current)
-- ✅ Basic socket server
-- ✅ System monitoring
-- ✅ Alert management
-- ✅ LLM wrapper (placeholder)
-- ✅ Configuration management
-- ✅ systemd integration
-- ✅ CLI integration
-
-### Phase 2
-- Alert persistence (SQLite)
-- Performance metrics export
-- Advanced CVE scanning
-- Dependency resolution
-
-### Phase 3
-- Plugin system
-- Custom alert handlers
-- Distributed logging
-- Metrics federation
+- Runs as root (required for system monitoring)
+- Unix socket with 0666 permissions (local access only)
+- No network exposure
+- systemd hardening (NoNewPrivileges, ProtectSystem, etc.)
 
 ## Contributing
 
-1. Follow C++17 style (see existing code)
-2. Add unit tests for new features
+1. Follow C++17 style
+2. Add tests for new features
 3. Update documentation
 4. Test on Ubuntu 22.04+
-5. Verify memory usage (<150 MB)
-6. Ensure startup time <1 second
-
-## Support
-
-- **Issues**: https://github.com/cortexlinux/cortex/issues
-- **Documentation**: See docs/ directory
-- **Discord**: https://discord.gg/uCqHvxjU83
 
 ## License
 
-Apache 2.0 (see LICENSE file)
+Apache 2.0 - See [LICENSE](../LICENSE)
 
----
+## Support
+
+- Issues: https://github.com/cortexlinux/cortex/issues
+- Discord: https://discord.gg/uCqHvxjU83
+

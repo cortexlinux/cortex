@@ -298,6 +298,28 @@ class CortexCLI:
         elif args.daemon_action == "reload-config":
             return mgr.reload_config()
 
+        elif args.daemon_action == "version":
+            return mgr.version()
+
+        elif args.daemon_action == "config":
+            return mgr.config()
+
+        elif args.daemon_action == "llm":
+            llm_action = getattr(args, 'llm_action', None)
+            if llm_action == "status":
+                return mgr.llm_status()
+            elif llm_action == "load":
+                model_path = getattr(args, 'model_path', None)
+                if not model_path:
+                    self._print_error("Model path required")
+                    return 1
+                return mgr.llm_load(model_path)
+            elif llm_action == "unload":
+                return mgr.llm_unload()
+            else:
+                self._print_error("Please specify llm action (status/load/unload)")
+                return 1
+
         else:
             self._print_error("Unknown daemon command")
             return 1
@@ -2166,7 +2188,8 @@ def main():
     daemon_parser = subparsers.add_parser("daemon", help="Manage cortexd daemon service")
     daemon_subs = daemon_parser.add_subparsers(dest="daemon_action", help="Daemon actions")
 
-    daemon_subs.add_parser("status", help="Check daemon status")
+    status_parser = daemon_subs.add_parser("status", help="Check daemon status")
+    status_parser.add_argument("-v", "--verbose", action="store_true", help="Show detailed status")
     daemon_subs.add_parser("health", help="Show daemon health snapshot")
     daemon_subs.add_parser("install", help="Install and start daemon service")
     daemon_subs.add_parser("uninstall", help="Uninstall daemon service")
@@ -2179,6 +2202,16 @@ def main():
                             help="Acknowledge all alerts")
 
     daemon_subs.add_parser("reload-config", help="Reload daemon configuration")
+    daemon_subs.add_parser("version", help="Show daemon version")
+    daemon_subs.add_parser("config", help="Show daemon configuration")
+
+    # LLM subcommands
+    llm_parser = daemon_subs.add_parser("llm", help="Manage LLM engine")
+    llm_subs = llm_parser.add_subparsers(dest="llm_action", help="LLM actions")
+    llm_subs.add_parser("status", help="Show LLM engine status")
+    llm_load_parser = llm_subs.add_parser("load", help="Load an LLM model")
+    llm_load_parser.add_argument("model_path", help="Path to GGUF model file")
+    llm_subs.add_parser("unload", help="Unload the current model")
 
     # Status command (includes comprehensive health checks)
     subparsers.add_parser("status", help="Show comprehensive system status and health checks")

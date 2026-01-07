@@ -10,59 +10,83 @@ echo "=== Installing cortexd ==="
 
 # Check if built
 if [ ! -f "$BUILD_DIR/cortexd" ]; then
-    echo "Error: cortexd binary not found. Run: ./daemon/scripts/build.sh"
+    echo "Error: cortexd binary not found."
+    echo "Run: ./scripts/build.sh"
     exit 1
 fi
 
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
     echo "Error: Installation requires root privileges"
-    echo "Please run: sudo ./daemon/scripts/install.sh"
+    echo "Please run: sudo ./scripts/install.sh"
     exit 1
 fi
 
-echo "Installing binary..."
+# Stop existing service if running
+if systemctl is-active --quiet cortexd 2>/dev/null; then
+    echo "Stopping existing cortexd service..."
+    systemctl stop cortexd
+fi
+
+# Install binary
+echo "Installing binary to /usr/local/bin..."
 install -m 0755 "$BUILD_DIR/cortexd" /usr/local/bin/cortexd
 
-echo "Installing systemd service..."
+# Install systemd files
+echo "Installing systemd service files..."
 install -m 0644 "$SCRIPT_DIR/systemd/cortexd.service" /etc/systemd/system/
-install -m 0644 "$SCRIPT_DIR/systemd/cortexd.socket" /etc/systemd/system/ || true
+install -m 0644 "$SCRIPT_DIR/systemd/cortexd.socket" /etc/systemd/system/
 
-echo "Installing default configuration..."
-mkdir -p /etc/default
-install -m 0644 "$SCRIPT_DIR/config/cortexd.default" /etc/default/cortexd || true
+# Create config directory
+echo "Creating configuration directory..."
+mkdir -p /etc/cortex
+if [ ! -f /etc/cortex/daemon.yaml ]; then
+    install -m 0644 "$SCRIPT_DIR/config/cortexd.yaml.example" /etc/cortex/daemon.yaml
+    echo "  Created default config: /etc/cortex/daemon.yaml"
+fi
 
-echo "Creating log directory..."
-mkdir -p /var/log/cortex
-chmod 0755 /var/log/cortex
+# Create state directories
+echo "Creating state directories..."
+mkdir -p /var/lib/cortex
+chmod 0750 /var/lib/cortex
 
-echo "Creating runtime directory..."
 mkdir -p /run/cortex
 chmod 0755 /run/cortex
 
+# Create user config directory
+mkdir -p /root/.cortex
+chmod 0700 /root/.cortex
+
+# Reload systemd
 echo "Reloading systemd daemon..."
 systemctl daemon-reload
 
+# Enable service
 echo "Enabling cortexd service..."
 systemctl enable cortexd
 
+# Start service
 echo "Starting cortexd service..."
-if ! systemctl start cortexd; then
+if systemctl start cortexd; then
     echo ""
-    echo "✗ Failed to start cortexd service"
+    echo "=== Installation Complete ==="
+    echo ""
+    systemctl status cortexd --no-pager || true
+    echo ""
+    echo "Commands:"
+    echo "  Status:   systemctl status cortexd"
+    echo "  Logs:     journalctl -u cortexd -f"
+    echo "  Stop:     systemctl stop cortexd"
+    echo "  Config:   /etc/cortex/daemon.yaml"
+else
+    echo ""
+    echo "=== Installation Complete (service failed to start) ==="
     echo ""
     echo "Troubleshooting:"
-    echo "1. Check service status: systemctl status cortexd"
-    echo "2. View logs: journalctl -xeu cortexd.service -n 50"
-    echo "3. Verify binary: ls -lh /usr/local/bin/cortexd"
+    echo "  1. Check logs: journalctl -xeu cortexd -n 50"
+    echo "  2. Verify binary: /usr/local/bin/cortexd --version"
+    echo "  3. Check config: cat /etc/cortex/daemon.yaml"
+    echo ""
     exit 1
 fi
 
-echo ""
-echo "✓ Installation complete!"
-echo ""
-echo "Service status:"
-systemctl status cortexd --no-pager || true
-echo ""
-echo "View logs: journalctl -u cortexd -f"
-echo "Stop service: systemctl stop cortexd"

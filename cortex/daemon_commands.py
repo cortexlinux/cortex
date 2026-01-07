@@ -58,10 +58,8 @@ class DaemonManager:
             if verbose:
                 try:
                     status = self.client.get_status()
-                    health = self.client.get_health()
-
                     panel = Panel(
-                        self.client.format_health_snapshot(health),
+                        self.client.format_status(status),
                         title="[bold]Daemon Status[/bold]",
                         border_style="green"
                     )
@@ -111,7 +109,7 @@ class DaemonManager:
 
         console.print("[yellow]Uninstalling cortexd daemon...[/yellow]")
 
-        if not self.confirm("Continue with uninstallation?(y/n)"):
+        if not self.confirm("Continue with uninstallation?"):
             return 1
 
         script_path = Path(__file__).parent.parent / "daemon" / "scripts" / "uninstall.sh"
@@ -163,43 +161,43 @@ class DaemonManager:
             return 1
 
         try:
+            if acknowledge_all:
+                count = self.client.acknowledge_all_alerts()
+                console.print(f"[green]✓ Acknowledged {count} alerts[/green]")
+                return 0
+
             alerts = self.client.get_alerts(severity=severity) if severity else self.client.get_active_alerts()
 
             if not alerts:
-                console.print("[green]✓ No alerts[/green]")
+                console.print("[green]✓ No active alerts[/green]")
                 return 0
 
             # Display alerts in table
-            table = Table(title="Active Alerts")
-            table.add_column("ID", style="dim")
-            table.add_column("Severity")
-            table.add_column("Type")
-            table.add_column("Title")
-            table.add_column("Description")
+            table = Table(title=f"Active Alerts ({len(alerts)})")
+            table.add_column("ID", style="dim", width=10)
+            table.add_column("Severity", width=10)
+            table.add_column("Type", width=15)
+            table.add_column("Title", width=30)
+            table.add_column("Message", width=40)
 
             for alert in alerts:
+                severity_val = alert.get("severity", "info")
                 severity_style = {
                     "info": "blue",
                     "warning": "yellow",
                     "error": "red",
                     "critical": "red bold"
-                }.get(alert.get("severity", "info"), "white")
+                }.get(severity_val, "white")
 
                 table.add_row(
-                    alert.get("id", "")[:8],
-                    f"[{severity_style}]{alert.get('severity', 'unknown')}[/{severity_style}]",
+                    alert.get("id", "")[:8] + "...",
+                    f"[{severity_style}]{severity_val}[/{severity_style}]",
                     alert.get("type", "unknown"),
-                    alert.get("title", ""),
-                    alert.get("description", "")[:50]
+                    alert.get("title", "")[:30],
+                    alert.get("message", "")[:40]
                 )
 
             console.print(table)
-
-            if acknowledge_all:
-                for alert in alerts:
-                    self.client.acknowledge_alert(alert.get("id", ""))
-                console.print("[green]✓ All alerts acknowledged[/green]")
-
             return 0
 
         except DaemonConnectionError as e:
@@ -229,6 +227,166 @@ class DaemonManager:
             console.print(f"[red]✗ Connection error: {e}[/red]")
             console.print("\n[yellow]Hint: Is the daemon running?[/yellow]")
             console.print("  Start it with: [cyan]systemctl start cortexd[/cyan]\n")
+            return 1
+        except DaemonProtocolError as e:
+            console.print(f"[red]✗ Protocol error: {e}[/red]")
+            return 1
+
+    def version(self) -> int:
+        """Show daemon version"""
+        if not self.check_daemon_installed():
+            console.print("[red]✗ Daemon is not installed[/red]")
+            self.show_daemon_setup_help()
+            return 1
+
+        try:
+            version_info = self.client.get_version()
+            console.print(f"[cyan]{version_info.get('name', 'cortexd')}[/cyan] version [green]{version_info.get('version', 'unknown')}[/green]")
+            return 0
+        except DaemonConnectionError as e:
+            console.print(f"[red]✗ Connection error: {e}[/red]")
+            console.print("\n[yellow]Hint: Is the daemon running?[/yellow]")
+            console.print("  Start it with: [cyan]systemctl start cortexd[/cyan]\n")
+            return 1
+        except DaemonProtocolError as e:
+            console.print(f"[red]✗ Protocol error: {e}[/red]")
+            return 1
+
+    def config(self) -> int:
+        """Show current daemon configuration"""
+        if not self.check_daemon_installed():
+            console.print("[red]✗ Daemon is not installed[/red]")
+            self.show_daemon_setup_help()
+            return 1
+
+        try:
+            config = self.client.get_config()
+            
+            # Format config for display
+            lines = [
+                f"  Socket Path:        {config.get('socket_path', 'N/A')}",
+                f"  Model Path:         {config.get('model_path', 'N/A') or 'Not configured'}",
+                f"  LLM Context:        {config.get('llm_context_length', 'N/A')}",
+                f"  LLM Threads:        {config.get('llm_threads', 'N/A')}",
+                f"  Monitor Interval:   {config.get('monitor_interval_sec', 'N/A')}s",
+                f"  Log Level:          {config.get('log_level', 'N/A')}",
+            ]
+            
+            thresholds = config.get("thresholds", {})
+            if thresholds:
+                lines.append("")
+                lines.append("  Thresholds:")
+                lines.append(f"    Disk Warning:     {thresholds.get('disk_warn', 0) * 100:.0f}%")
+                lines.append(f"    Disk Critical:    {thresholds.get('disk_crit', 0) * 100:.0f}%")
+                lines.append(f"    Memory Warning:   {thresholds.get('mem_warn', 0) * 100:.0f}%")
+                lines.append(f"    Memory Critical:  {thresholds.get('mem_crit', 0) * 100:.0f}%")
+
+            panel = Panel(
+                "\n".join(lines),
+                title="[bold]Daemon Configuration[/bold]",
+                border_style="cyan"
+            )
+            console.print(panel)
+            return 0
+        except DaemonConnectionError as e:
+            console.print(f"[red]✗ Connection error: {e}[/red]")
+            console.print("\n[yellow]Hint: Is the daemon running?[/yellow]")
+            console.print("  Start it with: [cyan]systemctl start cortexd[/cyan]\n")
+            return 1
+        except DaemonProtocolError as e:
+            console.print(f"[red]✗ Protocol error: {e}[/red]")
+            return 1
+
+    def llm_status(self) -> int:
+        """Show LLM engine status"""
+        if not self.check_daemon_installed():
+            console.print("[red]✗ Daemon is not installed[/red]")
+            self.show_daemon_setup_help()
+            return 1
+
+        try:
+            status = self.client.get_llm_status()
+            
+            lines = [
+                f"  Loaded:             {'Yes' if status.get('loaded') else 'No'}",
+                f"  Running:            {'Yes' if status.get('running') else 'No'}",
+                f"  Healthy:            {'Yes' if status.get('healthy') else 'No'}",
+                f"  Queue Size:         {status.get('queue_size', 0)}",
+                f"  Memory Usage:       {status.get('memory_bytes', 0) / 1024 / 1024:.1f} MB",
+            ]
+            
+            if status.get("loaded") and status.get("model"):
+                model = status["model"]
+                lines.append("")
+                lines.append("  Model:")
+                lines.append(f"    Name:             {model.get('name', 'unknown')}")
+                lines.append(f"    Path:             {model.get('path', 'unknown')}")
+                lines.append(f"    Context Length:   {model.get('context_length', 0)}")
+                lines.append(f"    Quantized:        {'Yes' if model.get('quantized') else 'No'}")
+
+            panel = Panel(
+                "\n".join(lines),
+                title="[bold]LLM Engine Status[/bold]",
+                border_style="cyan"
+            )
+            console.print(panel)
+            return 0
+        except DaemonConnectionError as e:
+            console.print(f"[red]✗ Connection error: {e}[/red]")
+            console.print("\n[yellow]Hint: Is the daemon running?[/yellow]")
+            console.print("  Start it with: [cyan]systemctl start cortexd[/cyan]\n")
+            return 1
+        except DaemonProtocolError as e:
+            console.print(f"[red]✗ Protocol error: {e}[/red]")
+            return 1
+
+    def llm_load(self, model_path: str) -> int:
+        """Load an LLM model"""
+        if not self.check_daemon_installed():
+            console.print("[red]✗ Daemon is not installed[/red]")
+            self.show_daemon_setup_help()
+            return 1
+
+        console.print(f"[cyan]Loading model: {model_path}[/cyan]")
+
+        try:
+            result = self.client.load_model(model_path)
+            if result.get("loaded"):
+                console.print("[green]✓ Model loaded successfully[/green]")
+                if "model" in result:
+                    model = result["model"]
+                    console.print(f"  Name: {model.get('name', 'unknown')}")
+                    console.print(f"  Context: {model.get('context_length', 0)}")
+                return 0
+            else:
+                console.print("[red]✗ Failed to load model[/red]")
+                return 1
+        except DaemonConnectionError as e:
+            console.print(f"[red]✗ Connection error: {e}[/red]")
+            return 1
+        except DaemonProtocolError as e:
+            console.print(f"[red]✗ Error: {e}[/red]")
+            return 1
+
+    def llm_unload(self) -> int:
+        """Unload the current LLM model"""
+        if not self.check_daemon_installed():
+            console.print("[red]✗ Daemon is not installed[/red]")
+            self.show_daemon_setup_help()
+            return 1
+
+        try:
+            if self.client.unload_model():
+                console.print("[green]✓ Model unloaded[/green]")
+                return 0
+            else:
+                console.print("[red]✗ Failed to unload model[/red]")
+                return 1
+        except DaemonConnectionError as e:
+            console.print(f"[red]✗ Connection error: {e}[/red]")
+            return 1
+        except DaemonProtocolError as e:
+            console.print(f"[red]✗ Error: {e}[/red]")
             return 1
 
     @staticmethod

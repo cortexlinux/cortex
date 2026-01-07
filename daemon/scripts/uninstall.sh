@@ -1,5 +1,5 @@
 #!/bin/bash
-# Uninstallation script for cortexd daemon
+# Uninstall script for cortexd daemon
 
 set -e
 
@@ -8,36 +8,52 @@ echo "=== Uninstalling cortexd ==="
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
     echo "Error: Uninstallation requires root privileges"
-    echo "Please run: sudo ./daemon/scripts/uninstall.sh"
+    echo "Please run: sudo ./scripts/uninstall.sh"
     exit 1
 fi
 
 # Stop service
-echo "Stopping cortexd service..."
-systemctl stop cortexd || true
+if systemctl is-active --quiet cortexd 2>/dev/null; then
+    echo "Stopping cortexd service..."
+    systemctl stop cortexd
+fi
 
 # Disable service
-echo "Disabling cortexd service..."
-systemctl disable cortexd || true
+if systemctl is-enabled --quiet cortexd 2>/dev/null; then
+    echo "Disabling cortexd service..."
+    systemctl disable cortexd
+fi
 
 # Remove systemd files
-echo "Removing systemd configuration..."
+echo "Removing systemd files..."
 rm -f /etc/systemd/system/cortexd.service
 rm -f /etc/systemd/system/cortexd.socket
-systemctl daemon-reload || true
+systemctl daemon-reload
 
 # Remove binary
 echo "Removing binary..."
 rm -f /usr/local/bin/cortexd
 
-# Remove configuration
-echo "Removing configuration..."
-rm -f /etc/default/cortexd
+# Ask about config
+read -p "Remove configuration (/etc/cortex)? [y/N] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    rm -rf /etc/cortex
+    echo "Configuration removed"
+fi
 
-# Clean up runtime files
-echo "Cleaning up runtime files..."
-rm -f /run/cortex.sock
-rm -rf /run/cortex || true
+# Ask about data
+read -p "Remove data (/var/lib/cortex, /root/.cortex)? [y/N] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    rm -rf /var/lib/cortex
+    rm -rf /root/.cortex
+    echo "Data removed"
+fi
+
+# Remove runtime directory
+rm -rf /run/cortex
 
 echo ""
-echo "✓ Uninstallation complete!"
+echo "=== Uninstallation Complete ==="
+

@@ -1,147 +1,141 @@
+/**
+ * @file main.cpp
+ * @brief cortexd daemon entry point
+ */
+
+#include "cortexd/core/daemon.h"
+#include "cortexd/ipc/server.h"
+#include "cortexd/ipc/handlers.h"
+#include "cortexd/monitor/system_monitor.h"
+#include "cortexd/llm/engine.h"
+#include "cortexd/alerts/alert_manager.h"
+#include "cortexd/logger.h"
+#include "cortexd/config.h"
+#include "cortexd/common.h"
 #include <iostream>
-#include <signal.h>
-#include <syslog.h>
-#include <unistd.h>
-#include <memory>
-#include <thread>
-#include <chrono>
-#include <systemd/sd-daemon.h>
-#include "cortexd_common.h"
-#include "socket_server.h"
-#include "system_monitor.h"
-#include "alert_manager.h"
-#include "daemon_config.h"
-#include "logging.h"
-#include "llm_wrapper.h"
+#include <getopt.h>
 
-using namespace cortex::daemon;
+using namespace cortexd;
 
-// Global pointers for signal handlers
-std::unique_ptr<SocketServer> g_socket_server;
-std::unique_ptr<SystemMonitor> g_system_monitor;
-std::unique_ptr<LLMWrapper> g_llm_wrapper;
-static std::atomic<bool> g_shutdown_requested(false);
-
-// Signal handler
-void signal_handler(int sig) {
-    if (sig == SIGTERM || sig == SIGINT) {
-        Logger::info("main", "Received shutdown signal");
-        g_shutdown_requested = true;
-    }
+void print_version() {
+    std::cout << NAME << " " << VERSION << std::endl;
 }
 
-// Setup signal handlers
-void setup_signals() {
-    struct sigaction sa;
-    sa.sa_handler = signal_handler;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-
-    sigaction(SIGTERM, &sa, nullptr);
-    sigaction(SIGINT, &sa, nullptr);
-    sigaction(SIGPIPE, &sa, nullptr); // Ignore broken pipes
+void print_usage(const char* prog) {
+    std::cout << "Usage: " << prog << " [options]\n\n"
+              << "Cortex AI Package Manager Daemon\n\n"
+              << "Options:\n"
+              << "  -c, --config PATH    Configuration file path\n"
+              << "                       (default: " << DEFAULT_CONFIG_PATH << ")\n"
+              << "  -v, --verbose        Enable debug logging\n"
+              << "  -f, --foreground     Run in foreground (don't daemonize)\n"
+              << "  -h, --help           Show this help message\n"
+              << "  --version            Show version information\n"
+              << "\n"
+              << "Examples:\n"
+              << "  " << prog << "                         Start with default config\n"
+              << "  " << prog << " -c /etc/cortex/custom.yaml\n"
+              << "  " << prog << " -v                      Start with debug logging\n"
+              << "\n"
+              << "systemd integration:\n"
+              << "  systemctl start cortexd       Start the daemon\n"
+              << "  systemctl stop cortexd        Stop the daemon\n"
+              << "  systemctl status cortexd      Check status\n"
+              << "  journalctl -u cortexd -f      View logs\n"
+              << std::endl;
 }
 
 int main(int argc, char* argv[]) {
-    (void)argc;  // unused
-    (void)argv;  // unused
-    // Initialize logging
-    Logger::init(true);
-    Logger::info("main", "cortexd starting - version " + std::string(DAEMON_VERSION));
-
-    // Load configuration
-    auto& config_mgr = DaemonConfigManager::instance();
-    if (!config_mgr.load_config()) {
-        Logger::warn("main", "Using default configuration");
+    std::string config_path = DEFAULT_CONFIG_PATH;
+    bool verbose = false;
+    bool foreground = false;
+    
+    // Parse command line options
+    static struct option long_options[] = {
+        {"config",     required_argument, nullptr, 'c'},
+        {"verbose",    no_argument,       nullptr, 'v'},
+        {"foreground", no_argument,       nullptr, 'f'},
+        {"help",       no_argument,       nullptr, 'h'},
+        {"version",    no_argument,       nullptr, 'V'},
+        {nullptr, 0, nullptr, 0}
+    };
+    
+    int opt;
+    while ((opt = getopt_long(argc, argv, "c:vfh", long_options, nullptr)) != -1) {
+        switch (opt) {
+            case 'c':
+                config_path = optarg;
+                break;
+            case 'v':
+                verbose = true;
+                break;
+            case 'f':
+                foreground = true;
+                break;
+            case 'h':
+                print_usage(argv[0]);
+                return 0;
+            case 'V':
+                print_version();
+                return 0;
+            default:
+                print_usage(argv[0]);
+                return 1;
+        }
     }
-
-    const auto& config = config_mgr.get_config();
-    Logger::set_level(static_cast<LogLevel>(config.log_level));
-
-    // Setup signal handlers
-    setup_signals();
-
-    // Create and start socket server
-    g_socket_server = std::make_unique<SocketServer>(config.socket_path);
-    if (!g_socket_server->start()) {
-        Logger::error("main", "Failed to start socket server");
+    
+    // Initialize logging
+    // Use journald unless in foreground mode
+    Logger::init(
+        verbose ? LogLevel::DEBUG : LogLevel::INFO,
+        !foreground  // Use journald when not in foreground
+    );
+    
+    LOG_INFO("main", "cortexd starting - version " + std::string(VERSION));
+    
+    // Get daemon instance
+    auto& daemon = Daemon::instance();
+    
+    // Initialize daemon with config
+    if (!daemon.initialize(config_path)) {
+        LOG_ERROR("main", "Failed to initialize daemon");
         return 1;
     }
-    Logger::info("main", "Socket server started on " + config.socket_path);
-
-    // Create and start system monitor
-    g_system_monitor = std::make_unique<SystemMonitorImpl>();
-    g_system_monitor->start_monitoring();
-    Logger::info("main", "System monitoring started");
-
-    // Initialize LLM wrapper
-    g_llm_wrapper = std::make_unique<LlamaWrapper>();
     
-    // Try to load model if path is configured
-    if (!config.model_path.empty() && config.model_path != "~/.cortex/models/default.gguf") {
-        // Expand ~ to home directory
-        std::string model_path = config.model_path;
-        if (model_path[0] == '~') {
-            const char* home = getenv("HOME");
-            if (home) {
-                model_path = std::string(home) + model_path.substr(1);
-            }
-        }
-        
-        Logger::info("main", "Attempting to load model from: " + model_path);
-        if (g_llm_wrapper->load_model(model_path)) {
-            Logger::info("main", "LLM model loaded successfully");
-            // Notify system monitor that LLM is loaded
-            if (g_system_monitor) {
-                g_system_monitor->set_llm_loaded(true);
-            }
-        } else {
-            Logger::warn("main", "Failed to load LLM model (daemon will continue without LLM support)");
-        }
-    } else {
-        Logger::info("main", "No model path configured, skipping LLM initialization");
-    }
-
-    // Notify systemd that we're ready
-    sd_notify(0, "READY=1\nSTATUS=Running normally");
-
-    // Main event loop
-    std::chrono::seconds check_interval(5);
-    while (!g_shutdown_requested) {
-        std::this_thread::sleep_for(check_interval);
-
-        // Perform periodic health checks
-        try {
-            auto health = g_system_monitor->get_health_snapshot();
-            Logger::debug("main", "Health check: CPU=" + std::to_string(health.cpu_usage) +
-                                 "%, Memory=" + std::to_string(health.memory_usage) + "%");
-        } catch (const std::exception& e) {
-            Logger::error("main", "Health check failed: " + std::string(e.what()));
-        }
-    }
-
-    // Graceful shutdown
-    Logger::info("main", "Shutting down gracefully");
-
-    sd_notify(0, "STOPPING=1\nSTATUS=Shutting down");
-
-    // Stop monitoring
-    if (g_system_monitor) {
-        g_system_monitor->stop_monitoring();
-    }
-
-    // Unload LLM
-    if (g_llm_wrapper) {
-        g_llm_wrapper->unload_model();
-    }
-
-    // Stop socket server
-    if (g_socket_server) {
-        g_socket_server->stop();
-    }
-
-    Logger::info("main", "cortexd shutdown complete");
+    // Get configuration
+    const auto& config = ConfigManager::instance().get();
+    
+    // Create alert manager (shared)
+    auto alert_manager = std::make_shared<AlertManager>(config.alert_db_path);
+    
+    // Create services
+    auto ipc_server = std::make_unique<IPCServer>(
+        config.socket_path,
+        config.max_requests_per_sec
+    );
+    
+    auto system_monitor = std::make_unique<SystemMonitor>(alert_manager);
+    auto llm_engine = std::make_unique<LLMEngine>();
+    
+    // Get raw pointers before moving
+    auto* ipc_ptr = ipc_server.get();
+    auto* monitor_ptr = system_monitor.get();
+    auto* llm_ptr = llm_engine.get();
+    
+    // Register IPC handlers
+    Handlers::register_all(*ipc_ptr, *monitor_ptr, *llm_ptr, alert_manager);
+    
+    // Register services with daemon
+    daemon.register_service(std::move(ipc_server));
+    daemon.register_service(std::move(system_monitor));
+    daemon.register_service(std::move(llm_engine));
+    
+    // Run daemon (blocks until shutdown)
+    int exit_code = daemon.run();
+    
+    LOG_INFO("main", "cortexd shutdown complete");
     Logger::shutdown();
-
-    return 0;
+    
+    return exit_code;
 }
+

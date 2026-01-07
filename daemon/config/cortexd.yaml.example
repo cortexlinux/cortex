@@ -1,0 +1,63 @@
+# Cortexd Daemon Configuration
+# Copy this file to /etc/cortex/daemon.yaml or ~/.cortex/daemon.yaml
+
+# Socket configuration
+socket:
+  path: /run/cortex/cortex.sock
+  backlog: 16
+  timeout_ms: 5000
+
+# LLM configuration
+llm:
+  # Path to GGUF model file (leave empty to disable)
+  model_path: ""
+  # Context length (tokens)
+  context_length: 2048
+  # Number of CPU threads for inference
+  threads: 4
+  # Batch size for prompt processing
+  batch_size: 512
+  # Load model on first request instead of startup
+  lazy_load: true
+  # Use memory mapping for model (recommended)
+  mmap: true
+
+# System monitoring configuration
+monitoring:
+  # Check interval in seconds
+  interval_sec: 300
+  # Enable APT package monitoring
+  enable_apt: true
+  # Enable CVE vulnerability scanning
+  enable_cve: true
+  # Enable dependency conflict checking
+  enable_deps: true
+
+# Alert thresholds (0.0 - 1.0)
+thresholds:
+  # Disk usage warning threshold (80%)
+  disk_warn: 0.80
+  # Disk usage critical threshold (95%)
+  disk_crit: 0.95
+  # Memory usage warning threshold (85%)
+  mem_warn: 0.85
+  # Memory usage critical threshold (95%)
+  mem_crit: 0.95
+
+# Alert configuration
+alerts:
+  # SQLite database path for alert persistence
+  db_path: ~/.cortex/alerts.db
+  # Alert retention period in hours (7 days)
+  retention_hours: 168
+
+# Rate limiting
+rate_limit:
+  # Maximum IPC requests per second
+  max_requests_per_sec: 100
+  # Maximum inference queue size
+  max_inference_queue: 100
+
+# Logging level (0=DEBUG, 1=INFO, 2=WARN, 3=ERROR)
+log_level: 1
+

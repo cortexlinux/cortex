@@ -1,139 +1,205 @@
 cmake_minimum_required(VERSION 3.20)
-project(cortexd VERSION 0.1.0 LANGUAGES CXX)
+project(cortexd VERSION 1.0.0 LANGUAGES CXX)
 
-# Set CMake policy for FetchContent timestamp handling
+# CMake policies
 cmake_policy(SET CMP0135 NEW)
 
-# Set C++ standard to C++17
+# Require C++17
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Build options
+option(BUILD_TESTS "Build test suite" OFF)
+option(BUILD_STATIC "Build static binary" OFF)
+option(ENABLE_SANITIZERS "Enable address/undefined sanitizers" OFF)
 
 # Build type defaults to Release
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# Compiler flags for optimization and warnings
-if(MSVC)
-    add_compile_options(/W4 /WX)
-else()
-    add_compile_options(-Wall -Wextra -Wpedantic)
-    # Suppress linker warnings about static glibc functions in systemd (harmless - daemon works fine)
+# Compiler flags
+add_compile_options(-Wall -Wextra -Wpedantic)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    add_compile_options(-O3 -DNDEBUG)
+endif()
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_options(-g3 -O0)
+endif()
+
+if(ENABLE_SANITIZERS)
+    add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address,undefined)
+endif()
+
+# Suppress harmless linker warnings
+if(NOT APPLE)
     string(APPEND CMAKE_EXE_LINKER_FLAGS " -Wl,--no-warnings")
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        add_compile_options(-O3)
-    endif()
 endif()
 
 # Find required packages
-find_package(systemd QUIET)
 find_package(PkgConfig REQUIRED)
+pkg_check_modules(SYSTEMD REQUIRED libsystemd)
 pkg_check_modules(OPENSSL REQUIRED openssl)
 pkg_check_modules(SQLITE3 REQUIRED sqlite3)
-pkg_check_modules(SYSTEMD libsystemd QUIET)
+pkg_check_modules(UUID REQUIRED uuid)
 
-# Find llama.cpp - check multiple possible locations
-find_package(llama QUIET)
-if(NOT llama_FOUND)
-    # Try pkg-config
-    pkg_check_modules(LLAMA llama QUIET)
+# Find llama.cpp
+find_library(LLAMA_LIB llama PATHS /usr/local/lib /usr/lib)
+find_path(LLAMA_INCLUDE llama.h PATHS /usr/local/include /usr/include)
+
+if(NOT LLAMA_LIB)
+    message(WARNING "llama.cpp not found. LLM features will be limited.")
+    message(STATUS "Install from: https://github.com/ggerganov/llama.cpp")
+    set(LLAMA_LIB "")
 endif()
 
-# If llama.cpp not found, provide helpful message
-if(NOT llama_FOUND AND NOT LLAMA_FOUND)
-    message(STATUS "llama.cpp not found. Install with: apt-get install libllama-dev")
-    message(STATUS "Or clone from: https://github.com/ggerganov/llama.cpp")
-endif()
+# Fetch nlohmann/json
+include(FetchContent)
+FetchContent_Declare(json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG v3.11.3
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(json)
+
+# Fetch yaml-cpp
+FetchContent_Declare(yaml-cpp
+    GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+    GIT_TAG 0.8.0
+    GIT_SHALLOW TRUE
+)
+set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(yaml-cpp)
 
 # Include directories
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
-include_directories(${OPENSSL_INCLUDE_DIRS})
-include_directories(${SQLITE3_INCLUDE_DIRS})
-if(LLAMA_INCLUDE_DIRS)
-    include_directories(${LLAMA_INCLUDE_DIRS})
-endif()
-if(llama_INCLUDE_DIRS)
-    include_directories(${llama_INCLUDE_DIRS})
+include_directories(
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${SYSTEMD_INCLUDE_DIRS}
+    ${OPENSSL_INCLUDE_DIRS}
+    ${SQLITE3_INCLUDE_DIRS}
+    ${UUID_INCLUDE_DIRS}
+)
+
+if(LLAMA_INCLUDE)
+    include_directories(${LLAMA_INCLUDE})
 endif()
 
 # Source files
 set(DAEMON_SOURCES
+    # Core
     src/main.cpp
-    src/server/socket_server.cpp
-    src/server/ipc_protocol.cpp
+    src/core/daemon.cpp
+    
+    # Config
+    src/config/config.cpp
+    
+    # IPC
+    src/ipc/server.cpp
+    src/ipc/protocol.cpp
+    src/ipc/handlers.cpp
+    
+    # Monitoring
     src/monitor/system_monitor.cpp
-    src/monitor/apt_monitor.cpp
-    src/monitor/disk_monitor.cpp
     src/monitor/memory_monitor.cpp
+    src/monitor/disk_monitor.cpp
+    src/monitor/apt_monitor.cpp
     src/monitor/cve_scanner.cpp
-    src/monitor/dependency_checker.cpp
-    src/llm/llama_wrapper.cpp
-    src/llm/inference_queue.cpp
-    src/config/daemon_config.cpp
+    
+    # LLM
+    src/llm/engine.cpp
+    src/llm/llama_backend.cpp
+    
+    # Alerts
     src/alerts/alert_manager.cpp
     src/alerts/alert_store.cpp
-    src/utils/logging.cpp
-    src/utils/util_functions.cpp
+    
+    # Utils
+    src/utils/logger.cpp
 )
 
 # Main daemon executable
 add_executable(cortexd ${DAEMON_SOURCES})
 
+# Compile definitions
+target_compile_definitions(cortexd PRIVATE
+    CORTEXD_VERSION="${PROJECT_VERSION}"
+)
+
 # Link libraries
 target_link_libraries(cortexd
     PRIVATE
+    ${SYSTEMD_LIBRARIES}
     ${OPENSSL_LIBRARIES}
     ${SQLITE3_LIBRARIES}
-    ${SYSTEMD_LIBRARIES}
-    ${LLAMA_LIBRARIES}
-    ${llama_LIBRARIES}
-    cap
-    uuid
-    pthread
+    ${UUID_LIBRARIES}
+    nlohmann_json::nlohmann_json
+    yaml-cpp::yaml-cpp
     pthread
 )
 
-# Link llama.cpp if available (force dynamic linking for llama)
-if(llama_LIBRARY)
-    target_link_libraries(cortexd PRIVATE ${llama_LIBRARY})
-    message(STATUS "Linked llama.cpp library: ${llama_LIBRARY}")
-elseif(LLAMA_LIBRARIES)
-    target_link_libraries(cortexd PRIVATE ${LLAMA_LIBRARIES})
-elseif(llama_LIBRARIES)
-    target_link_libraries(cortexd PRIVATE ${llama_LIBRARIES})
+# Link llama.cpp if available
+if(LLAMA_LIB)
+    target_link_libraries(cortexd PRIVATE ${LLAMA_LIB})
+    target_compile_definitions(cortexd PRIVATE HAVE_LLAMA_CPP=1)
+    message(STATUS "Linked llama.cpp: ${LLAMA_LIB}")
 else()
-    # Try linking directly to libllama.so if it exists
-    if(EXISTS "/usr/local/lib/libllama.so")
-        target_link_libraries(cortexd PRIVATE /usr/local/lib/libllama.so)
-        message(STATUS "Linked llama.cpp library: /usr/local/lib/libllama.so")
-    endif()
+    target_compile_definitions(cortexd PRIVATE HAVE_LLAMA_CPP=0)
 endif()
 
-# Build as position-independent executable for better security
+# Static build option
+if(BUILD_STATIC AND NOT LLAMA_LIB)
+    target_link_options(cortexd PRIVATE -static)
+endif()
+
+# Position independent code
 set_target_properties(cortexd PROPERTIES
     POSITION_INDEPENDENT_CODE ON
 )
-if(NOT APPLE)
-# Note: Removed -static flag to allow dynamic linking with libllama.so
-# target_link_options(cortexd PRIVATE -static)
-endif()
 
 # Installation
 install(TARGETS cortexd
-    RUNTIME DESTINATION /usr/local/bin
+    RUNTIME DESTINATION bin
 )
 
-install(FILES daemon/cortexd.service
-    DESTINATION /etc/systemd/system/
+install(FILES
+    systemd/cortexd.service
+    systemd/cortexd.socket
+    DESTINATION lib/systemd/system
 )
 
-install(FILES daemon/cortexd.default
-    DESTINATION /etc/default/
-    RENAME cortexd
+install(FILES
+    config/cortexd.yaml.example
+    DESTINATION share/cortex
 )
 
-# Print build info
-message(STATUS "Building cortexd version ${PROJECT_VERSION}")
-message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
+# Print build summary
+message(STATUS "")
+message(STATUS "=== cortexd ${PROJECT_VERSION} build configuration ===")
+message(STATUS "Build type:     ${CMAKE_BUILD_TYPE}")
+message(STATUS "C++ Standard:   ${CMAKE_CXX_STANDARD}")
+message(STATUS "Static build:   ${BUILD_STATIC}")
+message(STATUS "Tests:          ${BUILD_TESTS}")
+message(STATUS "Sanitizers:     ${ENABLE_SANITIZERS}")
+message(STATUS "llama.cpp:      ${LLAMA_LIB}")
+message(STATUS "")
+
+# Tests (optional)
+if(BUILD_TESTS)
+    enable_testing()
+    
+    # Fetch Google Test
+    FetchContent_Declare(googletest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG v1.14.0
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(googletest)
+    
+    add_subdirectory(tests)
+endif()
+
