@@ -22,6 +22,9 @@ from cortex.installation_history import InstallationHistory, InstallationStatus,
 from cortex.llm.interpreter import CommandInterpreter
 from cortex.network_config import NetworkConfig
 from cortex.notification_manager import NotificationManager
+from cortex.permissions.auditor_fixer import PermissionAuditor
+
+PermissionManager = PermissionAuditor  # Alias for compatibility
 from cortex.stack_manager import StackManager
 from cortex.validators import validate_api_key, validate_install_request
 
@@ -76,11 +79,13 @@ class CortexCLI:
                 mismatches = manager.diagnose()
                 if mismatches:
                     cx_print(
-                        f"⚠️ Found {len(mismatches)} paths requiring ownership reclamation.",
+                        f"⚠️ Found {
+                            len(mismatches)} paths requiring ownership reclamation.",
                         "warning",
                     )
                     try:
-                        # Interactive confirmation prompt for administrative repair.
+                        # Interactive confirmation prompt for administrative
+                        # repair.
                         response = console.input(
                             "[bold cyan]Reclaim ownership using sudo? (y/n): [/bold cyan]"
                         )
@@ -88,7 +93,8 @@ class CortexCLI:
                             cx_print("Operation cancelled", "info")
                             return 0
                     except (EOFError, KeyboardInterrupt):
-                        # Graceful handling of terminal exit or manual interruption.
+                        # Graceful handling of terminal exit or manual
+                        # interruption.
                         console.print()
                         cx_print("Operation cancelled", "info")
                         return 0
@@ -112,8 +118,51 @@ class CortexCLI:
             cx_print(f"❌ {e}", "error")
             return 1
         except Exception as e:
-            # Safety net for unexpected runtime exceptions to prevent CLI crashes.
+            # Safety net for unexpected runtime exceptions to prevent CLI
+            # crashes.
             cx_print(f"❌ Unexpected error: {e}", "error")
+            return 1
+
+    # --- Permission Auditor Command ---
+    def audit_permissions(self, args: argparse.Namespace) -> int:
+        """Handle permission auditing and fixing.
+
+        Args:
+            args: Parsed command-line arguments containing path, fix, dry_run, docker, and verbose flags.
+
+        Returns:
+            int: 0 if no issues found or fixes successfully applied, 1 otherwise.
+        """
+        try:
+            # Initialize manager
+            manager = PermissionManager(
+                verbose=getattr(args, "verbose", False),
+                dry_run=getattr(args, "dry_run", True),
+                docker_context=getattr(args, "docker", False),
+            )
+
+            path = getattr(args, "path", ".")
+            dry_run_flag = getattr(args, "dry_run", False)
+            fix_flag = getattr(args, "fix", False)
+            apply_fixes = dry_run_flag or fix_flag
+
+            # Scan and fix
+            result = manager.scan_and_fix(path=path, apply_fixes=apply_fixes, dry_run=dry_run_flag)
+
+            # Print report
+            cx_print(result["report"], "info")
+
+            # Return exit code
+            issues_found = result.get("issues_found", 0)
+            fixes_applied = result.get("fixed", False)
+
+            if issues_found == 0 or fixes_applied:
+                return 0
+            else:
+                return 1
+
+        except Exception as e:
+            cx_print(f"Error during permission audit: {e}", "error")
             return 1
 
     def _debug(self, message: str):
@@ -213,7 +262,9 @@ class CortexCLI:
             )
             console.print(f"Status: {status}")
             console.print(
-                f"DND Window: [yellow]{mgr.config['dnd_start']} - {mgr.config['dnd_end']}[/yellow]"
+                f"DND Window: [yellow]{
+                    mgr.config['dnd_start']} - {
+                    mgr.config['dnd_end']}[/yellow]"
             )
             console.print(f"History File: {mgr.history_file}")
             return 0
@@ -221,7 +272,8 @@ class CortexCLI:
         elif args.notify_action == "enable":
             mgr.config["enabled"] = True
             # Addressing CodeRabbit feedback: Ideally should use a public method instead of private _save_config,
-            # but keeping as is for a simple fix (or adding a save method to NotificationManager would be best).
+            # but keeping as is for a simple fix (or adding a save method to
+            # NotificationManager would be best).
             mgr._save_config()
             self._print_success("Notifications enabled")
             return 0
@@ -373,7 +425,10 @@ class CortexCLI:
             self._print_error(f"Failed to install stack '{stack['name']}'")
             return 1
 
-        self._print_success(f"\n✅ Stack '{stack['name']}' installed successfully!")
+        self._print_success(
+            f"\n✅ Stack '{
+                stack['name']}' installed successfully!"
+        )
         console.print(f"Installed {len(packages)} packages")
         return 0
 
@@ -736,7 +791,12 @@ class CortexCLI:
                         success, parallel_tasks = asyncio.run(
                             run_parallel_install(
                                 commands=commands,
-                                descriptions=[f"Step {i + 1}" for i in range(len(commands))],
+                                descriptions=[
+                                    f"Step {
+                                        i +
+                                        1}"
+                                    for i in range(len(commands))
+                                ],
                                 timeout=300,
                                 stop_on_error=True,
                                 log_callback=parallel_log_callback,
@@ -758,7 +818,10 @@ class CortexCLI:
 
                         if success:
                             self._print_success(f"{software} installed successfully!")
-                            print(f"\nCompleted in {total_duration:.2f} seconds (parallel mode)")
+                            print(
+                                f"\nCompleted in {
+                                    total_duration:.2f} seconds (parallel mode)"
+                            )
 
                             if install_id:
                                 history.update_installation(install_id, InstallationStatus.SUCCESS)
@@ -792,14 +855,20 @@ class CortexCLI:
                             history.update_installation(
                                 install_id, InstallationStatus.FAILED, str(e)
                             )
-                        self._print_error(f"Parallel execution failed: {str(e)}")
+                        self._print_error(
+                            f"Parallel execution failed: {
+                                str(e)}"
+                        )
                         return 1
                     except Exception as e:
                         if install_id:
                             history.update_installation(
                                 install_id, InstallationStatus.FAILED, str(e)
                             )
-                        self._print_error(f"Unexpected parallel execution error: {str(e)}")
+                        self._print_error(
+                            f"Unexpected parallel execution error: {
+                                str(e)}"
+                        )
                         if self.verbose:
                             import traceback
 
@@ -808,7 +877,12 @@ class CortexCLI:
 
                 coordinator = InstallationCoordinator(
                     commands=commands,
-                    descriptions=[f"Step {i + 1}" for i in range(len(commands))],
+                    descriptions=[
+                        f"Step {
+                            i +
+                            1}"
+                        for i in range(len(commands))
+                    ],
                     timeout=300,
                     stop_on_error=True,
                     progress_callback=progress_callback,
@@ -818,7 +892,10 @@ class CortexCLI:
 
                 if result.success:
                     self._print_success(f"{software} installed successfully!")
-                    print(f"\nCompleted in {result.total_duration:.2f} seconds")
+                    print(
+                        f"\nCompleted in {
+                            result.total_duration:.2f} seconds"
+                    )
 
                     # Record successful installation
                     if install_id:
@@ -836,11 +913,18 @@ class CortexCLI:
                         )
 
                     if result.failed_step is not None:
-                        self._print_error(f"Installation failed at step {result.failed_step + 1}")
+                        self._print_error(
+                            f"Installation failed at step {
+                                result.failed_step + 1}"
+                        )
                     else:
                         self._print_error("Installation failed")
                     if result.error_message:
-                        print(f"  Error: {result.error_message}", file=sys.stderr)
+                        print(
+                            f"  Error: {
+                                result.error_message}",
+                            file=sys.stderr,
+                        )
                     if install_id:
                         print(f"\n📝 Installation recorded (ID: {install_id})")
                         print(f"   View details: cortex history {install_id}")
@@ -882,7 +966,12 @@ class CortexCLI:
 
             cache = SemanticCache()
             stats = cache.stats()
-            hit_rate = f"{stats.hit_rate * 100:.1f}%" if stats.total else "0.0%"
+            hit_rate = (
+                f"{
+                stats.hit_rate * 100:.1f}%"
+                if stats.total
+                else "0.0%"
+            )
 
             cx_header("Cache Stats")
             cx_print(f"Hits: {stats.hits}", "info")
@@ -945,7 +1034,12 @@ class CortexCLI:
                     return 0
 
                 print(
-                    f"\n{'ID':<18} {'Date':<20} {'Operation':<12} {'Packages':<30} {'Status':<15}"
+                    f"\n{
+                        'ID':<18} {
+                        'Date':<20} {
+                        'Operation':<12} {
+                        'Packages':<30} {
+                        'Status':<15}"
                 )
                 print("=" * 100)
 
@@ -956,7 +1050,12 @@ class CortexCLI:
                         packages += f" +{len(r.packages) - 2}"
 
                     print(
-                        f"{r.id:<18} {date:<20} {r.operation_type.value:<12} {packages:<30} {r.status.value:<15}"
+                        f"{
+                            r.id:<18} {
+                            date:<20} {
+                            r.operation_type.value:<12} {
+                            packages:<30} {
+                            r.status.value:<15}"
                     )
 
                 return 0
@@ -1140,9 +1239,15 @@ class CortexCLI:
                 if show_encrypted:
                     try:
                         value = env_mgr.get_variable(app, var.key, decrypt=True)
-                        console.print(f"  {var.key}: {value} [dim](decrypted)[/dim]")
+                        console.print(
+                            f"  {
+                                var.key}: {value} [dim](decrypted)[/dim]"
+                        )
                     except ValueError:
-                        console.print(f"  {var.key}: [red][decryption failed][/red]")
+                        console.print(
+                            f"  {
+                                var.key}: [red][decryption failed][/red]"
+                        )
                 else:
                     console.print(f"  {var.key}: [yellow][encrypted][/yellow]")
             else:
@@ -1229,7 +1334,8 @@ class CortexCLI:
             else:
                 cx_print("No variables imported", "info")
 
-            # Return success (0) even with partial errors - some vars imported successfully
+            # Return success (0) even with partial errors - some vars imported
+            # successfully
             return 0
 
         except FileNotFoundError:
@@ -1510,7 +1616,11 @@ class CortexCLI:
         ecosystem_name = ecosystem_names.get(result.ecosystem, "Unknown")
         filename = os.path.basename(result.file_path)
 
-        cx_print(f"\n📋 Found {result.prod_count} {ecosystem_name} packages", "info")
+        cx_print(
+            f"\n📋 Found {
+                result.prod_count} {ecosystem_name} packages",
+            "info",
+        )
 
         if result.packages:
             console.print("\n[bold]Packages:[/bold]")
@@ -1605,7 +1715,10 @@ class CortexCLI:
             return 0
         else:
             if result.failed_step is not None:
-                self._print_error(f"\nInstallation failed at step {result.failed_step + 1}")
+                self._print_error(
+                    f"\nInstallation failed at step {
+                        result.failed_step + 1}"
+                )
             else:
                 self._print_error("\nInstallation failed")
             if result.error_message:
@@ -1697,7 +1810,8 @@ def main():
 
         if temp_args.command in NETWORK_COMMANDS:
             # Now detect network (only when needed)
-            network.detect(check_quality=True)  # Include quality check for these commands
+            # Include quality check for these commands
+            network.detect(check_quality=True)
             network.auto_configure()
 
     except Exception as e:
@@ -1885,7 +1999,8 @@ def main():
     env_parser = subparsers.add_parser("env", help="Manage environment variables")
     env_subs = env_parser.add_subparsers(dest="env_action", help="Environment actions")
 
-    # env set <app> <KEY> <VALUE> [--encrypt] [--type TYPE] [--description DESC]
+    # env set <app> <KEY> <VALUE> [--encrypt] [--type TYPE] [--description
+    # DESC]
     env_set_parser = env_subs.add_parser("set", help="Set an environment variable")
     env_set_parser.add_argument("app", help="Application name")
     env_set_parser.add_argument("key", help="Variable name")
@@ -1971,6 +2086,26 @@ def main():
     env_template_apply_parser.add_argument(
         "--encrypt-keys", help="Comma-separated list of keys to encrypt"
     )
+
+    # --- Audit Permissions Command ---
+    audit_parser = subparsers.add_parser(
+        "audit-permissions", help="Audit and fix dangerous file permissions"
+    )
+    audit_parser.add_argument(
+        "path", nargs="?", default=".", help="Path to scan (default: current directory)"
+    )
+
+    fix_group = audit_parser.add_mutually_exclusive_group()
+    fix_group.add_argument("--fix", action="store_true", help="Apply safe fixes")
+    fix_group.add_argument(
+        "--dry-run", action="store_true", help="Show what would be fixed without changes"
+    )
+
+    audit_parser.add_argument(
+        "--docker", action="store_true", help="Consider Docker container UID mappings"
+    )
+    audit_parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
+
     # --------------------------
 
     args = parser.parse_args()
@@ -2026,6 +2161,8 @@ def main():
             return 1
         elif args.command == "env":
             return cli.env(args)
+        elif args.command == "audit-permissions":
+            return cli.audit_permissions(args)
         else:
             parser.print_help()
             return 1
