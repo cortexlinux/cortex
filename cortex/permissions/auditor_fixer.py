@@ -1,273 +1,255 @@
 """
-Unified Permission Auditor & Fixer.
+Permission Auditor & Fixer module.
+Fixes security issues with dangerous file permissions (777, world-writable).
 """
 
+import logging
 import os
 import stat
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
-from .config import DANGEROUS_PERMISSIONS, IGNORE_PATTERNS, RECOMMENDED_PERMISSIONS
-from .docker_handler import DockerPermissionHandler
+logger = logging.getLogger(__name__)
 
 
 class PermissionAuditor:
-    """Audit permissions."""
+    """
+    Auditor for detecting and fixing dangerous file permissions.
 
-    def __init__(self, verbose=False):
+    Detects:
+    - World-writable files (others have write permission)
+    - Files with 777 permissions
+    - Insecure directory permissions
+    """
+
+    def __init__(self, verbose: bool = False):
+        """
+        Initialize the permission auditor.
+
+        Args:
+            verbose: If True, enable debug logging
+        """
         self.verbose = verbose
+        if verbose:
+            logging.basicConfig(level=logging.DEBUG)
 
-    def scan(self, path=".", recursive=True):
-        """Scan path for permission issues."""
-        path = Path(path).resolve()
-        issues = []
+    def scan_directory(self, directory_path: str | Path) -> dict[str, list[str]]:
+        """
+        Scan directory for dangerous permissions.
 
-        try:
-            if path.is_file():
-                issues = self._scan_file(path)
-            elif path.is_dir():
-                issues = self._scan_directory(path, recursive)
-        except Exception as e:
-            if self.verbose:
-                print(f"Scan error: {e}")
+        Args:
+            directory_path: Path to directory to scan
 
-        return issues
+        Returns:
+            Dictionary with keys:
+            - 'world_writable': List of world-writable files
+            - 'dangerous': List of files with dangerous permissions (777)
+            - 'suggestions': List of suggested fixes
+        """
+        path = Path(directory_path).resolve()
+        result = {"world_writable": [], "dangerous": [], "suggestions": []}
 
-    def _scan_directory(self, directory, recursive):
-        """Scan directory."""
-        issues = []
-
-        try:
-            items = list(directory.rglob("*")) if recursive else list(directory.iterdir())
-
-            for item in items:
-                if self._should_ignore(item):
-                    continue
-
-                if item.is_file():
-                    file_issues = self._check_file(item)
-                    if file_issues:
-                        issues.extend(file_issues)
-                elif item.is_dir():
-                    dir_issues = self._check_directory(item)
-                    if dir_issues:
-                        issues.extend(dir_issues)
-
-        except Exception as e:
-            if self.verbose:
-                print(f"Directory scan error: {e}")
-
-        return issues
-
-    def _scan_file(self, filepath):
-        """Scan single file."""
-        if self._should_ignore(filepath):
-            return []
-        return self._check_file(filepath)
-
-    def _should_ignore(self, path):
-        """Check if path should be ignored."""
-        str_path = str(path)
-        return any(pattern in str_path for pattern in IGNORE_PATTERNS)
-
-    def _check_file(self, filepath):
-        """Check file permissions."""
-        try:
-            stats = filepath.stat()
-            current_perms = stat.S_IMODE(stats.st_mode)
-
-            issues = []
-
-            # Check dangerous permissions
-            if current_perms in DANGEROUS_PERMISSIONS:
-                issues.append(
-                    {
-                        "type": "dangerous_permission",
-                        "path": str(filepath),
-                        "permission": oct(current_perms),
-                        "description": DANGEROUS_PERMISSIONS[current_perms],
-                        "is_directory": False,
-                    }
-                )
-
-            # Check world-writable
-            if current_perms & 0o002:  # S_IWOTH
-                issues.append(
-                    {
-                        "type": "world_writable",
-                        "path": str(filepath),
-                        "permission": oct(current_perms),
-                        "description": "File is writable by all users",
-                        "is_directory": False,
-                    }
-                )
-
-            return issues
-
-        except Exception as e:
-            if self.verbose:
-                print(f"File check error {filepath}: {e}")
-            return []
-
-    def _check_directory(self, directory):
-        """Check directory permissions."""
-        try:
-            stats = directory.stat()
-            current_perms = stat.S_IMODE(stats.st_mode)
-
-            issues = []
-
-            if current_perms in DANGEROUS_PERMISSIONS:
-                issues.append(
-                    {
-                        "type": "dangerous_permission",
-                        "path": str(directory),
-                        "permission": oct(current_perms),
-                        "description": DANGEROUS_PERMISSIONS[current_perms],
-                        "is_directory": True,
-                    }
-                )
-
-            return issues
-
-        except Exception as e:
-            if self.verbose:
-                print(f"Directory check error {directory}: {e}")
-            return []
-
-
-class PermissionFixer:
-    """Fix permissions safely."""
-
-    def __init__(self, dry_run=True):
-        self.dry_run = dry_run
-
-    def calculate_fix(self, issue):
-        """Calculate fix for issue."""
-        is_dir = issue.get("is_directory", False)
-
-        if is_dir:
-            recommended = RECOMMENDED_PERMISSIONS["directory"]
-            reason = "Directories should have 755 permissions"
-        else:
-            recommended = RECOMMENDED_PERMISSIONS["config_file"]
-            reason = "Files should have 644 permissions"
-
-        return {
-            "recommended": oct(recommended),
-            "reason": reason,
-            "command": f"chmod {oct(recommended)[2:]} '{issue['path']}'",
-        }
-
-    def apply_fix(self, issue, fix_info):
-        """Apply fix."""
-        if self.dry_run:
-            return True
-
-        try:
-            path = Path(issue["path"])
-            perm = int(fix_info["recommended"], 8)
-            os.chmod(path, perm)
-            return True
-        except Exception as e:
-            print(f"Fix error: {e}")
-            return False
-
-
-class PermissionManager:
-    """Main manager combining auditor, fixer, and docker handler."""
-
-    def __init__(self, verbose=False, dry_run=True):
-        self.verbose = verbose
-        self.dry_run = dry_run
-        self.auditor = PermissionAuditor(verbose)
-        self.fixer = PermissionFixer(dry_run)
-        self.docker_handler = DockerPermissionHandler(verbose)  # NEW
-
-    def scan_and_fix(self, path=".", apply_fixes=False, docker_context=False):
-        """Scan and optionally fix with Docker support."""
-        issues = self.auditor.scan(path)
-
-        result = {
-            "issues_found": len(issues),
-            "fixes_applied": 0,
-            "backups_created": 0,
-            "dry_run": self.dry_run,
-            "docker_context": docker_context,
-        }
-
-        if not issues:
-            result["report"] = "✅ No permission issues found.\n"
+        if not path.exists():
+            logger.warning(f"Directory does not exist: {path}")
             return result
 
-        # Apply Docker adjustments if requested
-        adjusted_issues = []
-        for issue in issues:
-            if docker_context:
-                adjusted_issue = self.docker_handler.adjust_issue_for_container(issue)
-            else:
-                adjusted_issue = issue
-            adjusted_issues.append(adjusted_issue)
+        if not path.is_dir():
+            logger.warning(f"Path is not a directory: {path}")
+            return result
 
-        # Generate report
-        report_lines = ["🔍 PERMISSION AUDIT REPORT"]
+        try:
+            for item in path.rglob("*"):
+                if item.is_file():
+                    try:
+                        mode = item.stat().st_mode
+                        file_path = str(item)
 
-        if docker_context:
-            report_lines.append("🐳 Docker Context: Enabled")
-            report_lines.append(self.docker_handler.generate_docker_permission_report(path))
+                        # Check for world-writable (others have write permission)
+                        if mode & stat.S_IWOTH:  # Others write (0o002)
+                            result["world_writable"].append(file_path)
+                            result["suggestions"].append(
+                                self.suggest_fix(file_path, current_perms=oct(mode & 0o777))
+                            )
 
-        report_lines.append(f"📊 Issues found: {len(adjusted_issues)}\n")
+                        # Check for 777 permissions
+                        if (mode & 0o777) == 0o777:
+                            if file_path not in result["dangerous"]:
+                                result["dangerous"].append(file_path)
 
-        for i, issue in enumerate(adjusted_issues, 1):
-            report_lines.append(f"{i}. {issue['path']}")
+                    except (OSError, PermissionError) as e:
+                        if self.verbose:
+                            logger.debug(f"Cannot access {item}: {e}")
+                        continue
 
-            # Add Docker UID/GID info if available
-            if docker_context and "uid_info" in issue:
-                report_lines.append(
-                    f"   Owner: {issue['uid_info']}, Group: {issue.get('gid_info', 'N/A')}"
-                )
-
-            report_lines.append(f"   Permission: {issue['permission']}")
-            report_lines.append(f"   Issue: {issue['description']}")
-
-            # Get fix with Docker adjustments
-            fix_info = self.fixer.calculate_fix(issue)
-            if docker_context:
-                fix_info = self.docker_handler.get_container_specific_fix(issue, fix_info)
-
-            report_lines.append(f"   💡 Fix: {fix_info['command']}")
-            if docker_context and "container_advice" in fix_info:
-                report_lines.append(f"   🐳 Docker Advice: {fix_info['container_advice']}")
-
-            if apply_fixes and not self.dry_run:
-                if self.fixer.apply_fix(issue, fix_info):
-                    result["fixes_applied"] += 1
-
-            report_lines.append("")
-
-        # Special Docker fixes
-        if docker_context and apply_fixes and not self.dry_run:
-            docker_result = self.docker_handler.fix_docker_bind_mount_permissions(
-                path, dry_run=False
-            )
-            if docker_result["success"] and docker_result["actions"]:
-                report_lines.append("🐳 Docker-specific fixes applied:")
-                for action in docker_result["actions"]:
-                    report_lines.append(f"   ✓ {action['description']}")
-
-        result["report"] = "\n".join(report_lines)
-        result["issues"] = adjusted_issues
+        except (OSError, PermissionError) as e:
+            logger.error(f"Error scanning directory {path}: {e}")
 
         return result
 
+    def suggest_fix(self, filepath: str | Path, current_perms: str | None = None) -> str:
+        """
+        Suggest correct permissions for a file.
 
-# Convenience functions
-def scan_path(path=".", recursive=True):
-    """Scan path for issues."""
-    auditor = PermissionAuditor()
-    return auditor.scan(path, recursive)
+        Args:
+            filepath: Path to the file
+            current_perms: Current permissions in octal (e.g., '777')
 
+        Returns:
+            Suggested chmod command to fix permissions
+        """
+        path = Path(filepath)
 
-def analyze_permissions(issue):
-    """Analyze permission issue."""
-    return issue.get("description", "No analysis available")
+        if not path.exists():
+            return f"# File {filepath} doesn't exist"
+
+        try:
+            mode = path.stat().st_mode
+
+            # Get file extension and check if executable
+            is_executable = mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+            is_script = path.suffix in [".sh", ".py", ".pl", ".rb", ".bash"]
+
+            # Suggested permissions based on file type
+            if is_executable or is_script:
+                suggested = "755"  # rwxr-xr-x
+                reason = "executable/script file"
+            else:
+                suggested = "644"  # rw-r--r--
+                reason = "data file"
+
+            current = oct(mode & 0o777)[-3:] if current_perms is None else current_perms
+
+            return f"chmod {suggested} '{filepath}'  " f"# Fix: {current} → {suggested} ({reason})"
+
+        except (OSError, PermissionError) as e:
+            return f"# Cannot access {filepath}: {e}"
+
+    def fix_permissions(
+        self, filepath: str | Path, permissions: str = "644", dry_run: bool = True
+    ) -> str:
+        """
+        Fix permissions for a single file.
+
+        Args:
+            filepath: Path to the file
+            permissions: Permissions in octal (e.g., '644', '755')
+            dry_run: If True, only show what would be changed
+
+        Returns:
+            Report of the change made or that would be made
+        """
+        path = Path(filepath)
+
+        if not path.exists():
+            return f"File does not exist: {filepath}"
+
+        try:
+            current_mode = path.stat().st_mode
+            current_perms = oct(current_mode & 0o777)[-3:]
+
+            if dry_run:
+                return f"[DRY RUN] Would change {filepath}: " f"{current_perms} → {permissions}"
+            else:
+                # Preserve file type bits, only change permission bits
+                new_mode = (current_mode & ~0o777) | int(permissions, 8)
+                path.chmod(new_mode)
+
+                # Verify the change
+                verified = oct(path.stat().st_mode & 0o777)[-3:]
+                return f"Changed {filepath}: " f"{current_perms} → {verified}"
+
+        except (OSError, PermissionError) as e:
+            return f"Error changing permissions on {filepath}: {e}"
+
+    def scan_and_fix(self, path=".", apply_fixes=False, dry_run=False):
+        """
+        Scan directory and optionally fix issues.
+        Used by CLI command.
+
+        Args:
+            path: Directory to scan
+            apply_fixes: If True, apply fixes
+            dry_run: If True, only show what would be done
+
+        Returns:
+            Dictionary with results and report
+        """
+        # Scan for issues
+        scan_result = self.scan_directory(path)
+
+        issues_found = len(scan_result["world_writable"]) + len(scan_result["dangerous"])
+
+        # Generate report
+        report_lines = []
+        report_lines.append("🔒 PERMISSION AUDIT REPORT")
+        report_lines.append("=" * 50)
+        report_lines.append(f"Scanned: {path}")
+        report_lines.append(f"Total issues found: {issues_found}")
+        report_lines.append("")
+
+        # World-writable files
+        if scan_result["world_writable"]:
+            report_lines.append("🚨 WORLD-WRITABLE FILES (others can write):")
+            for file in scan_result["world_writable"][:10]:  # Show first 10
+                report_lines.append(f"  • {file}")
+            if len(scan_result["world_writable"]) > 10:
+                report_lines.append(f"  ... and {len(scan_result['world_writable']) - 10} more")
+            report_lines.append("")
+
+        # Dangerous permissions (777)
+        if scan_result["dangerous"]:
+            report_lines.append("⚠️ DANGEROUS PERMISSIONS (777):")
+            for file in scan_result["dangerous"][:10]:
+                report_lines.append(f"  • {file}")
+            if len(scan_result["dangerous"]) > 10:
+                report_lines.append(f"  ... and {len(scan_result['dangerous']) - 10} more")
+            report_lines.append("")
+
+        # Suggestions
+        if scan_result["suggestions"]:
+            report_lines.append("💡 SUGGESTED FIXES:")
+            for suggestion in scan_result["suggestions"][:5]:
+                report_lines.append(f"  {suggestion}")
+            if len(scan_result["suggestions"]) > 5:
+                report_lines.append(f"  ... and {len(scan_result['suggestions']) - 5} more")
+
+        # Apply fixes if requested
+        if apply_fixes:
+            report_lines.append("")
+            report_lines.append("🛠️ APPLYING FIXES:")
+            fixed_count = 0
+
+            for file_path in scan_result["world_writable"]:
+                try:
+                    # Get suggested fix
+                    suggestion = self.suggest_fix(file_path)
+                    if "chmod" in suggestion:
+                        # Extract permissions from suggestion
+                        parts = suggestion.split()
+                        if len(parts) >= 2:
+                            cmd = parts[0]
+                            perms = parts[1]
+                            if cmd == "chmod" and perms.isdigit():
+                                if not dry_run:
+                                    # Actually fix the file
+                                    fix_result = self.fix_permissions(
+                                        file_path, permissions=perms, dry_run=False
+                                    )
+                                    report_lines.append(f"  ✓ Fixed: {file_path}")
+                                    fixed_count += 1
+                                else:
+                                    report_lines.append(f"  [DRY RUN] Would fix: {file_path}")
+                except Exception as e:
+                    report_lines.append(f"  ✗ Error fixing {file_path}: {e}")
+
+            report_lines.append(f"Fixed {fixed_count} files")
+
+        report_lines.append("")
+        report_lines.append("✅ Scan complete")
+
+        return {
+            "report": "\n".join(report_lines),
+            "issues_found": issues_found,
+            "scan_result": scan_result,
+            "fixed": apply_fixes and not dry_run,
+        }
