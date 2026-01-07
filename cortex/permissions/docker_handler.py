@@ -15,12 +15,13 @@ class DockerPermissionHandler:
     """Handle Docker-specific permission mapping and adjustments."""
 
     def test_get_container_specific_fix_with_docker_path():
-    	"""Test get_container_specific_fix with docker path"""
-    	import sys
-    	sys.path.insert(0, '.')  # Добавляем текущую директорию в путь
-    
-    	from cortex.permissions.docker_handler import get_container_specific_fix
-    
+        """Test get_container_specific_fix with docker path"""
+        import sys
+
+        sys.path.insert(0, ".")  # Добавляем текущую директорию в путь
+
+        from cortex.permissions.docker_handler import get_container_specific_fix
+
     def __init__(self, verbose: bool = False, dry_run: bool = True):
         self.verbose = verbose
         self.dry_run = dry_run
