@@ -7,20 +7,19 @@ and suggests package alternatives when available.
 Pain Point #21 Solution: Prevents build failures from missing headers and dependencies.
 """
 
-import logging
-import os
 import re
 import subprocess
 import tarfile
 import tempfile
+import logging
+import os
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
 
 from cortex.installation_history import InstallationHistory, InstallationStatus, InstallationType
 
-logging.basicConfig(level=logging.INFO)
+#Let the application configure logging; don't set basicConfig at module level
 logger = logging.getLogger(__name__)
 
 
@@ -356,7 +355,7 @@ class TarballHelper:
             return dependencies
 
         # Pattern: AC_CHECK_LIB(library, function, ...)
-        ac_check_lib_pattern = r"AC_CHECK_LIB\s*?\(\s*?([^\s,)]+?)\s*?[,)]"
+        ac_check_lib_pattern = r"AC_CHECK_LIB\s*\(\s*([^'\s,)]+)\s*[,)]"
         for match in re.finditer(ac_check_lib_pattern, content):
             lib_name = match.group(1).strip().strip("\"'")
             if lib_name:
@@ -386,7 +385,7 @@ class TarballHelper:
                 dependencies.append(dep)
 
         # Pattern: AC_CHECK_HEADER(header, ...)
-        ac_check_header_pattern = r"AC_CHECK_HEADER\s*?\(\s*?([^\s,)]+?)\s*?[,)]"
+        ac_check_header_pattern = r"^AC_CHECK_HEADER\s*\(\s*([^'\s,)]+)\s*[,)]"   
         for match in re.finditer(ac_check_header_pattern, content):
             header = match.group(1).strip().strip("\"'")
             if header:
