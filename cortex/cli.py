@@ -3,9 +3,15 @@ import logging
 import os
 import sys
 import time
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+# Standard Rich library imports for UI components
+from rich.table import Table
+from rich.panel import Panel
+from rich import box
 
 from cortex.api_key_detector import auto_detect_api_key, setup_api_key
 from cortex.ask import AskHandler
@@ -2002,7 +2008,193 @@ class CortexCLI:
             return 1
 
     # --------------------------
+        
+    def health(self, args: argparse.Namespace) -> int:
+        """
+        Calculate system health score and display a summary report.
+        
+        This method coordinates the diagnostic scan, score persistence, 
+        and the interactive remediation loop.
+        """
+        from cortex.doctor import SystemDoctor
+        from cortex.health import HealthEngine
+        from rich.panel import Panel
 
+        # AC: Historical analytics - check trend data before running new scan
+        if args.history:
+            return self._show_health_history()
+
+        cx_print("📊 Calculating System Health...", "info")
+        
+        # 1. Gather Data
+        doctor_data = SystemDoctor().get_system_data()
+        engine = HealthEngine(doctor_data)
+        
+        # 2. Process Score & Persistence
+        score = engine.calculate_overall_score()
+        factors = engine.get_factor_scores()
+        engine.save_history(score)
+
+        # --- UI SECTION 1: HEADER (Simplified) ---
+        color = "green" if score > 80 else "yellow" if score > 50 else "red"
+        console.print(Panel(
+            f"[bold {color}]Score: {score}/100[/bold {color}]",
+            title="System Health",
+            border_style=color,
+            expand=False
+        ))
+
+        # --- UI SECTION 2: FACTORS (Horizontal & Clean) ---
+        factor_line = ""
+        for name, val in factors.items():
+            symbol = "✓" if val >= 80 else "!"
+            f_col = "green" if val >= 80 else "yellow"
+            factor_line += f"  {symbol} [{f_col}]{name.title()}: {val}/100[/{f_col}]  "
+        console.print(factor_line)
+
+        # --- UI SECTION 3: RECOMMENDATIONS ---
+        recs = engine.get_recommendations()
+        actionable = [r for r in recs if r.get("fix")]
+
+        if recs:
+            console.print("\n[bold cyan]💡 Recommendations[/bold cyan]")
+            for i, r in enumerate(recs, 1):
+                fix_hint = f" [dim]({r['fix']})[/dim]" if r.get("fix") else ""
+                console.print(f"   {i}. {r['text']}{fix_hint}")
+
+        # --- UI SECTION 4: REMEDIATION LOOP ---
+        if actionable:
+            to_apply = []
+            
+            if args.fix:
+                to_apply = actionable
+                console.print(f"\n[yellow]🛠  Applying all {len(actionable)} fixes...[/yellow]")
+            else:
+                console.print(f"\n[dim]Tip: Use 'cortex health --fix' to automate fixes.[/dim]")
+                console.print(f"[bold yellow]Select fixes to apply (e.g. '1,2', 'all', or 'n'): [/bold yellow]", end="")
+                
+                try:
+                    choice = input().strip().lower()
+                    if choice in ("n", "no", ""):
+                        cx_print("Fixes skipped.", "info")
+                        return 0
+                    
+                    if choice == "all":
+                        to_apply = actionable
+                    else:
+                        indices = [int(i.strip()) - 1 for i in choice.split(",") if i.strip().isdigit()]
+                        to_apply = [actionable[i] for i in indices if 0 <= i < len(actionable)]
+                except (EOFError, KeyboardInterrupt, ValueError):
+                    console.print()
+                    return 0
+
+            # --- FINAL CONFIRMATION (Clean & Standard) ---
+            if to_apply:
+                console.print(f"\n[bold yellow]⚠️  Pending Actions:[/bold yellow]")
+                for i, rec in enumerate(to_apply, 1):
+                    console.print(f"   {i}. [cyan]{rec['fix']}[/cyan]")
+                
+                while True:
+                    # Using standard rich markup for the prompt
+                    console.print(f"\n[bold red]Proceed with execution? [y/N]: [/bold red]", end="")
+                    try:
+                        confirm = input().strip().lower()
+                        
+                        # Standardize input for comparison
+                        if confirm in ("y", "yes"):
+                            # Explicitly proceed
+                            return self._apply_health_fixes(to_apply)
+                        elif confirm in ("n", "no", ""):
+                            # Logic: Safe exit on explicit 'n' OR just pressing Enter (empty string)
+                            cx_print("Execution cancelled.", "warning")
+                            return 0
+                        else:
+                            # Advise the user on valid options without exiting the loop
+                            console.print("[dim]Invalid choice. Please enter 'y' to run or 'n' to cancel.[/dim]")
+                    except (EOFError, KeyboardInterrupt):
+                        console.print()
+                        return 0
+                    
+        return 0
+    
+    def _apply_health_fixes(self, to_apply: list) -> int:
+        """
+        Sequentially executes selected remediation commands.
+        
+        Logic:
+        - Uses os.system to allow interactive password prompts (sudo).
+        - Implements 'Fail-Fast' logic: stops if any command returns non-zero.
+        - Gracefully handles SIGINT (Ctrl+C).
+        
+        Returns:
+            int: 0 on total success, 1 on failure or interruption.
+        """
+        if not to_apply:
+            return 0
+
+        console.print(f"\n[bold green]🚀 Executing {len(to_apply)} fixes...[/bold green]")
+        
+        for rec in to_apply:
+            cmd = rec["fix"]
+            cx_print(f"Running: {cmd}", "info")
+            
+            try:
+                # Execution: os.system enables terminal-level user interaction for sudo/apt
+                import os
+                exit_code = os.system(cmd)
+                
+                # Validation: Check for non-zero exit codes (Standard Linux Error Handling)
+                if exit_code != 0:
+                    console.print(f"\n[bold red]❌ Failed (Exit {exit_code}): {cmd}[/bold red]")
+                    cx_print("Stopping remaining fixes to prevent cascading errors.", "warning")
+                    return 1
+                    
+            except KeyboardInterrupt:
+                # Safety: Ensures the main process stops immediately on user interrupt
+                console.print("\n[yellow]⚠️  Process interrupted by user. Stopping.[/yellow]")
+                return 1
+        
+        cx_print("✓ All selected fixes applied successfully.", "success")
+        return 0
+    
+    def _show_health_history(self) -> int:
+        """
+        Displays a table of past health scores.
+        Acceptance Criteria: 'Historical analytics'
+        """
+        from cortex.health import HealthEngine
+        import datetime
+        from rich.table import Table
+
+        # We pass empty dict because we only need the file path logic
+        engine = HealthEngine({}) 
+        if not engine.history_file.exists():
+            cx_print("No health history found yet.", "info")
+            return 0
+
+        history = json.loads(engine.history_file.read_text())
+        
+        table = Table(title="📈 System Health History", box=box.SIMPLE)
+        table.add_column("Date & Time", style="cyan")
+        table.add_column("Score", justify="center")
+        table.add_column("Trend", justify="center")
+
+        last_score = None
+        for entry in history:
+            dt = datetime.datetime.fromtimestamp(entry['timestamp']).strftime('%Y-%m-%d %H:%M')
+            score = entry['score']
+            
+            # Simple trend indicator
+            trend = "▬"
+            if last_score is not None:
+                trend = "[green]▲[/green]" if score > last_score else "[red]▼[/red]" if score < last_score else "▬"
+            
+            color = "green" if score > 80 else "yellow" if score > 50 else "red"
+            table.add_row(dt, f"[{color}]{score}[/{color}]", trend)
+            last_score = score
+
+        console.print(table)
+        return 0
 
 def show_rich_help():
     """Display a beautifully formatted help table using the Rich library.
@@ -2128,7 +2320,12 @@ def main():
     wizard_parser = subparsers.add_parser("wizard", help="Configure API key interactively")
 
     # Status command (includes comprehensive health checks)
-    subparsers.add_parser("status", help="Show comprehensive system status and health checks")
+    subparsers.add_parser("status", aliases=["doctor"], help="Show comprehensive system status and health checks")
+
+    # Health command
+    health_parser = subparsers.add_parser("health", help="Calculate health score and track history")
+    health_parser.add_argument("--fix", action="store_true", help="Automatically apply recommended fixes")
+    health_parser.add_argument("--history", action="store_true", help="View historical health score analytics")
 
     # Ask command
     ask_parser = subparsers.add_parser("ask", help="Ask a question about your system")
@@ -2500,7 +2697,7 @@ def main():
             return cli.demo()
         elif args.command == "wizard":
             return cli.wizard()
-        elif args.command == "status":
+        elif args.command in ["status", "doctor"]:
             return cli.status()
         elif args.command == "ask":
             return cli.ask(args.question)
@@ -2522,6 +2719,8 @@ def main():
             return cli.notify(args)
         elif args.command == "stack":
             return cli.stack(args)
+        elif args.command == "health":
+            return cli.health(args)
         elif args.command == "sandbox":
             return cli.sandbox(args)
         elif args.command == "cache":

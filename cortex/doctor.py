@@ -477,6 +477,23 @@ class SystemDoctor:
                 console.print(f"   [dim]{i}.[/dim] {suggestion}")
             console.print()
 
+    def get_system_data(self) -> dict:
+        """
+        Gathers system diagnostic data for the Health Engine.
+        Fills requirements for Issue #128 (System Health Score).
+
+        Returns:
+            dict: A dictionary of boolean flags and resource values.
+        """
+        import shutil
+        import os
+
+        return {
+            "firejail_installed": bool(shutil.which("firejail")),
+            "api_keys_set": bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY")),
+            "ram_gb": self._get_system_memory() or 0,
+            "gpu_detected": bool(shutil.which("nvidia-smi") or shutil.which("rocm-smi"))
+        }
 
 def run_doctor() -> int:
     """
