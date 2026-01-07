@@ -34,8 +34,8 @@ public:
 private:
     // Handler implementations
     static Response handle_ping(const Request& req);
-    static Response handle_status(const Request& req, SystemMonitor& monitor, LLMEngine& llm);
-    static Response handle_health(const Request& req, SystemMonitor& monitor, LLMEngine& llm);
+    static Response handle_status(const Request& req, SystemMonitor& monitor, LLMEngine& llm, std::shared_ptr<AlertManager> alerts);
+    static Response handle_health(const Request& req, SystemMonitor& monitor, LLMEngine& llm, std::shared_ptr<AlertManager> alerts);
     static Response handle_version(const Request& req);
     
     // Alert handlers

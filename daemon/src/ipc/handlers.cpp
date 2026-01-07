@@ -28,12 +28,12 @@ void Handlers::register_all(
         return handle_version(req);
     });
     
-    server.register_handler(Methods::STATUS, [&monitor, &llm](const Request& req) {
-        return handle_status(req, monitor, llm);
+    server.register_handler(Methods::STATUS, [&monitor, &llm, alerts](const Request& req) {
+        return handle_status(req, monitor, llm, alerts);
     });
     
-    server.register_handler(Methods::HEALTH, [&monitor, &llm](const Request& req) {
-        return handle_health(req, monitor, llm);
+    server.register_handler(Methods::HEALTH, [&monitor, &llm, alerts](const Request& req) {
+        return handle_health(req, monitor, llm, alerts);
     });
     
     // Alert handlers
@@ -100,9 +100,15 @@ Response Handlers::handle_ping(const Request& /*req*/) {
     return Response::ok({{"pong", true}});
 }
 
-Response Handlers::handle_status(const Request& /*req*/, SystemMonitor& monitor, LLMEngine& llm) {
+Response Handlers::handle_status(const Request& /*req*/, SystemMonitor& monitor, LLMEngine& llm, std::shared_ptr<AlertManager> alerts) {
     auto& daemon = Daemon::instance();
     auto snapshot = monitor.get_snapshot();
+    
+    // Override alert counts with fresh values from AlertManager
+    if (alerts) {
+        snapshot.active_alerts = alerts->count_active();
+        snapshot.critical_alerts = alerts->count_by_severity(AlertSeverity::CRITICAL);
+    }
     
     json result = {
         {"version", VERSION},
@@ -115,7 +121,7 @@ Response Handlers::handle_status(const Request& /*req*/, SystemMonitor& monitor,
     return Response::ok(result);
 }
 
-Response Handlers::handle_health(const Request& /*req*/, SystemMonitor& monitor, LLMEngine& llm) {
+Response Handlers::handle_health(const Request& /*req*/, SystemMonitor& monitor, LLMEngine& llm, std::shared_ptr<AlertManager> alerts) {
     auto snapshot = monitor.get_snapshot();
     
     // If snapshot seems uninitialized (timestamp is epoch), force a sync check
@@ -128,6 +134,12 @@ Response Handlers::handle_health(const Request& /*req*/, SystemMonitor& monitor,
     auto info = llm.get_model_info();
     snapshot.llm_loaded = llm.is_loaded();
     snapshot.llm_model_name = info ? info->name : "";
+    
+    // Override alert counts with fresh values from AlertManager
+    if (alerts) {
+        snapshot.active_alerts = alerts->count_active();
+        snapshot.critical_alerts = alerts->count_by_severity(AlertSeverity::CRITICAL);
+    }
     
     return Response::ok(snapshot.to_json());
 }

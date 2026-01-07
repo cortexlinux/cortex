@@ -153,7 +153,7 @@ class DaemonManager:
             console.print(f"[red]✗ Protocol error: {e}[/red]")
             return 1
 
-    def alerts(self, severity: Optional[str] = None, acknowledge_all: bool = False) -> int:
+    def alerts(self, severity: Optional[str] = None, acknowledge_all: bool = False, dismiss_id: Optional[str] = None) -> int:
         """Show daemon alerts"""
         if not self.check_daemon_installed():
             console.print("[red]✗ Daemon is not installed[/red]")
@@ -161,6 +161,14 @@ class DaemonManager:
             return 1
 
         try:
+            if dismiss_id:
+                if self.client.dismiss_alert(dismiss_id):
+                    console.print(f"[green]✓ Dismissed alert: {dismiss_id}[/green]")
+                    return 0
+                else:
+                    console.print(f"[red]✗ Alert not found: {dismiss_id}[/red]")
+                    return 1
+
             if acknowledge_all:
                 count = self.client.acknowledge_all_alerts()
                 console.print(f"[green]✓ Acknowledged {count} alerts[/green]")

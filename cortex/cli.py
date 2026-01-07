@@ -289,7 +289,8 @@ class CortexCLI:
             severity = getattr(args, 'severity', None)
             alert_type = getattr(args, 'type', None)
             acknowledge_all = getattr(args, 'acknowledge_all', False)
-            return mgr.alerts(severity=severity, acknowledge_all=acknowledge_all)
+            dismiss_id = getattr(args, 'dismiss', None)
+            return mgr.alerts(severity=severity, acknowledge_all=acknowledge_all, dismiss_id=dismiss_id)
 
         elif args.daemon_action == "reload-config":
             return mgr.reload_config()
@@ -1811,6 +1812,8 @@ def main():
     alerts_parser.add_argument("--type", help="Filter by alert type")
     alerts_parser.add_argument("--acknowledge-all", action="store_true",
                             help="Acknowledge all alerts")
+    alerts_parser.add_argument("--dismiss", metavar="ID",
+                            help="Dismiss (delete) an alert by ID")
 
     daemon_subs.add_parser("reload-config", help="Reload daemon configuration")
     daemon_subs.add_parser("version", help="Show daemon version")
