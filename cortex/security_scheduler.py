@@ -282,6 +282,16 @@ class SecurityScheduler:
 
         schedule = self.schedules[schedule_id]
 
+        # Refuse to install systemd timer for CUSTOM frequency schedules
+        if schedule.frequency == ScheduleFrequency.CUSTOM:
+            logger.error(
+                f"Cannot install systemd timer for schedule '{schedule_id}': "
+                f"CUSTOM frequency requires manual configuration. "
+                f"Use the custom_cron field ('{schedule.custom_cron}') with cron or "
+                f"create a manual systemd timer with the appropriate OnCalendar value."
+            )
+            return False
+
         # Generate systemd service file
         service_content = f"""[Unit]
 Description=Cortex Security Scan/Patch - {schedule_id}
@@ -349,15 +359,31 @@ WantedBy=timers.target
             return False
 
     def _frequency_to_systemd(self, frequency: ScheduleFrequency) -> str:
-        """Convert frequency to systemd OnCalendar format"""
+        """
+        Convert frequency to systemd OnCalendar format.
+
+        Args:
+            frequency: The schedule frequency
+
+        Returns:
+            Systemd OnCalendar string
+
+        Raises:
+            ValueError: If frequency is CUSTOM (requires manual cron->systemd conversion)
+        """
         if frequency == ScheduleFrequency.DAILY:
             return "daily"
         elif frequency == ScheduleFrequency.WEEKLY:
             return "weekly"
         elif frequency == ScheduleFrequency.MONTHLY:
             return "monthly"
+        elif frequency == ScheduleFrequency.CUSTOM:
+            raise ValueError(
+                "CUSTOM frequency cannot be automatically converted to systemd format. "
+                "Use the custom_cron field with a manual systemd timer or cron job instead."
+            )
         else:
-            return "monthly"  # Default
+            raise ValueError(f"Unknown frequency: {frequency}")
 
     def _has_root_privileges(self) -> bool:
         """Check if we have root privileges (running as root or have passwordless sudo)"""

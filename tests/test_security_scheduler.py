@@ -353,13 +353,15 @@ class TestSecuritySchedulerSystemd(unittest.TestCase):
             self.assertEqual(result, "monthly")
 
     def test_frequency_to_systemd_custom(self):
-        """Test custom frequency defaults to monthly"""
+        """Test custom frequency raises ValueError (cannot auto-convert to systemd)"""
         with patch.object(SecurityScheduler, "__init__", lambda x: None):
             scheduler = SecurityScheduler()
             scheduler.schedules = {}
 
-            result = scheduler._frequency_to_systemd(ScheduleFrequency.CUSTOM)
-            self.assertEqual(result, "monthly")  # Default fallback
+            with self.assertRaises(ValueError) as context:
+                scheduler._frequency_to_systemd(ScheduleFrequency.CUSTOM)
+
+            self.assertIn("CUSTOM frequency cannot be automatically converted", str(context.exception))
 
     @patch("os.geteuid")
     def test_has_root_privileges_as_root(self, mock_geteuid):
