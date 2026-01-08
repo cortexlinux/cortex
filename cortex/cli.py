@@ -1296,19 +1296,23 @@ class CortexCLI:
         if schedule_action == "create":
             from cortex.autonomous_patcher import PatchStrategy
 
+            # Default to dry-run mode unless --apply is specified
+            dry_run = not getattr(args, "apply", False)
+
             schedule = scheduler.create_schedule(
                 schedule_id=args.id,
                 frequency=ScheduleFrequency(getattr(args, "frequency", "monthly")),
                 scan_enabled=True,
                 patch_enabled=getattr(args, "enable_patch", False),
                 patch_strategy=PatchStrategy(getattr(args, "patch_strategy", "critical_only")),
-                dry_run=True,
+                dry_run=dry_run,
             )
 
             cx_print(f"✅ Created schedule: {args.id}", "success")
             console.print(f"   Frequency: {schedule.frequency.value}")
             console.print(f"   Scan: {'enabled' if schedule.scan_enabled else 'disabled'}")
             console.print(f"   Patch: {'enabled' if schedule.patch_enabled else 'disabled'}")
+            console.print(f"   Dry-run: {'enabled' if schedule.dry_run else 'disabled'}")
 
         elif schedule_action == "list":
             schedules = scheduler.list_schedules()
@@ -2593,6 +2597,11 @@ def main():
         help="Schedule frequency",
     )
     sec_schedule_create.add_argument("--enable-patch", action="store_true", help="Enable patching")
+    sec_schedule_create.add_argument(
+        "--apply",
+        action="store_true",
+        help="Enable real patching (default: dry-run mode)",
+    )
     sec_schedule_subs.add_parser("list", help="List schedules")
     sec_schedule_run = sec_schedule_subs.add_parser("run", help="Run a schedule")
     sec_schedule_run.add_argument("id", help="Schedule ID")
