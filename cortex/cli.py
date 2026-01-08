@@ -40,43 +40,83 @@ class CortexCLI:
         self.spinner_idx = 0
         self.verbose = verbose
 
-        # Initialize i18n - detect language from CLI arg, env, config, or system
-        from cortex.i18n import Translator
+    # Define a method to handle Docker-specific permission repairs
+    def docker_permissions(self, args: argparse.Namespace) -> int:
+        """Handle the diagnosis and repair of Docker file permissions.
 
-        self._lang_manager = LanguageManager(prefs_manager=self._get_prefs_manager())
-        detected_lang = self._lang_manager.detect_language(cli_arg=language)
-        self.translator = Translator(detected_lang)
-        self.language = detected_lang
+        This method coordinates the environment-aware scanning of the project
+        directory and applies ownership reclamation logic. It ensures that
+        administrative actions (sudo) are never performed without user
+        acknowledgment unless the non-interactive flag is present.
 
-    def _get_prefs_manager(self) -> Any:
-        """Get a simple prefs manager wrapper for LanguageManager.
+        Args:
+            args: The parsed command-line arguments containing the execution
+                context and safety flags.
 
         Returns:
-            A PrefsWrapper instance that provides a load() method returning
-            a preferences object with a language attribute.
+            int: 0 if successful or the operation was gracefully cancelled,
+                1 if a system or logic error occurred.
         """
+        from cortex.permission_manager import PermissionManager
 
-        class PrefsObj:
-            """Simple preferences object with language attribute."""
+        try:
+            manager = PermissionManager(os.getcwd())
+            cx_print("🔍 Scanning for Docker-related permission issues...", "info")
 
-            def __init__(self, language: str = "") -> None:
-                self.language: str = language
+            # Validate Docker Compose configurations for missing user mappings
+            # to help prevent future permission drift.
+            manager.check_compose_config()
 
-        class PrefsWrapper:
-            """Wrapper providing preferences access for LanguageManager."""
+            # Retrieve execution context from argparse.
+            execute_flag = getattr(args, "execute", False)
+            yes_flag = getattr(args, "yes", False)
 
-            def __init__(self) -> None:
-                self._config_mgr = ConfigManager()
+            # SAFETY GUARD: If executing repairs, prompt for confirmation unless
+            # the --yes flag was provided. This follows the project safety
+            # standard: 'No silent sudo execution'.
+            if execute_flag and not yes_flag:
+                mismatches = manager.diagnose()
+                if mismatches:
+                    cx_print(
+                        f"⚠️ Found {len(mismatches)} paths requiring ownership reclamation.",
+                        "warning",
+                    )
+                    try:
+                        # Interactive confirmation prompt for administrative repair.
+                        response = console.input(
+                            "[bold cyan]Reclaim ownership using sudo? (y/n): [/bold cyan]"
+                        )
+                        if response.lower() not in ("y", "yes"):
+                            cx_print("Operation cancelled", "info")
+                            return 0
+                    except (EOFError, KeyboardInterrupt):
+                        # Graceful handling of terminal exit or manual interruption.
+                        console.print()
+                        cx_print("Operation cancelled", "info")
+                        return 0
 
-            def load(self) -> PrefsObj:
-                prefs = self._config_mgr.load_preferences()
-                return PrefsObj(language=prefs.get("language", ""))
+            # Delegate repair logic to PermissionManager. If execute is False,
+            # a dry-run report is generated. If True, repairs are batched to
+            # avoid system ARG_MAX shell limits.
+            if manager.fix_permissions(execute=execute_flag):
+                if execute_flag:
+                    cx_print("✨ Permissions fixed successfully!", "success")
+                return 0
 
-        return PrefsWrapper()
+            return 1
 
-    def t(self, key: str, **kwargs) -> str:
-        """Shortcut for translation."""
-        return self.translator.get(key, **kwargs)
+        except (PermissionError, FileNotFoundError, OSError) as e:
+            # Handle system-level access issues or missing project files.
+            cx_print(f"❌ Permission check failed: {e}", "error")
+            return 1
+        except NotImplementedError as e:
+            # Report environment incompatibility (e.g., native Windows).
+            cx_print(f"❌ {e}", "error")
+            return 1
+        except Exception as e:
+            # Safety net for unexpected runtime exceptions to prevent CLI crashes.
+            cx_print(f"❌ Unexpected error: {e}", "error")
+            return 1
 
     def _debug(self, message: str):
         """Print debug info only in verbose mode"""
@@ -1633,7 +1673,12 @@ class CortexCLI:
 
 
 def show_rich_help():
-    """Display beautifully formatted help using Rich"""
+    """Display a beautifully formatted help table using the Rich library.
+
+    This function outputs the primary command menu, providing descriptions
+    for all core Cortex utilities including installation, environment
+    management, and container tools.
+    """
     from rich.table import Table
 
     show_banner(show_version=True)
@@ -1643,11 +1688,12 @@ def show_rich_help():
     console.print("[dim]Just tell Cortex what you want to install.[/dim]")
     console.print()
 
-    # Commands table
+    # Initialize a table to display commands with specific column styling
     table = Table(show_header=True, header_style="bold cyan", box=None)
     table.add_column("Command", style="green")
     table.add_column("Description")
 
+    # Command Rows
     table.add_row("ask <question>", "Ask about your system")
     table.add_row("demo", "See Cortex in action")
     table.add_row("wizard", "Configure API key")
@@ -1661,6 +1707,7 @@ def show_rich_help():
     table.add_row("config", "Configure Cortex settings")
     table.add_row("cache stats", "Show LLM cache statistics")
     table.add_row("stack <name>", "Install the stack")
+    table.add_row("docker permissions", "Fix Docker bind-mount permissions")
     table.add_row("sandbox <cmd>", "Test packages in Docker sandbox")
     table.add_row("doctor", "System health check")
 
@@ -1737,6 +1784,22 @@ def main():
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    # Define the docker command and its associated sub-actions
+    docker_parser = subparsers.add_parser("docker", help="Docker and container utilities")
+    docker_subs = docker_parser.add_subparsers(dest="docker_action", help="Docker actions")
+
+    # Add the permissions action to allow fixing file ownership issues
+    perm_parser = docker_subs.add_parser(
+        "permissions", help="Fix file permissions from bind mounts"
+    )
+
+    # Provide an option to skip the manual confirmation prompt
+    perm_parser.add_argument("--yes", "-y", action="store_true", help="Skip confirmation prompt")
+
+    perm_parser.add_argument(
+        "--execute", "-e", action="store_true", help="Apply ownership changes (default: dry-run)"
+    )
 
     # Demo command
     demo_parser = subparsers.add_parser("demo", help="See Cortex in action")
@@ -1993,39 +2056,22 @@ def main():
 
     args = parser.parse_args()
 
-    # Handle --set-language flag (persists setting)
-    set_lang = getattr(args, "set_language", None)
-    if set_lang:
-        lang_mgr = LanguageManager()
-        resolved = lang_mgr.resolve_language(set_lang)
-
-        if resolved:
-            # Persist the language preference
-            config_mgr = ConfigManager()
-            prefs = config_mgr.load_preferences()
-            prefs["language"] = resolved
-            config_mgr.save_preferences(prefs)
-
-            lang_name = lang_mgr.get_language_name(resolved)
-            cx_print(f"✓ Language set to {lang_name} ({resolved})", "success")
-
-            # If no other command, exit successfully
-            if not args.command:
-                return 0
-        else:
-            cx_print(f"Language '{set_lang}' is not supported.", "error")
-            cx_print("Supported languages:", "info")
-            for code, name in lang_mgr.get_available_languages().items():
-                console.print(f"  [green]{code}[/green] - {name}")
-            return 1
-
+    # The Guard: Check for empty commands before starting the CLI
     if not args.command:
         show_rich_help()
         return 0
 
-    cli = CortexCLI(verbose=args.verbose, language=getattr(args, "language", None))
+    # Initialize the CLI handler
+    cli = CortexCLI(verbose=args.verbose)
 
     try:
+        # Route the command to the appropriate method inside the cli object
+        if args.command == "docker":
+            if args.docker_action == "permissions":
+                return cli.docker_permissions(args)
+            parser.print_help()
+            return 1
+
         if args.command == "demo":
             return cli.demo()
         elif args.command == "wizard":
