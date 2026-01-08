@@ -282,6 +282,28 @@ Rules:
                 "install_mode": "system",
             }
 
+    def _extract_intent_claude(self, user_input: str) -> dict:
+        try:
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=300,
+                temperature=0.2,
+                system=self._get_intent_prompt(),
+                messages=[{"role": "user", "content": user_input}],
+            )
+
+            content = response.content[0].text.strip()
+            return self._parse_intent_from_text(content)
+        except Exception as e:
+            return {
+                "action": "unknown",
+                "domain": "unknown",
+                "description": f"Failed to extract intent: {str(e)}",
+                "ambiguous": True,
+                "confidence": 0.0,
+                "install_mode": "system",
+            }
+
     def _parse_intent_from_text(self, text: str) -> dict:
         """
         Extract intent JSON from loose LLM output.
@@ -373,8 +395,7 @@ Respond with ONLY this JSON format (no explanations):
             raise RuntimeError(f"Failed to parse CORTEX_FAKE_COMMANDS: {str(e)}")
 
     def _repair_json(self, content: str) -> str:
-        """Attempt to repair common JSON formatting issues."""
-        # Remove extra whitespace between braces and brackets
+        """Attempt to repair common JSON formatting issues without hard-coding commands."""
         import re
 
         content = re.sub(r"\{\s+", "{", content)
@@ -382,6 +403,14 @@ Respond with ONLY this JSON format (no explanations):
         content = re.sub(r"\[\s+", "[", content)
         content = re.sub(r"\s+\]", "]", content)
         content = re.sub(r",\s*([}\]])", r"\1", content)  # Remove trailing commas
+
+        # Escape lone backslashes in paths (e.g., myenv\Scripts\activate)
+        content = re.sub(r'(?<!\\)\\(?!["\\/bfnrtu])', r"\\\\", content)
+
+        # Fix double-closing braces (common malformed tail)
+        if content.endswith("}}"):  # extra brace
+            content = content[:-1]
+
         return content.strip()
 
     def _parse_commands(self, content: str) -> list[str]:
@@ -420,7 +449,12 @@ Respond with ONLY this JSON format (no explanations):
                 json_blob = content
 
             # First attempt: strict JSON
-            data = json.loads(json_blob)
+            try:
+                data = json.loads(json_blob)
+            except json.JSONDecodeError:
+                # Attempt a second pass: escape stray backslashes and retry
+                json_blob = re.sub(r'(?<!\\)\\(?!["\\/bfnrtu])', r"\\\\", json_blob)
+                data = json.loads(json_blob)
             commands = data.get("commands", [])
 
             if isinstance(commands, list):
@@ -545,7 +579,7 @@ Respond with ONLY this JSON format (no explanations):
         if self.provider == APIProvider.OPENAI:
             return self._extract_intent_openai(user_input)
         elif self.provider == APIProvider.CLAUDE:
-            raise NotImplementedError("Intent extraction not yet implemented for Claude")
+            return self._extract_intent_claude(user_input)
         elif self.provider == APIProvider.OLLAMA:
             return self._extract_intent_ollama(user_input)
         elif self.provider == APIProvider.FAKE:
@@ -568,3 +602,154 @@ Respond with ONLY this JSON format (no explanations):
             }
         else:
             raise ValueError(f"Unsupported provider: {self.provider}")
+
+    def _format_domain(self, domain: str) -> str:
+        """Human-friendly domain label."""
+        return (domain or "").replace("_", " ").strip()
+
+    def generate_understanding_message(self, intent: dict) -> str:
+        """Return a single friendly sentence acknowledging the understood intent.
+
+        Uses the configured provider to produce a natural, non-templated sentence.
+        Falls back to a lightweight generic sentence if the provider fails.
+        """
+        try:
+            action = intent.get("action", "install") or "install"
+            domain = self._format_domain(intent.get("domain", ""))
+            description = intent.get("description", "")
+            confidence = intent.get("confidence", 0.0)
+
+            # Build a concise prompt for natural phrasing
+            intent_json = json.dumps(
+                {
+                    "action": action,
+                    "domain": domain,
+                    "description": description,
+                    "confidence": confidence,
+                },
+                ensure_ascii=False,
+            )
+
+            prompt = (
+                "You are a helpful CLI assistant. Given this intent JSON, write ONE "
+                "friendly, human sentence simply confirming what you understood. "
+                "Be specific to the description and domain. "
+                "Do NOT offer to clarify, ask questions, or suggest next steps. "
+                "Just state understanding clearly and directly.\n\n"
+                f"Intent: {intent_json}\n\n"
+                "Constraints:\n- One sentence only\n- Polite, neutral tone\n- Be specific and direct\n- No meta-commentary\n"
+            )
+
+            if self.provider == APIProvider.OPENAI or self.provider == APIProvider.OLLAMA:
+                # Use OpenAI-compatible chat for both OPENAI and OLLAMA
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You generate a single, natural sentence based on intent.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=0.2,
+                    max_tokens=120,
+                )
+                content = (response.choices[0].message.content or "").strip()
+                # Ensure single line
+                return content.splitlines()[0].strip()
+            elif self.provider == APIProvider.CLAUDE:
+                response = self.client.messages.create(
+                    model=self.model,
+                    max_tokens=120,
+                    temperature=0.2,
+                    system="You generate a single, natural sentence based on intent.",
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                content = (response.content[0].text or "").strip()
+                return content.splitlines()[0].strip()
+            elif self.provider == APIProvider.FAKE:
+                # Minimal fallback phrasing for tests
+                parts = ["I understand you want to", action]
+                if description:
+                    parts.append(description)
+                if domain:
+                    parts.append(f"for {domain}")
+                return " ".join(parts).strip()
+        except Exception:
+            pass
+
+        # Generic fallback if LLM fails
+        action = intent.get("action", "install") or "install"
+        domain = self._format_domain(intent.get("domain", ""))
+        description = intent.get("description", "")
+        base = f"I understand you want to {action}"
+        if description:
+            base += f" {description}"
+        if domain:
+            base += f" for {domain}"
+        return base.strip()
+
+    def ask_clarifying_questions(self, user_input: str, intent: dict | None) -> list[str]:
+        """Generate 1-2 concise clarifying questions to resolve ambiguity."""
+        try:
+            domain = self._format_domain(intent.get("domain", "unknown")) if intent else "unknown"
+            description = intent.get("description", "") if intent else ""
+            prompt = (
+                "Ask up to 2 short questions to clarify the install request. "
+                "Output ONLY the questions, one per line, no numbering or bullets.\n\n"
+                f"Request: {user_input}\n"
+                f"Domain: {domain}\n"
+                f"Description: {description}"
+            )
+
+            if self.provider == APIProvider.OPENAI or self.provider == APIProvider.OLLAMA:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "Return 1-2 clarifying questions. One question per line. No other text.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=0.2,
+                    max_tokens=120,
+                )
+                content = (response.choices[0].message.content or "").strip()
+            elif self.provider == APIProvider.CLAUDE:
+                response = self.client.messages.create(
+                    model=self.model,
+                    max_tokens=120,
+                    temperature=0.2,
+                    system="Return 1-2 clarifying questions. One question per line. No other text.",
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                content = (response.content[0].text or "").strip()
+            elif self.provider == APIProvider.FAKE:
+                return [
+                    "Which specific tools or packages do you need?",
+                    "Do you prefer system packages or Python libraries?",
+                ]
+            else:
+                return []
+
+            questions: list[str] = []
+            for line in content.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                if any(
+                    starter in line.lower()
+                    for starter in ["here are", "let me", "this", "the user", "sure"]
+                ):
+                    continue
+                questions.append(line)
+
+            return questions[:2] if questions else []
+        except Exception:
+            return []
+
+    def refine_intent(self, original_request: str, clarification: str) -> dict:
+        """Refine intent using a user clarification, delegating back to extraction."""
+        combined = f"{original_request}\nClarification: {clarification}"
+        return self.extract_intent(combined)

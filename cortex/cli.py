@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
 import time
 import urllib.request
@@ -71,16 +72,23 @@ class CortexCLI:
         domain = intent.get("domain", "unknown")
         confidence = intent.get("confidence", 0.0)
 
-        # Consider ambiguous if domain unknown or confidence too low
-        # Handle cases where confidence might not be numeric (e.g., Mock objects in tests)
+        # Consider ambiguous if:
+        # - domain unknown
+        # - confidence < 0.7 (lowered from 0.5 to be more conservative)
+        # - request is very short (< 5 words) suggesting underspecification
         try:
             confidence_value = float(confidence)
-            if domain == "unknown" or confidence_value < 0.5:
+            if domain == "unknown" or confidence_value < 0.7:
                 return True
         except (TypeError, ValueError):
             # If confidence is not numeric, assume not ambiguous (for test compatibility)
             if domain == "unknown":
                 return True
+
+        # Check request brevity
+        word_count = len(user_input.split())
+        if word_count < 3:
+            return True
 
         return False
 
@@ -272,7 +280,41 @@ class CortexCLI:
         sys.stdout.write("\r\033[K")
         sys.stdout.flush()
 
-    # --- New Notification Method ---
+    def _normalize_venv_commands(self, commands: list[str]) -> list[str]:
+        """Normalize venv activation commands based on detected venv name.
+
+        Uses simple heuristics, no hard-coded tool names. If a venv is created in a prior
+        command, fix the corresponding activation path for the current platform.
+        """
+
+        venv_name = None
+        for cmd in commands:
+            match = re.search(r"python\d*\s+-m\s+venv\s+(\S+)", cmd)
+            if match:
+                venv_name = match.group(1)
+                break
+
+        if not venv_name:
+            return commands
+
+        activate_cmd = (
+            f"{venv_name}\\Scripts\\activate"
+            if os.name == "nt"
+            else f"source {venv_name}/bin/activate"
+        )
+
+        fixed: list[str] = []
+        for cmd in commands:
+            if "activate" in cmd and venv_name in cmd:
+                fixed.append(activate_cmd)
+                continue
+            if "activate" in cmd and ("/activate" in cmd or "\\activate" in cmd):
+                fixed.append(activate_cmd)
+                continue
+            fixed.append(cmd)
+
+        return fixed
+
     def notify(self, args):
         """Handle notification commands"""
         # Addressing CodeRabbit feedback: Handle missing subcommand gracefully
@@ -754,62 +796,54 @@ class CortexCLI:
 
             interpreter = CommandInterpreter(api_key=api_key, provider=provider)
             intent = interpreter.extract_intent(software)
-            if self._is_ambiguous_request(software, intent):
-                domain = intent.get("domain", "unknown") if intent else "unknown"
 
-                if domain != "unknown" and _is_interactive():
-                    # Ask for confirmation of detected domain
-                    domain_display = domain.replace("_", " ")
-                    confirm = (
-                        input(f"Did you mean to install {domain_display} tools? [y/n]: ")
-                        .strip()
-                        .lower()
-                    )
-                    if confirm == "y":
-                        # Confirm intent and proceed
-                        intent["action"] = "install"
-                        intent["confidence"] = 1.0
-                        # Continue to processing
+            # Interactive clarification loop for ambiguous intent
+            if _is_interactive():
+                max_rounds = 3
+                rounds = 0
+                clarifications: list[str] = []
+                base_request = software
+
+                def combined_request() -> str:
+                    if not clarifications:
+                        return base_request
+                    joined = "\n".join(f"- {c}" for c in clarifications)
+                    return f"{base_request}\nClarifications:\n{joined}"
+
+                while (
+                    self._is_ambiguous_request(combined_request(), intent) and rounds < max_rounds
+                ):
+                    questions = interpreter.ask_clarifying_questions(combined_request(), intent)
+                    if questions:
+                        console.print("\nLet's clarify to be safe:")
+                        answer = input(f"{questions[0]} ").strip()
+                        if not answer:
+                            cx_print("Operation cancelled", "warning")
+                            return 1
+                        clarifications.append(answer)
+                        intent = interpreter.refine_intent(base_request, "\n".join(clarifications))
                     else:
-                        # Fall back to clarification
-                        print(self._clarification_prompt(software, interpreter, intent))
+                        print(self._clarification_prompt(combined_request(), interpreter, intent))
                         clarified = input(
                             "\nPlease provide a clearer request (or press Enter to cancel): "
                         ).strip()
                         if clarified:
-                            return self.install(
-                                clarified, execute, dry_run, parallel, api_key, provider
-                            )
-                        return 1
-                else:
-                    # Domain unknown or non-interactive, show clarification
+                            clarifications.append(clarified)
+                            intent = interpreter.extract_intent(combined_request())
+                        else:
+                            return 1
+                    rounds += 1
+                # Update software string with clarifications for downstream prompts/commands
+                software = combined_request()
+            else:
+                if self._is_ambiguous_request(software, intent):
+                    # Non-interactive: fail fast with suggestions
                     print(self._clarification_prompt(software, interpreter, intent))
-                    if _is_interactive():
-                        clarified = input(
-                            "\nPlease provide a clearer request (or press Enter to cancel): "
-                        ).strip()
-                        if clarified:
-                            return self.install(
-                                clarified, execute, dry_run, parallel, api_key, provider
-                            )
                     return 1
 
-            # Display intent reasoning
-            action = intent.get("action", "install")
-            action_display = action if action != "unknown" else "install"
-            description = intent.get("description", software)
-            domain = intent.get("domain", "general")
-            confidence = intent.get("confidence", 0.0)
-
-            # Handle confidence formatting for display (may be Mock in tests)
-            try:
-                confidence_display = f"{float(confidence):.1%}"
-            except (TypeError, ValueError):
-                confidence_display = "unknown"
-
-            print(
-                f"I understood you want to {action_display} {description} in the {domain} domain (confidence: {confidence_display})"
-            )
+            # Display understanding in natural language
+            natural_msg = interpreter.generate_understanding_message(intent)
+            console.print(natural_msg)
 
             install_mode = intent.get("install_mode", "system")
 
@@ -827,12 +861,18 @@ class CortexCLI:
                     "Do NOT use sudo or system package managers."
                 )
             else:
-                base_prompt = f"install {software}"
+                base_prompt = (
+                    f"install {software}. "
+                    "Use apt for system software on Debian/Ubuntu. "
+                    "Prefer stable, non-interactive commands. "
+                    "Do NOT output Python code snippets or REPL code; only shell commands."
+                )
 
             prompt = self._build_prompt_with_stdin(base_prompt)
             # ---------------------------------------------------
 
             commands = interpreter.parse(prompt)
+            commands = self._normalize_venv_commands(commands)
             if not commands:
                 self._print_error(
                     "No commands generated. Please try again with a different request."
@@ -849,8 +889,7 @@ class CortexCLI:
                 )
 
             self._print_status("⚙️", f"Installing {software}...")
-            print(f"\nBased on: {action_display} {description} in {domain} domain")
-            print("\nGenerated commands:")
+            print("\nSuggested commands:")
             for i, cmd in enumerate(commands, 1):
                 print(f"  {i}. {cmd}")
 
