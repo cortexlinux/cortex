@@ -1612,6 +1612,18 @@ class CortexCLI:
                 console.print(f"Error: {result.error_message}", style="red")
             return 1
 
+    def systemd(self) -> int:
+        """Interactive systemd service generator."""
+        try:
+            from cortex.systemd_helper import SystemdHelper
+
+            helper = SystemdHelper()
+            helper.run()
+            return 0
+        except Exception as e:
+            self._print_error(f"Systemd Helper failed: {e}")
+            return 1
+
     # --------------------------
 
 
@@ -1651,6 +1663,7 @@ def show_rich_help():
     table.add_row("stack <name>", "Install the stack")
     table.add_row("docker permissions", "Fix Docker bind-mount permissions")
     table.add_row("sandbox <cmd>", "Test packages in Docker sandbox")
+    table.add_row("systemd", "Generate systemd service files")
     table.add_row("doctor", "System health check")
 
     console.print(table)
@@ -1971,6 +1984,11 @@ def main():
     env_template_apply_parser.add_argument(
         "--encrypt-keys", help="Comma-separated list of keys to encrypt"
     )
+
+    # Systemd helper
+    subparsers.add_parser(
+        "systemd", aliases=["service-gen"], help="Generate systemd service files"
+    )
     # --------------------------
 
     args = parser.parse_args()
@@ -2026,6 +2044,8 @@ def main():
             return 1
         elif args.command == "env":
             return cli.env(args)
+        elif args.command in ["systemd", "service-gen"]:
+            return cli.systemd()
         else:
             parser.print_help()
             return 1
