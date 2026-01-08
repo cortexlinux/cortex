@@ -24,62 +24,78 @@ class UnifiedPackageManager:
             cx_print("Warning: Neither 'snap' nor 'flatpak' found on this system.", "warning")
             cx_print("Commands will run in DRY-RUN mode or fail.", "info")
 
-    def install(self, package: str, dry_run: bool = False):
+    def _validate_package_name(self, package: str) -> bool:
+        """Validate package name to prevent command injection."""
+        # Allow alphanumeric, hyphens, underscores, and dots.
+        # This is basic validation; backends have their own strict rules.
+        import re
+        if not re.match(r"^[a-zA-Z0-9.\-_]+$", package):
+            cx_print(f"Invalid package name: {package}", "error")
+            return False
+        return True
+
+    def install(self, package: str, dry_run: bool = False, scope: str = "user"):
         """
         Install a package using the available or selected backend.
 
         Args:
             package (str): Name of the package to install.
             dry_run (bool): If True, print the command instead of executing.
+            scope (str): Installation scope for Flatpak ('user' or 'system'). Default is 'user'.
         """
-        self.check_backends()
-        
-        backend = self._choose_backend("install")
-        if not backend:
-            return
+        self._execute_action("install", package, dry_run, scope)
 
-        cmd = self._get_install_cmd(backend, package)
-        self._run_cmd(cmd, dry_run)
-
-    def remove(self, package: str, dry_run: bool = False):
+    def remove(self, package: str, dry_run: bool = False, scope: str = "user"):
         """
         Remove a package.
 
         Args:
             package (str): Name of the package to remove.
             dry_run (bool): If True, print the command instead of executing.
+            scope (str): Removal scope for Flatpak ('user' or 'system'). Default is 'user'.
         """
+        self._execute_action("remove", package, dry_run, scope)
+
+    def _execute_action(self, action: str, package: str, dry_run: bool, scope: str = "user"):
+        """
+        Execute an install or remove action.
+        """
+        if not self._validate_package_name(package):
+            return
+
         self.check_backends()
         
-        backend = self._choose_backend("remove")
+        backend = self._choose_backend(action)
         if not backend:
             return
 
-        cmd = self._get_remove_cmd(backend, package)
+        cmd = self._get_cmd(action, backend, package, scope)
         self._run_cmd(cmd, dry_run)
     
     def list_packages(self):
-        """List installed packages from all backends."""
-        cx_header("Installed Packages (Snap & Flatpak)")
+        """Check and display status of available package backends."""
+        cx_header("Package Backends Status")
         table = Table(show_header=True, header_style="bold magenta")
-        table.add_column("Package")
         table.add_column("Backend")
-        table.add_column("Version", style="dim")
-        table.add_column("Size", style="dim")
+        table.add_column("Status")
+        table.add_column("Note", style="dim")
 
-        # Mock data for demonstration if binaries missing
         if not self.snap_avail and not self.flatpak_avail:
-             table.add_row("example-app", "snap", "1.0.0", "150MB (Mock)")
-             table.add_row("demo-tool", "flatpak", "2.1.0", "45MB (Mock)")
+             table.add_row("snap", "Not Found", "Install snapd to use")
+             table.add_row("flatpak", "Not Found", "Install flatpak to use")
         else:
-            # For MVP completeness, we indicate status
             if self.snap_avail:
-                table.add_row("System Snaps", "snap", "various", "See `snap list`")
+                table.add_row("snap", "Available", "Use `snap list` to see packages")
+            else:
+                table.add_row("snap", "Not Found", "")
+                
             if self.flatpak_avail:
-                table.add_row("System Flatpaks", "flatpak", "various", "See `flatpak list`")
+                table.add_row("flatpak", "Available", "Use `flatpak list` to see packages")
+            else:
+                table.add_row("flatpak", "Not Found", "")
             
         console.print(table)
-        console.print("[dim]Run 'snap list' or 'flatpak list' for detailed output.[/dim]")
+        console.print("[dim]Full package listing integration is planned for future updates.[/dim]")
 
     def storage_analysis(self):
         """
@@ -114,6 +130,9 @@ class UnifiedPackageManager:
         Args:
             package (str): Package name.
         """
+        if not self._validate_package_name(package):
+            return
+
         cx_header(f"Permissions: {package}")
         console.print(f"[bold]Checking confinement for {package}...[/bold]")
         
@@ -147,19 +166,32 @@ class UnifiedPackageManager:
         else:
             return "snap" # Default/Mock
 
-    def _get_install_cmd(self, backend: str, package: str) -> List[str]:
-        """Generate command list for installation."""
+    def _get_cmd(self, action: str, backend: str, package: str, scope: str = "user") -> List[str]:
+        """Generate command list for action."""
         if backend == "snap":
-            return ["sudo", "snap", "install", package]
+            # Snap doesn't typically distinguish user/system scope in the same way as flatpak CLI for install,
+            # but usually requires sudo.
+            cmd = ["sudo", "snap"]
+            if action == "install":
+                cmd.extend(["install", package])
+            elif action == "remove":
+                cmd.extend(["remove", package])
+            return cmd
         else:
-            return ["flatpak", "install", "-y", package]
-
-    def _get_remove_cmd(self, backend: str, package: str) -> List[str]:
-        """Generate command list for removal."""
-        if backend == "snap":
-            return ["sudo", "snap", "remove", package]
-        else:
-            return ["flatpak", "uninstall", "-y", package]
+            # Flatpak
+            cmd = ["flatpak"]
+            if action == "install":
+                cmd.extend(["install", "-y"])
+            elif action == "remove":
+                cmd.extend(["uninstall", "-y"])
+            
+            if scope == "user":
+                cmd.append("--user")
+            elif scope == "system":
+                cmd.append("--system")
+            
+            cmd.append(package)
+            return cmd
 
     def _run_cmd(self, cmd: List[str], dry_run: bool):
         """
@@ -176,9 +208,12 @@ class UnifiedPackageManager:
 
         cx_print(f"Running: {cmd_str}...", "info")
         try:
-            subprocess.check_call(cmd)
+            # Added timeout of 300 seconds (5 minutes)
+            subprocess.check_call(cmd, timeout=300)
             cx_print("Command executed successfully.", "success")
+        except subprocess.TimeoutExpired:
+             cx_print("Command timed out after 300 seconds.", "error")
         except subprocess.CalledProcessError as e:
             cx_print(f"Command failed: {e}", "error")
         except FileNotFoundError:
-             cx_print(f"Executable not found: {cmd[0]}", "error")
+            cx_print(f"Executable not found: {cmd[0]}", "error")

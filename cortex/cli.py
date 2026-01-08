@@ -1902,7 +1902,7 @@ def main():
     pkg_remove.add_argument("--dry-run", action="store_true")
 
     # pkg list
-    pkg_subs.add_parser("list", help="List packages")
+    pkg_subs.add_parser("list", help="Check Snap/Flatpak availability")
 
     # pkg storage
     pkg_subs.add_parser("storage", help="Analyze package storage usage")
