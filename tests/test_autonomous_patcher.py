@@ -424,7 +424,6 @@ class TestAutonomousPatcherAptUpdate(unittest.TestCase):
             shutil.rmtree(self.temp_dir)
 
     @patch("subprocess.run")
-    @patch("cortex.autonomous_patcher._apt_last_updated", None)
     def test_ensure_apt_updated_first_call(self, mock_run):
         """Test apt update runs on first call"""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")

@@ -38,9 +38,8 @@ def _get_severity_color(severity: Severity) -> str:
     }.get(severity, "white")
 
 
-# Module-level apt update tracking (shared across all instances)
+# Module-level apt update lock for thread safety
 _apt_update_lock = threading.Lock()
-_apt_last_updated: datetime | None = None
 _APT_UPDATE_INTERVAL_SECONDS = 300  # 5 minutes
 
 
@@ -117,6 +116,9 @@ class AutonomousPatcher:
         self.blacklist: set[str] = set()  # Packages never patched automatically
         self.min_severity = Severity.MEDIUM  # Minimum severity to patch
 
+        # Apt update tracking (instance-level to avoid global state issues)
+        self._apt_last_updated: datetime | None = None
+
         # Load configuration
         self._load_config()
 
@@ -177,14 +179,12 @@ class AutonomousPatcher:
         Returns:
             True if update succeeded or was recently done, False on failure
         """
-        global _apt_last_updated
-
         with _apt_update_lock:
             now = datetime.now()
 
             # Check if we need to update
-            if not force and _apt_last_updated is not None:
-                elapsed = (now - _apt_last_updated).total_seconds()
+            if not force and self._apt_last_updated is not None:
+                elapsed = (now - self._apt_last_updated).total_seconds()
                 if elapsed < _APT_UPDATE_INTERVAL_SECONDS:
                     logger.debug(f"Apt cache still fresh ({elapsed:.0f}s old), skipping update")
                     return True
@@ -194,13 +194,13 @@ class AutonomousPatcher:
             success, stdout, stderr = self._run_command(["apt-get", "update", "-qq"])
 
             if success:
-                _apt_last_updated = now
+                self._apt_last_updated = now
                 logger.info("Apt package list updated successfully")
                 return True
             else:
                 logger.warning(f"Failed to update apt package list: {stderr}")
                 # Still set timestamp to avoid hammering on repeated failures
-                _apt_last_updated = now
+                self._apt_last_updated = now
                 return False
 
     def _check_package_update_available(self, package_name: str) -> str | None:
