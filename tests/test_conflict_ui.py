@@ -57,7 +57,7 @@ class TestConflictResolutionUI(unittest.TestCase):
 
         # Should exit on choice 3
         with self.assertRaises(SystemExit):
-            result = self.cli._resolve_conflicts_interactive(conflicts)
+            self.cli._resolve_conflicts_interactive(conflicts)
 
         # Verify skip option was presented
         output = mock_stdout.getvalue()
@@ -354,7 +354,7 @@ class TestConflictDetectionWorkflow(unittest.TestCase):
 
         # Should exit on choice 3
         with self.assertRaises(SystemExit):
-            result = self.cli._resolve_conflicts_interactive(conflicts)
+            self.cli._resolve_conflicts_interactive(conflicts)
 
     def test_saved_preference_bypasses_ui(self):
         """Test that saved preferences bypass interactive UI."""
