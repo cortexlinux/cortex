@@ -1134,12 +1134,10 @@ class CortexCLI:
         scan_all = getattr(args, "all", False)
 
         if package:
-            packages = scanner._get_installed_packages()
-            if package not in packages:
+            version = scanner.get_package_version(package)
+            if version is None:
                 self._print_error(f"Package {package} not found")
                 return 1
-
-            version = packages[package]
             vulns = scanner.scan_package(package, version)
 
             console.print(f"\n🔍 Vulnerabilities for {package} {version}:")
