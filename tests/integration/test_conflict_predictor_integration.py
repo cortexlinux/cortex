@@ -20,7 +20,6 @@ from cortex.conflict_predictor import (
     StrategyType,
 )
 from cortex.installation_history import InstallationHistory
-from cortex.llm_router import LLMRouter
 
 
 class TestConflictPredictorIntegration(unittest.TestCase):

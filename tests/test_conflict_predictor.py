@@ -342,7 +342,7 @@ class TestSecurityValidation(unittest.TestCase):
 
     def test_validate_version_constraint_valid(self):
         """Test valid version constraints"""
-        # Note: constraints without spaces are valid (pip style)
+        # Test valid pip version constraint operators
         self.assertTrue(validate_version_constraint("<2.0"))
         self.assertTrue(validate_version_constraint(">=1.0"))
         self.assertTrue(validate_version_constraint("==1.2.3"))

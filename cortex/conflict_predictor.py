@@ -23,7 +23,9 @@ CONFLICT_TASK_TYPE = TaskType.DEPENDENCY_RESOLUTION
 logger = logging.getLogger(__name__)
 
 # Security: Validate version constraint format
-CONSTRAINT_PATTERN = re.compile(r"^(<|>|<=|>=|==|!=|~=|~|===)?[\w.!*+\-]+$")
+# Valid pip operators: <, >, <=, >=, ==, !=, ~=, ===
+# Note: ~ alone is NOT valid, only ~= (compatible release) is valid
+CONSTRAINT_PATTERN = re.compile(r"^(<|>|<=|>=|==|!=|~=|===)?[\w.!*+\-]+$")
 
 
 def validate_version_constraint(constraint: str) -> bool:
@@ -260,6 +262,8 @@ Respond with JSON only."""
                             )
                         )
                     except (KeyError, ValueError):
+                        # Skip malformed strategy entries from LLM response
+                        # This is expected when LLM returns incomplete JSON
                         continue
 
                 strategies.sort(key=lambda s: s.safety_score, reverse=True)
@@ -351,6 +355,8 @@ Respond with JSON only."""
                         )
                     )
                 except (KeyError, ValueError):
+                    # Skip malformed strategy entries from LLM response
+                    # This is expected when LLM returns incomplete JSON
                     continue
 
         except json.JSONDecodeError as exc:
@@ -769,6 +775,10 @@ def prompt_resolution_choice(
 # ============================================================================
 
 
+PIP_TIMEOUT_SECONDS = 5  # Timeout for pip commands
+DPKG_TIMEOUT_SECONDS = 5  # Timeout for dpkg commands
+
+
 def get_pip_packages() -> dict[str, str]:
     """Get installed pip packages with timeout protection."""
     try:
@@ -776,13 +786,13 @@ def get_pip_packages() -> dict[str, str]:
             ["pip3", "list", "--format=json"],
             capture_output=True,
             text=True,
-            timeout=5,  # Reduced from 15 to prevent UI blocking
+            timeout=PIP_TIMEOUT_SECONDS,
         )
         if result.returncode == 0:
             packages = json.loads(result.stdout)
             return {pkg["name"]: pkg["version"] for pkg in packages}
     except subprocess.TimeoutExpired:
-        logger.debug("pip3 list timed out after 5 seconds")
+        logger.debug(f"pip3 list timed out after {PIP_TIMEOUT_SECONDS} seconds")
     except json.JSONDecodeError as e:
         logger.debug(f"Failed to parse pip output as JSON: {e}")
     except FileNotFoundError:
@@ -812,7 +822,7 @@ def get_apt_packages_summary() -> list[str]:
             ["dpkg", "--get-selections"],
             capture_output=True,
             text=True,
-            timeout=5,  # Reduced from 10 to prevent UI blocking
+            timeout=DPKG_TIMEOUT_SECONDS,
         )
         if result.returncode == 0:
             packages = []
@@ -826,7 +836,7 @@ def get_apt_packages_summary() -> list[str]:
                         continue  # Skip malformed lines
             return packages[:30]
     except subprocess.TimeoutExpired:
-        logger.debug("dpkg --get-selections timed out after 5 seconds")
+        logger.debug(f"dpkg --get-selections timed out after {DPKG_TIMEOUT_SECONDS} seconds")
     except FileNotFoundError:
         logger.debug("dpkg command not found")
     except Exception as e:

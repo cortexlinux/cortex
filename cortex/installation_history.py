@@ -23,6 +23,9 @@ from cortex.utils.db_pool import SQLiteConnectionPool, get_connection_pool
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Characters to strip from package names to avoid injection or parsing issues
+PACKAGE_NAME_STRIP_CHARS = "!@#$%^&*(){}[]|\\:;\"'<>,?/~`"
+
 
 class InstallationType(Enum):
     """Type of installation operation"""
@@ -289,7 +292,7 @@ class InstallationHistory:
             pkg = re.sub(r"=.*$", "", pkg)
             # Remove any trailing special characters
             # Use rstrip for efficiency instead of regex to avoid ReDoS
-            pkg = pkg.rstrip("!@#$%^&*(){}[]|\\:;\"'<>,?/~`")
+            pkg = pkg.rstrip(PACKAGE_NAME_STRIP_CHARS)
             if pkg:
                 packages.add(pkg)
 
@@ -320,7 +323,7 @@ class InstallationHistory:
 
             # Remove any trailing special characters from name
             # Use rstrip for efficiency instead of regex to avoid ReDoS
-            name = name.rstrip("!@#$%^&*(){}[]|\\:;\"'<>,?/~`")
+            name = name.rstrip(PACKAGE_NAME_STRIP_CHARS)
 
             if name and name not in seen:
                 seen.add(name)

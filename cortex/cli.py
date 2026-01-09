@@ -716,18 +716,21 @@ class CortexCLI:
                     self._print_status("🔍", "Checking for dependency conflicts...")
 
                     # Suppress verbose logging during conflict prediction
+                    # Use WARNING level to still catch genuine errors while reducing noise
                     logging.getLogger("cortex.conflict_predictor").setLevel(logging.WARNING)
                     logging.getLogger("cortex.dependency_resolver").setLevel(logging.WARNING)
-                    logging.getLogger("cortex.llm_router").setLevel(logging.ERROR)
+                    logging.getLogger("cortex.llm_router").setLevel(logging.WARNING)
 
                     # Initialize LLMRouter with appropriate API key based on provider
                     # Note: LLMRouter supports Claude and Kimi K2 as backends
-                    # OpenAI API key is passed to Kimi K2 (OpenAI-compatible endpoint)
                     if provider == "claude":
                         llm_router = LLMRouter(claude_api_key=api_key)
                     elif provider == "openai":
-                        # OpenAI provider maps to Kimi K2 (OpenAI-compatible API)
-                        # Future: Add native openai_api_key support in LLMRouter
+                        # WARNING: "openai" provider currently maps to Kimi K2, NOT OpenAI.
+                        # Kimi K2 uses an OpenAI-compatible API format, so the user's API key
+                        # is passed to Kimi K2's endpoint (api.moonshot.ai).
+                        # Users expecting OpenAI models will get Kimi K2 instead.
+                        # Future: Add native openai_api_key support in LLMRouter for true OpenAI.
                         llm_router = LLMRouter(kimi_api_key=api_key)
                     else:
                         # Ollama or other providers
@@ -763,14 +766,13 @@ class CortexCLI:
                                     # Venv strategy: run in bash subshell so activation persists
                                     # Note: 'source' is bash-specific, so we use 'bash -c'
                                     # The venv will be created and package installed in it
-                                    venv_cmd = (
-                                        "bash -c '"
-                                        + " && ".join(
-                                            cmd.replace("'", "'\\''")
-                                            for cmd in chosen_strategy.commands
-                                        )
-                                        + "'"
+                                    # Use 'set -e' to ensure failures are properly reported
+                                    import shlex
+                                    escaped_cmds = " && ".join(
+                                        shlex.quote(cmd) if " " not in cmd else cmd.replace("'", "'\\''")
+                                        for cmd in chosen_strategy.commands
                                     )
+                                    venv_cmd = f"bash -c 'set -e && {escaped_cmds}'"
                                     # Don't prepend to main commands - venv is isolated
                                     # Just run the venv setup separately
                                     commands = [venv_cmd]
@@ -889,6 +891,10 @@ class CortexCLI:
                                 print(f"   To rollback: cortex rollback {install_id}")
 
                             # Record conflict resolution outcome for learning
+                            # Note: The user selects a single strategy that resolves all detected
+                            # conflicts (e.g., venv isolates all conflicts). Recording each
+                            # conflict-strategy pair helps learn which strategies work best
+                            # for specific conflict types.
                             if predictor and chosen_strategy and all_conflicts:
                                 for conflict in all_conflicts:
                                     predictor.record_resolution(
