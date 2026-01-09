@@ -797,30 +797,36 @@ Cortex is ready to use! Here are some things to try:
         using Fernet encryption. The encryption key is stored in
         ~/.cortex/.env_key with restricted permissions (chmod 600).
         """
+        # Set for current session regardless of storage success
+        os.environ[name] = value
+
         try:
             env_mgr = get_env_manager()
+
+            # Handle brand names correctly (e.g., "OpenAI" not "Openai")
+            provider_name_raw = name.replace("_API_KEY", "")
+            if provider_name_raw == "OPENAI":
+                provider_name_display = "OpenAI"
+            elif provider_name_raw == "ANTHROPIC":
+                provider_name_display = "Anthropic"
+            else:
+                provider_name_display = provider_name_raw.replace("_", " ").title()
+
             env_mgr.set_variable(
                 app=CORTEX_APP_NAME,
                 key=name,
                 value=value,
                 encrypt=True,
-                description=f"API key for {name.replace('_API_KEY', '').replace('_', ' ').title()}",
+                description=f"API key for {provider_name_display}",
             )
-
-            # Also set for current session
-            os.environ[name] = value
             logger.info(f"Saved {name} to encrypted storage")
         except ImportError:
-            # Cryptography not installed - fall back to warning user
             logger.warning(
                 f"cryptography package not installed. {name} set for current session only. "
                 "Install cryptography for persistent encrypted storage: pip install cryptography"
             )
-            os.environ[name] = value
         except Exception as e:
             logger.warning(f"Could not save env var to encrypted storage: {e}")
-            # Still set for current session
-            os.environ[name] = value
 
 
 # Convenience functions
