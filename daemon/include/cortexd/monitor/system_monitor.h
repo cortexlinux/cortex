@@ -121,8 +121,9 @@ private:
     
     /**
      * @brief Check thresholds and create alerts
+     * @param snapshot Copy of current health snapshot to check
      */
-    void check_thresholds();
+    void check_thresholds(const HealthSnapshot& snapshot);
     
     /**
      * @brief Generate AI-powered alert message using LLM

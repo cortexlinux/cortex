@@ -146,13 +146,17 @@ inline std::string expand_path(const std::string& path) {
 }
 
 /**
- * @brief Get current timestamp in ISO format
+ * @brief Get current timestamp in ISO format (thread-safe)
  */
 inline std::string timestamp_iso() {
     auto now = Clock::now();
     auto time_t_now = Clock::to_time_t(now);
+    std::tm tm{};
+    if (gmtime_r(&time_t_now, &tm) == nullptr) {
+        return "";  // gmtime_r failed (unlikely)
+    }
     char buf[32];
-    std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", std::gmtime(&time_t_now));
+    std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", &tm);
     return buf;
 }
 

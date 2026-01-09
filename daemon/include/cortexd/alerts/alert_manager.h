@@ -207,11 +207,21 @@ private:
 
 /**
  * @brief SQLite-based alert storage
+ * 
+ * Non-copyable and non-movable to prevent double-closing the SQLite handle.
  */
 class AlertStore {
 public:
     explicit AlertStore(const std::string& db_path);
     ~AlertStore();
+    
+    // Non-copyable: prevent double-closing the raw sqlite handle
+    AlertStore(const AlertStore&) = delete;
+    AlertStore& operator=(const AlertStore&) = delete;
+    
+    // Non-movable: prevent ownership transfer issues with db_
+    AlertStore(AlertStore&&) = delete;
+    AlertStore& operator=(AlertStore&&) = delete;
     
     bool init();
     bool insert(const Alert& alert);

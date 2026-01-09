@@ -1,8 +1,11 @@
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
+import yaml
 from rich.console import Console
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
@@ -101,7 +104,18 @@ def install_daemon() -> bool:
     return result.returncode == 0
 
 
-def download_model():
+def download_model() -> Path | None:
+    """
+    Download or select an LLM model for the cortex daemon.
+
+    Presents options to use an existing model or download a new one from
+    recommended sources or a custom URL. Validates and sanitizes URLs to
+    prevent security issues.
+
+    Returns:
+        Path | None: Path to the downloaded/selected model file, or None if
+                     download failed or was cancelled.
+    """
     console.print("[cyan]Setting up LLM model...[/cyan]\n")
 
     # Check for existing models
@@ -147,15 +161,61 @@ def download_model():
     else:
         model_url = Prompt.ask("Enter the model URL")
 
+    # Validate and sanitize the URL
+    parsed_url = urlparse(model_url)
+    if parsed_url.scheme not in ("http", "https"):
+        console.print("[red]Invalid URL scheme. Only http and https are allowed.[/red]")
+        return None
+    if not parsed_url.netloc:
+        console.print("[red]Invalid URL: missing host/domain.[/red]")
+        return None
+
+    # Derive a safe filename from the URL path
+    url_path = Path(parsed_url.path)
+    raw_filename = url_path.name if url_path.name else ""
+
+    # Reject filenames with path traversal or empty names
+    if not raw_filename or ".." in raw_filename or raw_filename.startswith("/"):
+        console.print("[red]Invalid or unsafe filename in URL. Using generated name.[/red]")
+        # Generate a safe fallback name based on URL hash
+        import hashlib
+
+        url_hash = hashlib.sha256(model_url.encode()).hexdigest()[:12]
+        raw_filename = f"model_{url_hash}.gguf"
+
+    # Clean the filename: only allow alphanumerics, dots, hyphens, underscores
+    safe_filename = re.sub(r"[^\w.\-]", "_", raw_filename)
+    if not safe_filename:
+        safe_filename = "downloaded_model.gguf"
+
     os.makedirs(MODEL_DIR, exist_ok=True)
-    model_path = MODEL_DIR / model_url.split("/")[-1]
+
+    # Construct model_path safely and verify it stays within MODEL_DIR
+    model_path = (MODEL_DIR / safe_filename).resolve()
+    if not str(model_path).startswith(str(MODEL_DIR.resolve())):
+        console.print("[red]Security error: model path escapes designated directory.[/red]")
+        return None
 
     console.print(f"[cyan]Downloading to {model_path}...[/cyan]")
+    # Use subprocess with list arguments (no shell) after URL validation
     result = subprocess.run(["wget", model_url, "-O", str(model_path)], check=False)
     return model_path if result.returncode == 0 else None
 
 
-def setup_model(model_path):
+def setup_model(model_path: str) -> bool:
+    """
+    Attempt to load an LLM model into the cortex daemon.
+
+    Tries multiple methods to load the model (sg for group membership, direct command).
+    Falls back to configuring auto-load if immediate loading fails due to permissions.
+
+    Args:
+        model_path: Path to the GGUF model file to load.
+
+    Returns:
+        bool: True if model was loaded or auto-load should be configured,
+              False if loading failed with a non-recoverable error.
+    """
     console.print(f"[cyan]Loading model: {model_path}[/cyan]")
     console.print("[cyan]This may take a minute depending on model size...[/cyan]")
 
@@ -200,7 +260,19 @@ def setup_model(model_path):
         return True  # Continue to configure auto-load
 
 
-def configure_auto_load(model_path):
+def configure_auto_load(model_path: str) -> None:
+    """
+    Configure the cortex daemon to auto-load the specified model on startup.
+
+    Updates the daemon configuration file (/etc/cortex/daemon.yaml) to set the
+    model_path and disable lazy_load, then restarts the daemon service.
+
+    Args:
+        model_path: Path to the GGUF model file to configure for auto-loading.
+
+    Returns:
+        None. Exits the program with code 1 on failure.
+    """
     console.print("[cyan]Configuring auto-load for the model...[/cyan]")
     # Create /etc/cortex directory if it doesn't exist
     subprocess.run(["sudo", "mkdir", "-p", "/etc/cortex"], check=False)
@@ -213,38 +285,62 @@ def configure_auto_load(model_path):
         console.print("[cyan]Creating daemon configuration file...[/cyan]")
         subprocess.run(["sudo", "cp", str(CONFIG_EXAMPLE), CONFIG_FILE], check=False)
 
-    # Update model_path - set the path
-    sed_cmd1 = f's|model_path: "".*|model_path: "{model_path}"|g'
-    result1 = subprocess.run(["sudo", "sed", "-i", sed_cmd1, CONFIG_FILE], check=False)
-    if result1.returncode != 0:
-        console.print(
-            f"[red]Failed to update model_path in config (exit code {result1.returncode})[/red]"
+    # Use YAML library to safely update the configuration instead of sed
+    # This avoids shell injection risks from special characters in model_path
+    try:
+        # Read the current config file
+        result = subprocess.run(
+            ["sudo", "cat", CONFIG_FILE], capture_output=True, text=True, check=True
         )
-        sys.exit(1)
+        config = yaml.safe_load(result.stdout) or {}
 
-    # Set lazy_load to false so model loads on startup
-    sed_cmd2 = "s|lazy_load: true|lazy_load: false|g"
-    result2 = subprocess.run(["sudo", "sed", "-i", sed_cmd2, CONFIG_FILE], check=False)
-    if result2.returncode != 0:
-        console.print(
-            f"[red]Failed to update lazy_load in config (exit code {result2.returncode})[/red]"
+        # Update the configuration values
+        config["model_path"] = str(model_path)
+        config["lazy_load"] = False
+
+        # Write the updated config back via sudo tee
+        updated_yaml = yaml.dump(config, default_flow_style=False, sort_keys=False)
+        write_result = subprocess.run(
+            ["sudo", "tee", CONFIG_FILE],
+            input=updated_yaml,
+            text=True,
+            capture_output=True,
+            check=False,
         )
-        sys.exit(1)
 
-    # Both sed commands succeeded
-    if result2.returncode == 0:
+        if write_result.returncode != 0:
+            console.print(
+                f"[red]Failed to write config file (exit code {write_result.returncode})[/red]"
+            )
+            sys.exit(1)
+
         console.print(
             f"[green]Model configured to auto-load on daemon startup: {model_path}[/green]"
         )
         console.print("[cyan]Restarting daemon to apply configuration...[/cyan]")
         subprocess.run(["sudo", "systemctl", "restart", "cortexd"], check=False)
         console.print("[green]Daemon restarted with model loaded![/green]")
-    else:
-        console.print("[red]Failed to configure auto-load.[/red]")
+
+    except subprocess.CalledProcessError as e:
+        console.print(f"[red]Failed to read config file: {e}[/red]")
+        sys.exit(1)
+    except yaml.YAMLError as e:
+        console.print(f"[red]Failed to parse config file: {e}[/red]")
         sys.exit(1)
 
 
-def main():
+def main() -> int:
+    """
+    Interactive setup wizard for the Cortex daemon.
+
+    Guides the user through building, installing, and configuring the cortexd daemon,
+    including optional LLM model setup.
+
+    Returns:
+        int: Exit code (0 for success, 1 for failure). The function calls sys.exit()
+             directly on failures, so the return value is primarily for documentation
+             and potential future refactoring.
+    """
     console.print(
         "\n[bold cyan]╔══════════════════════════════════════════════════════════════╗[/bold cyan]"
     )
@@ -299,11 +395,14 @@ def main():
         )
         console.print("\n[cyan]The daemon is now running with your model loaded.[/cyan]")
         console.print("[cyan]Try it out:[/cyan] cortex ask 'What packages do I have installed?'\n")
+        return 0
     else:
         console.print("[red]Failed to download/select the model.[/red]")
         console.print("[yellow]Daemon is installed but no model is configured.[/yellow]")
         sys.exit(1)
 
+    return 0  # Unreachable, but satisfies type checker
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

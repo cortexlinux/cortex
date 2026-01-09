@@ -209,8 +209,14 @@ void SystemMonitor::run_checks() {
             }
         }
         
-        // Check thresholds and create alerts
-        check_thresholds();
+        // Check thresholds and create alerts using a local snapshot copy
+        // (obtained while holding snapshot_mutex_ above)
+        HealthSnapshot snapshot_copy;
+        {
+            std::lock_guard<std::mutex> lock(snapshot_mutex_);
+            snapshot_copy = current_snapshot_;
+        }
+        check_thresholds(snapshot_copy);
         
         LOG_DEBUG("SystemMonitor", "Health check complete: CPU=" + 
                   std::to_string(cpu_usage) + "%, MEM=" + 
@@ -222,13 +228,12 @@ void SystemMonitor::run_checks() {
     }
 }
 
-void SystemMonitor::check_thresholds() {
+void SystemMonitor::check_thresholds(const HealthSnapshot& snapshot) {
     if (!alert_manager_) {
         return;
     }
     
     const auto& config = ConfigManager::instance().get();
-    const auto& snapshot = current_snapshot_;
     
     // Check disk usage
     double disk_pct = snapshot.disk_usage_percent / 100.0;
@@ -405,23 +410,20 @@ void SystemMonitor::create_smart_alert(AlertSeverity severity, AlertType type,
         return;
     }
     
-    // Capture alert_manager_ as raw pointer for thread safety
-    // (shared_ptr would create ownership issues with detached threads)
-    AlertManager* alert_mgr = alert_manager_.get();
+    // Capture a weak_ptr to avoid use-after-free if SystemMonitor is destroyed
+    // while the detached thread is still running
+    std::weak_ptr<AlertManager> weak_alert_mgr = alert_manager_;
     
     // Spawn background thread for AI analysis (non-blocking)
     // Use detached thread so it doesn't block health checks
-    std::thread([alert_mgr, type, ai_context, title, alert_id, severity]() {
+    std::thread([weak_alert_mgr, type, ai_context, title, alert_id, severity]() {
         LOG_DEBUG("SystemMonitor", "Generating AI alert analysis in background...");
         
-        // Note: We need to access LLM through the captured context
-        // For now, we'll generate a simple context-based analysis
-        // In a full implementation, this would call generate_ai_alert
-        
-        // Since we can't safely capture 'this' for detached threads,
-        // we'll create the AI analysis alert with the context directly
-        if (alert_mgr == nullptr) {
-            LOG_ERROR("SystemMonitor", "Alert manager is null in AI analysis thread");
+        // Lock the weak_ptr to get a shared_ptr - if this fails, the AlertManager
+        // has been destroyed and we should abort
+        auto alert_mgr = weak_alert_mgr.lock();
+        if (!alert_mgr) {
+            LOG_DEBUG("SystemMonitor", "AlertManager no longer available, skipping AI analysis");
             return;
         }
         
