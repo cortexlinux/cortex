@@ -67,7 +67,7 @@ cortex install "tools for video compression"
 | **Dry-Run Default** | Preview all commands before execution |
 | **Sandboxed Execution** | Commands run in Firejail isolation |
 | **Full Rollback** | Undo any installation with `cortex rollback` |
-| **System Role Management** | Tailor recommendations based on system personality (ML, Web, DB) |
+| **AI System Roles** | Autonomous role detection and contextual package suggestions |
 | **Docker Permission Fixer** | Fix root-owned bind mount issues automatically |
 | **Audit Trail** | Complete history in `~/.cortex/history.db` |
 | **Hardware-Aware** | Detects GPU, CPU, memory for optimized packages |
@@ -149,7 +149,8 @@ cortex rollback <installation-id>
 | `cortex install <query>` | Install packages matching natural language query |
 | `cortex install <query> --dry-run` | Preview installation plan (default) |
 | `cortex install <query> --execute` | Execute the installation |
-| `cortex role <cmd>` | Manage system roles and get tailored package recommendations |
+| `cortex role detect` | AI analysis of system context to identify and set system role |
+| `cortex role set <slug>` | Manually declare a role to receive AI-tailored recommendations |
 | `cortex docker permissions` | Fix file ownership for Docker bind mounts |
 | `cortex sandbox <cmd>` | Test packages in Docker sandbox |
 | `cortex history` | View all past installations |
@@ -204,9 +205,9 @@ Cortex stores configuration in `~/.cortex/`:
               ┌───────────────┼───────────────┐
               ▼               ▼               ▼
 ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-│    Hardware     │ │    Package      │ │    Sandbox      │
-│    Detection    │ │    Manager      │ │    Executor     │
-│                 │ │  (apt/yum/dnf)  │ │   (Firejail)    │
+│    AI Role      │ │    Package      │ │    Sandbox      │
+│    Sensing      │ │    Manager      │ │    Executor     │
+│ (Context Layer) │ │  (apt/yum/dnf)  │ │   (Firejail)    │
 └─────────────────┘ └─────────────────┘ └─────────────────┘
                               │
                               ▼
