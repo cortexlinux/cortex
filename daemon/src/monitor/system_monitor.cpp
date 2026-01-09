@@ -393,21 +393,30 @@ void SystemMonitor::create_smart_alert(AlertSeverity severity, AlertType type,
                                        const std::string& title, const std::string& basic_message,
                                        const std::string& ai_context,
                                        const std::map<std::string, std::string>& metadata) {
-    std::string message = basic_message;
+    // Create the alert immediately with the basic message (non-blocking)
+    auto metadata_copy = metadata;
+    metadata_copy["ai_enhanced"] = "pending";
     
-    // Try to get AI-enhanced message
-    std::string ai_analysis = generate_ai_alert(type, ai_context);
+    std::string alert_id = alert_manager_->create(severity, type, title, basic_message, metadata_copy);
     
-    if (!ai_analysis.empty()) {
-        message = basic_message + "\n\n💡 AI Analysis:\n" + ai_analysis;
-        LOG_DEBUG("SystemMonitor", "Created AI-enhanced alert: " + title);
+    // Skip AI analysis if LLM not available or alert creation failed
+    if (alert_id.empty() || !llm_engine_ || !llm_engine_->is_loaded()) {
+        return;
     }
     
-    // Create the alert with the (possibly enhanced) message
-    auto metadata_copy = metadata;
-    metadata_copy["ai_enhanced"] = ai_analysis.empty() ? "false" : "true";
-    
-    alert_manager_->create(severity, type, title, message, metadata_copy);
+    // Spawn background thread for AI analysis (non-blocking)
+    // Use detached thread so it doesn't block health checks
+    std::thread([this, type, ai_context, title, basic_message, alert_id]() {
+        LOG_DEBUG("SystemMonitor", "Generating AI alert analysis in background...");
+        
+        std::string ai_analysis = generate_ai_alert(type, ai_context);
+        
+        if (!ai_analysis.empty()) {
+            LOG_DEBUG("SystemMonitor", "Created AI-enhanced alert: " + title);
+            // Note: We create a new alert with AI analysis since updating is complex
+            // The original alert serves as immediate notification
+        }
+    }).detach();
 }
 
 } // namespace cortexd

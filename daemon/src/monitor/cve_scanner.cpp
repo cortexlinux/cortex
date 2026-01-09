@@ -10,6 +10,11 @@
 #include <sstream>
 #include <regex>
 #include <cstdio>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <signal.h>
+#include <cstring>
+#include <fcntl.h>
 
 namespace cortexd {
 
@@ -195,8 +200,65 @@ std::string CVEScanner::run_command(const std::string& cmd) {
 }
 
 bool CVEScanner::command_exists(const std::string& cmd) {
-    std::string check = "which " + cmd + " >/dev/null 2>&1";
-    return system(check.c_str()) == 0;
+    // Avoid shell injection by using fork/exec instead of system()
+    // The command name is passed as a separate argument to "which"
+    
+    pid_t pid = fork();
+    if (pid == -1) {
+        LOG_ERROR("CVEScanner", "fork() failed: " + std::string(strerror(errno)));
+        return false;
+    }
+    
+    if (pid == 0) {
+        // Child process
+        // Redirect stdout/stderr to /dev/null
+        int devnull = open("/dev/null", O_WRONLY);
+        if (devnull != -1) {
+            dup2(devnull, STDOUT_FILENO);
+            dup2(devnull, STDERR_FILENO);
+            close(devnull);
+        }
+        
+        // Execute "which <cmd>" - cmd is passed as separate argument (no shell)
+        const char* args[] = {"which", cmd.c_str(), nullptr};
+        execvp("which", const_cast<char* const*>(args));
+        
+        // If execvp returns, it failed
+        _exit(127);
+    }
+    
+    // Parent process - wait for child with timeout
+    constexpr int TIMEOUT_SECONDS = 5;
+    int status = 0;
+    time_t start_time = time(nullptr);
+    
+    while (true) {
+        pid_t result = waitpid(pid, &status, WNOHANG);
+        
+        if (result == pid) {
+            // Child exited
+            if (WIFEXITED(status)) {
+                return WEXITSTATUS(status) == 0;
+            }
+            return false;  // Child terminated abnormally
+        }
+        
+        if (result == -1) {
+            LOG_ERROR("CVEScanner", "waitpid() failed: " + std::string(strerror(errno)));
+            return false;
+        }
+        
+        // Check timeout
+        if (time(nullptr) - start_time >= TIMEOUT_SECONDS) {
+            LOG_WARN("CVEScanner", "command_exists timeout for: " + cmd);
+            kill(pid, SIGKILL);
+            waitpid(pid, &status, 0);  // Reap the killed child
+            return false;
+        }
+        
+        // Brief sleep to avoid busy-waiting
+        usleep(10000);  // 10ms
+    }
 }
 
 } // namespace cortexd

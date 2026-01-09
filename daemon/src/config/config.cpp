@@ -261,9 +261,9 @@ bool ConfigManager::reload() {
     return true;
 }
 
-const Config& ConfigManager::get() const {
+Config ConfigManager::get() const {
     std::lock_guard<std::mutex> lock(mutex_);
-    return config_;
+    return config_;  // Return copy for thread safety
 }
 
 void ConfigManager::on_change(ChangeCallback callback) {

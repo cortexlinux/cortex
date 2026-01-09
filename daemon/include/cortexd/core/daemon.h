@@ -86,9 +86,9 @@ public:
     }
     
     /**
-     * @brief Get current configuration
+     * @brief Get current configuration (returns copy for thread safety)
      */
-    const Config& config() const;
+    Config config() const;
     
     /**
      * @brief Get daemon uptime

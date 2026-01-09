@@ -4,6 +4,22 @@ Complete walkthrough to setup, test, and validate the embedded llama.cpp inferen
 
 ---
 
+## Prerequisites: Set CORTEX_HOME
+
+Before running any commands, set the `CORTEX_HOME` environment variable to point to your cortex repository root:
+
+```bash
+# Set CORTEX_HOME to your cortex project directory
+export CORTEX_HOME=/path/to/cortex  # e.g., ~/projects/cortex
+
+# Or if you're already in the cortex directory:
+export CORTEX_HOME=$(pwd)
+```
+
+All paths in this guide use `${CORTEX_HOME}` or relative paths for portability.
+
+---
+
 ## Phase 1: Environment Setup
 
 ### Step 1.1: Check System Requirements
@@ -141,7 +157,7 @@ du -sh ~/.cortex/models/
 ### Step 3.1: Clean Build
 
 ```bash
-cd /home/sujay/internship/cortex/daemon
+cd "${CORTEX_HOME:-$(pwd)}/daemon"
 
 # Clean previous build
 rm -rf build
@@ -224,7 +240,7 @@ mkdir -p ~/.cortex
 # Create daemon configuration
 cat > ~/.cortex/daemon.conf << 'EOF'
 [socket]
-socket_path=/run/cortex.sock
+socket_path=/run/cortex/cortex.sock
 
 [llm]
 # Point to your model
@@ -268,7 +284,7 @@ grep model_path ~/.cortex/daemon.conf
 
 ```bash
 # Run daemon in foreground (won't stay running)
-cd /home/sujay/internship/cortex/daemon/build
+cd "${CORTEX_HOME:-$(pwd)}/daemon"/build
 
 # Optional: Set debug environment
 export CORTEXD_LOG_LEVEL=0  # DEBUG level
@@ -286,7 +302,7 @@ timeout 5 ./bin/cortexd 2>&1 | head -20
 
 ```bash
 # Build tests
-cd /home/sujay/internship/cortex/daemon/build
+cd "${CORTEX_HOME:-$(pwd)}/daemon"/build
 make
 
 # Run tests
@@ -309,7 +325,7 @@ ctest --output-on-failure -VV
 
 ```bash
 # Use install script
-cd /home/sujay/internship/cortex/daemon
+cd "${CORTEX_HOME:-$(pwd)}/daemon"
 sudo ./scripts/install.sh
 
 # Verify installation
@@ -366,14 +382,14 @@ journalctl -u cortexd -n 20 --no-pager
 
 ```bash
 # Verify socket exists
-ls -la /run/cortex.sock
+ls -la /run/cortex/cortex.sock
 
 # Check permissions
-stat /run/cortex.sock
+stat /run/cortex/cortex.sock
 # Should show: 0666 (world accessible)
 
 # Test connectivity
-echo "test" | socat - UNIX-CONNECT:/run/cortex.sock 2>&1
+echo "test" | socat - UNIX-CONNECT:/run/cortex/cortex.sock 2>&1
 # May error on invalid JSON, but shows connection works
 ```
 
@@ -457,7 +473,7 @@ cat > /tmp/inference_test.json << 'EOF'
 EOF
 
 # Send request
-cat /tmp/inference_test.json | socat - UNIX-CONNECT:/run/cortex.sock > /tmp/response.json
+cat /tmp/inference_test.json | socat - UNIX-CONNECT:/run/cortex/cortex.sock > /tmp/response.json
 
 # Check response
 cat /tmp/response.json | jq .
@@ -480,7 +496,7 @@ cat /tmp/response.json | jq .
 # Test concurrent requests (should queue)
 for i in {1..3}; do
   echo "Request $i..."
-  cat /tmp/inference_test.json | socat - UNIX-CONNECT:/run/cortex.sock &
+  cat /tmp/inference_test.json | socat - UNIX-CONNECT:/run/cortex/cortex.sock &
   sleep 0.1
 done
 wait
@@ -502,7 +518,7 @@ done
 
 # Terminal 3: Send inference requests
 for i in {1..5}; do
-  cat /tmp/inference_test.json | socat - UNIX-CONNECT:/run/cortex.sock | jq .data.inference_time_ms
+  cat /tmp/inference_test.json | socat - UNIX-CONNECT:/run/cortex/cortex.sock | jq .data.inference_time_ms
   sleep 2
 done
 ```
@@ -519,7 +535,7 @@ cat > /tmp/latency_test.sh << 'SCRIPT'
 #!/bin/bash
 for i in {1..10}; do
   START=$(date +%s%N)
-  result=$(cat /tmp/inference_test.json | socat - UNIX-CONNECT:/run/cortex.sock)
+  result=$(cat /tmp/inference_test.json | socat - UNIX-CONNECT:/run/cortex/cortex.sock)
   END=$(date +%s%N)
   LATENCY=$(( (END - START) / 1000000 ))
   echo "Request $i: ${LATENCY}ms"
@@ -541,7 +557,7 @@ MONITOR_PID=$!
 
 # Run inference tests
 for i in {1..5}; do
-  cat /tmp/inference_test.json | socat - UNIX-CONNECT:/run/cortex.sock > /dev/null
+  cat /tmp/inference_test.json | socat - UNIX-CONNECT:/run/cortex/cortex.sock > /dev/null
   sleep 1
 done
 
@@ -557,7 +573,7 @@ cat /tmp/memory.log | awk '{print $6}' | sort -n
 
 ```bash
 # During inference request
-time (cat /tmp/inference_test.json | socat - UNIX-CONNECT:/run/cortex.sock > /dev/null)
+time (cat /tmp/inference_test.json | socat - UNIX-CONNECT:/run/cortex/cortex.sock > /dev/null)
 
 # CPU usage during inference
 top -bn1 | grep cortexd
@@ -584,7 +600,7 @@ sed -i 's|model_path=.*|model_path=/nonexistent/model.gguf|g' ~/.cortex/daemon.c
 sudo systemctl start cortexd
 
 # Try inference - should get error
-cat /tmp/inference_test.json | socat - UNIX-CONNECT:/run/cortex.sock | jq .
+cat /tmp/inference_test.json | socat - UNIX-CONNECT:/run/cortex/cortex.sock | jq .
 
 # Expected: error about model not loaded
 
@@ -596,17 +612,17 @@ journalctl -u cortexd -n 5 --no-pager | grep -i error
 
 ```bash
 # Invalid JSON
-echo "not json" | socat - UNIX-CONNECT:/run/cortex.sock
+echo "not json" | socat - UNIX-CONNECT:/run/cortex/cortex.sock
 
 # Missing required field
-echo '{"command":"inference"}' | socat - UNIX-CONNECT:/run/cortex.sock | jq .
+echo '{"command":"inference"}' | socat - UNIX-CONNECT:/run/cortex/cortex.sock | jq .
 
 # Invalid command
-echo '{"command":"invalid_cmd"}' | socat - UNIX-CONNECT:/run/cortex.sock | jq .
+echo '{"command":"invalid_cmd"}' | socat - UNIX-CONNECT:/run/cortex/cortex.sock | jq .
 
 # Negative max_tokens
 echo '{"command":"inference","params":{"prompt":"test","max_tokens":-10}}' | \
-  socat - UNIX-CONNECT:/run/cortex.sock | jq .
+  socat - UNIX-CONNECT:/run/cortex/cortex.sock | jq .
 ```
 
 ### Step 11.3: Test Resource Limits
@@ -615,11 +631,11 @@ echo '{"command":"inference","params":{"prompt":"test","max_tokens":-10}}' | \
 # Very large prompt
 LARGE_PROMPT=$(python3 -c "print('x' * 10000)")
 echo "{\"command\":\"inference\",\"params\":{\"prompt\":\"$LARGE_PROMPT\",\"max_tokens\":10}}" | \
-  socat - UNIX-CONNECT:/run/cortex.sock | jq .
+  socat - UNIX-CONNECT:/run/cortex/cortex.sock | jq .
 
 # Very large max_tokens (should be capped at 256)
 echo '{"command":"inference","params":{"prompt":"test","max_tokens":10000}}' | \
-  socat - UNIX-CONNECT:/run/cortex.sock | jq .data.tokens_used
+  socat - UNIX-CONNECT:/run/cortex/cortex.sock | jq .data.tokens_used
 # Should be <= 256
 ```
 
@@ -628,7 +644,7 @@ echo '{"command":"inference","params":{"prompt":"test","max_tokens":10000}}' | \
 ```bash
 # Queue stress test
 for i in {1..50}; do
-  cat /tmp/inference_test.json | socat - UNIX-CONNECT:/run/cortex.sock > /dev/null &
+  cat /tmp/inference_test.json | socat - UNIX-CONNECT:/run/cortex/cortex.sock > /dev/null &
   if [ $((i % 10)) -eq 0 ]; then
     echo "Queued $i requests"
     sleep 1
@@ -675,7 +691,7 @@ cortex daemon reload-config
 # Try inference with longer prompt
 LONG_PROMPT=$(python3 -c "print('test ' * 200)")
 echo "{\"command\":\"inference\",\"params\":{\"prompt\":\"$LONG_PROMPT\",\"max_tokens\":50}}" | \
-  socat - UNIX-CONNECT:/run/cortex.sock | jq .
+  socat - UNIX-CONNECT:/run/cortex/cortex.sock | jq .
 
 # Smaller context = less memory, potentially worse quality
 ```
@@ -695,7 +711,7 @@ END=$((START + 3600))  # 1 hour
 COUNT=0
 
 while [ $(date +%s) -lt $END ]; do
-  cat /tmp/inference_test.json | socat - UNIX-CONNECT:/run/cortex.sock > /dev/null 2>&1
+  cat /tmp/inference_test.json | socat - UNIX-CONNECT:/run/cortex/cortex.sock > /dev/null 2>&1
   COUNT=$((COUNT + 1))
   
   if [ $((COUNT % 10)) -eq 0 ]; then
@@ -749,7 +765,7 @@ watch -n 5 'ps aux | grep cortexd | grep -v grep; journalctl -u cortexd -n 2 --n
 
 ### Runtime
 - [ ] Daemon starts without errors
-- [ ] Socket created at /run/cortex.sock
+- [ ] Socket created at /run/cortex/cortex.sock
 - [ ] Model loads successfully (check logs)
 - [ ] No immediate segfaults
 - [ ] Responds to status command
@@ -826,7 +842,7 @@ watch -n 5 'ps aux | grep cortexd | grep -v grep; journalctl -u cortexd -n 2 --n
 systemctl status cortexd
 
 # Check socket exists
-ls -la /run/cortex.sock
+ls -la /run/cortex/cortex.sock
 
 # Try restarting
 sudo systemctl restart cortexd

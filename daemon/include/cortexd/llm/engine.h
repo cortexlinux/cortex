@@ -184,6 +184,9 @@ private:
     std::chrono::steady_clock::time_point rate_limit_window_;
     std::mutex rate_mutex_;
     
+    // Mutex to protect backend_ against TOCTOU races (is_loaded + generate)
+    mutable std::mutex mutex_;
+    
     void worker_loop();
     bool check_rate_limit();
 };

@@ -78,13 +78,14 @@ std::string AlertManager::create(
     alert.message = message;
     alert.metadata = metadata;
     
-    // Check for duplicate
+    // Acquire lock before checking for duplicate to avoid race condition
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    // Check for duplicate (now protected by mutex_)
     if (is_duplicate(alert)) {
         LOG_DEBUG("AlertManager", "Duplicate alert suppressed: " + title);
         return "";
     }
-    
-    std::lock_guard<std::mutex> lock(mutex_);
     
     if (store_->insert(alert)) {
         LOG_INFO("AlertManager", "Created alert: [" + std::string(to_string(severity)) + 

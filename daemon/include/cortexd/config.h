@@ -111,9 +111,9 @@ public:
     bool reload();
     
     /**
-     * @brief Get current configuration (const reference)
+     * @brief Get current configuration (returns copy for thread safety)
      */
-    const Config& get() const;
+    Config get() const;
     
     /**
      * @brief Get configuration file path

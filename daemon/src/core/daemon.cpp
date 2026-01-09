@@ -15,16 +15,17 @@ namespace cortexd {
 // Global daemon pointer for signal handler
 static Daemon* g_daemon = nullptr;
 
-// Signal handler function
+// Volatile flags for async-signal-safe signal handling
+// Signal handlers should only set flags, not call complex functions
+static volatile sig_atomic_t g_shutdown_requested = 0;
+static volatile sig_atomic_t g_reload_requested = 0;
+
+// Signal handler function - only sets flags (async-signal-safe)
 static void signal_handler(int sig) {
-    if (g_daemon) {
-        if (sig == SIGTERM || sig == SIGINT) {
-            LOG_INFO("Daemon", "Received shutdown signal");
-            g_daemon->request_shutdown();
-        } else if (sig == SIGHUP) {
-            LOG_INFO("Daemon", "Received SIGHUP, reloading configuration");
-            g_daemon->reload_config();
-        }
+    if (sig == SIGTERM || sig == SIGINT) {
+        g_shutdown_requested = 1;
+    } else if (sig == SIGHUP) {
+        g_reload_requested = 1;
     }
 }
 
@@ -104,7 +105,7 @@ void Daemon::register_service(std::unique_ptr<Service> service) {
     services_.push_back(std::move(service));
 }
 
-const Config& Daemon::config() const {
+Config Daemon::config() const {
     return ConfigManager::instance().get();
 }
 
@@ -191,6 +192,21 @@ void Daemon::stop_services() {
 }
 
 void Daemon::event_loop() {
+    // Check signal flags set by the async-signal-safe handler
+    // Perform the actual operations here in a normal thread context
+    if (g_shutdown_requested) {
+        g_shutdown_requested = 0;
+        LOG_INFO("Daemon", "Received shutdown signal");
+        request_shutdown();
+        return;
+    }
+    
+    if (g_reload_requested) {
+        g_reload_requested = 0;
+        LOG_INFO("Daemon", "Received SIGHUP, reloading configuration");
+        reload_config();
+    }
+    
     // Check service health
     for (auto& service : services_) {
         if (service->is_running() && !service->is_healthy()) {

@@ -269,7 +269,7 @@ class CortexCLI:
             return 1
 
     # --- Daemon Management ---
-    def daemon(self, args) -> int:
+    def daemon(self, args: argparse.Namespace) -> int:
         """Handle daemon commands"""
         if not args.daemon_action:
             self._print_error(
@@ -297,7 +297,10 @@ class CortexCLI:
             acknowledge_all = getattr(args, "acknowledge_all", False)
             dismiss_id = getattr(args, "dismiss", None)
             return mgr.alerts(
-                severity=severity, acknowledge_all=acknowledge_all, dismiss_id=dismiss_id
+                severity=severity,
+                alert_type=alert_type,
+                acknowledge_all=acknowledge_all,
+                dismiss_id=dismiss_id,
             )
 
         elif args.daemon_action == "reload-config":

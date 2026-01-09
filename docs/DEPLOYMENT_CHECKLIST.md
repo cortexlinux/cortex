@@ -130,7 +130,7 @@ cortex daemon reload-config
 ### Step 2: Direct Socket Test
 ```bash
 echo '{"jsonrpc":"2.0","id":"test-1","method":"status"}' | \
-  socat - UNIX-CONNECT:/run/cortex.sock | jq .
+  socat - UNIX-CONNECT:/run/cortex/cortex.sock | jq .
 ```
 
 **Verification**:
@@ -194,7 +194,7 @@ cat /proc/$(pidof cortexd)/status | grep VmRSS
 # Test response time with multiple requests
 for i in {1..10}; do
   time (echo '{"jsonrpc":"2.0","id":"test-'$i'","method":"health"}' | \
-    socat - UNIX-CONNECT:/run/cortex.sock > /dev/null)
+    socat - UNIX-CONNECT:/run/cortex/cortex.sock > /dev/null)
 done
 ```
 
@@ -212,7 +212,7 @@ done
 ```bash
 ls -l /usr/local/bin/cortexd
 ls -l /etc/systemd/system/cortexd.*
-ls -l /run/cortex.sock
+ls -l /run/cortex/cortex.sock
 ls -la ~/.cortex/  2>/dev/null || echo "Not present for non-root"
 ```
 
@@ -307,7 +307,7 @@ journalctl -u cortexd -n 5 --no-pager | grep -i "shut"
 - [ ] Service stops cleanly (no timeout)
 - [ ] Log shows: "Shutting down" message
 - [ ] Process exits with code 0
-- [ ] No stale socket file (`/run/cortex.sock` removed)
+- [ ] No stale socket file (`/run/cortex/cortex.sock` removed)
 
 ---
 
@@ -452,7 +452,7 @@ systemctl status cortexd.service  # Should be not found
 # Status
 systemctl status cortexd.service
 ps aux | grep cortexd
-ls -l /run/cortex.sock
+ls -l /run/cortex/cortex.sock
 
 # Logs
 journalctl -u cortexd -n 50 --no-pager
@@ -460,7 +460,7 @@ journalctl -u cortexd -f
 
 # Connectivity
 echo '{"jsonrpc":"2.0","id":"test","method":"status"}' | \
-  socat - UNIX-CONNECT:/run/cortex.sock 2>&1
+  socat - UNIX-CONNECT:/run/cortex/cortex.sock 2>&1
 
 # CLI
 cortex daemon health

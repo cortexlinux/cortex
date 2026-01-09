@@ -120,9 +120,48 @@ def download_model():
 
 
 def setup_model(model_path):
-    console.print(f"[cyan]Loading model: {model_path} into the daemon...[/cyan]")
-    result = subprocess.run(["cortex", "daemon", "llm", "load", str(model_path)], check=False)
-    return result.returncode == 0
+    console.print(f"[cyan]Loading model: {model_path}[/cyan]")
+    console.print("[cyan]This may take a minute depending on model size...[/cyan]")
+
+    # Try loading the model - use sg (switch group) to run with cortex group
+    # This is needed because group membership from install won't take effect
+    # until logout/login, but sg can run a command with the new group immediately
+    try:
+        # First, try with sg (switch group) to use new group membership
+        result = subprocess.run(
+            ["sg", "cortex", "-c", f"cortex daemon llm load {model_path}"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            return True
+
+        # If sg failed (group might not exist yet), try direct command
+        result = subprocess.run(
+            ["cortex", "daemon", "llm", "load", str(model_path)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            return True
+
+        # If still failing, show the error
+        if "Permission denied" in result.stderr or "Permission denied" in result.stdout:
+            console.print("[yellow]Permission denied - will configure auto-load instead.[/yellow]")
+            console.print(
+                "[yellow]The model will load automatically when the daemon restarts.[/yellow]"
+            )
+            return True  # Return True so we continue to configure auto-load
+
+        console.print(f"[red]Error: {result.stderr or result.stdout}[/red]")
+        return False
+
+    except Exception as e:
+        console.print(f"[yellow]Could not load model immediately: {e}[/yellow]")
+        console.print("[yellow]Will configure auto-load instead.[/yellow]")
+        return True  # Continue to configure auto-load
 
 
 def configure_auto_load(model_path):
@@ -159,13 +198,26 @@ def configure_auto_load(model_path):
 
 
 def main():
+    console.print(
+        "\n[bold cyan]╔══════════════════════════════════════════════════════════════╗[/bold cyan]"
+    )
+    console.print(
+        "[bold cyan]║           Cortex Daemon Interactive Setup                    ║[/bold cyan]"
+    )
+    console.print(
+        "[bold cyan]╚══════════════════════════════════════════════════════════════╝[/bold cyan]\n"
+    )
+
     if not check_daemon_built():
         if Confirm.ask("Daemon not built. Do you want to build it now?"):
             if not build_daemon():
                 console.print("[red]Failed to build the daemon.[/red]")
                 sys.exit(1)
+        else:
+            console.print("[yellow]Cannot proceed without building the daemon.[/yellow]")
+            sys.exit(1)
     else:
-        if Confirm.ask("Daemon already built. Do you want to build it again?"):
+        if Confirm.ask("Daemon already built. Do you want to rebuild it?"):
             clean_build()
             if not build_daemon():
                 console.print("[red]Failed to build the daemon.[/red]")
@@ -175,15 +227,35 @@ def main():
         console.print("[red]Failed to install the daemon.[/red]")
         sys.exit(1)
 
+    # Ask if user wants to set up a model
+    console.print("")
+    if not Confirm.ask("Do you want to set up an LLM model now?", default=True):
+        console.print("\n[green]✓ Daemon installed successfully![/green]")
+        console.print(
+            "[cyan]You can set up a model later with:[/cyan] cortex daemon llm load <model_path>\n"
+        )
+        sys.exit(0)
+
     model_path = download_model()
     if model_path:
-        if setup_model(model_path):
-            configure_auto_load(model_path)
-            console.print("[green]Setup completed successfully![/green]")
-        else:
-            console.print("[red]Failed to load the model into the daemon.[/red]")
+        # Configure auto-load (this will also restart the daemon)
+        configure_auto_load(model_path)
+
+        console.print(
+            "\n[bold green]╔══════════════════════════════════════════════════════════════╗[/bold green]"
+        )
+        console.print(
+            "[bold green]║              Setup Completed Successfully!                   ║[/bold green]"
+        )
+        console.print(
+            "[bold green]╚══════════════════════════════════════════════════════════════╝[/bold green]"
+        )
+        console.print("\n[cyan]The daemon is now running with your model loaded.[/cyan]")
+        console.print("[cyan]Try it out:[/cyan] cortex ask 'What packages do I have installed?'\n")
     else:
-        console.print("[red]Failed to download the model.[/red]")
+        console.print("[red]Failed to download/select the model.[/red]")
+        console.print("[yellow]Daemon is installed but no model is configured.[/yellow]")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

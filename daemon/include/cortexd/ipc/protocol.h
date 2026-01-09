@@ -89,21 +89,24 @@ namespace Methods {
 
 /**
  * @brief Error codes for IPC responses
+ * 
+ * JSON-RPC reserves -32768 to -32000 for standard errors.
+ * Custom application errors use positive integers (1-999).
  */
 namespace ErrorCodes {
-    // JSON-RPC standard errors
+    // JSON-RPC standard errors (reserved range: -32768 to -32000)
     constexpr int PARSE_ERROR = -32700;
     constexpr int INVALID_REQUEST = -32600;
     constexpr int METHOD_NOT_FOUND = -32601;
     constexpr int INVALID_PARAMS = -32602;
     constexpr int INTERNAL_ERROR = -32603;
     
-    // Custom errors
-    constexpr int LLM_NOT_LOADED = -32001;
-    constexpr int LLM_BUSY = -32002;
-    constexpr int RATE_LIMITED = -32003;
-    constexpr int ALERT_NOT_FOUND = -32004;
-    constexpr int CONFIG_ERROR = -32005;
+    // Custom application errors (non-reserved range: 1-999)
+    constexpr int LLM_NOT_LOADED = 100;
+    constexpr int LLM_BUSY = 101;
+    constexpr int RATE_LIMITED = 102;
+    constexpr int ALERT_NOT_FOUND = 103;
+    constexpr int CONFIG_ERROR = 104;
 }
 
 } // namespace cortexd

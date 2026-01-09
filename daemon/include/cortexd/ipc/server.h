@@ -11,6 +11,7 @@
 #include <thread>
 #include <atomic>
 #include <mutex>
+#include <condition_variable>
 #include <functional>
 #include <unordered_map>
 #include <chrono>
@@ -98,6 +99,10 @@ private:
     
     std::atomic<size_t> connections_served_{0};
     std::atomic<size_t> active_connections_{0};
+    
+    // Condition variable for waiting on in-flight handlers during stop()
+    std::condition_variable connections_cv_;
+    std::mutex connections_mutex_;
     
     /**
      * @brief Create and bind the socket

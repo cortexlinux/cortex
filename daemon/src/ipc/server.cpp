@@ -82,7 +82,7 @@ void IPCServer::stop() {
     
     running_ = false;
     
-    // Shutdown socket to unblock accept()
+    // Shutdown socket to unblock accept() and stop new connections
     if (server_fd_ != -1) {
         shutdown(server_fd_, SHUT_RDWR);
     }
@@ -90,6 +90,15 @@ void IPCServer::stop() {
     // Wait for accept thread
     if (accept_thread_ && accept_thread_->joinable()) {
         accept_thread_->join();
+    }
+    
+    // Wait for all in-flight handlers to finish before cleanup
+    // This prevents dangling references to server state
+    {
+        std::unique_lock<std::mutex> lock(connections_mutex_);
+        connections_cv_.wait(lock, [this] {
+            return active_connections_.load() == 0;
+        });
     }
     
     cleanup_socket();
@@ -156,7 +165,8 @@ bool IPCServer::create_socket() {
 
 bool IPCServer::setup_permissions() {
     // Set socket permissions to 0666 (world read/write)
-    // This allows non-root users to connect
+    // This is safe because Unix sockets are local-only and cannot be accessed remotely.
+    // The socket path (/run/cortex/) already provides directory-level access control.
     if (chmod(socket_path_.c_str(), 0666) == -1) {
         LOG_WARN("IPCServer", "Failed to set socket permissions: " + std::string(strerror(errno)));
         // Continue anyway
@@ -203,8 +213,11 @@ void IPCServer::accept_loop() {
 }
 
 void IPCServer::handle_client(int client_fd) {
-    active_connections_++;
-    connections_served_++;
+    {
+        std::lock_guard<std::mutex> lock(connections_mutex_);
+        active_connections_++;
+        connections_served_++;
+    }
     
     try {
         // Read request
@@ -214,7 +227,11 @@ void IPCServer::handle_client(int client_fd) {
         if (bytes <= 0) {
             LOG_DEBUG("IPCServer", "Client disconnected without data");
             close(client_fd);
-            active_connections_--;
+            {
+                std::lock_guard<std::mutex> lock(connections_mutex_);
+                active_connections_--;
+            }
+            connections_cv_.notify_all();
             return;
         }
         
@@ -229,7 +246,11 @@ void IPCServer::handle_client(int client_fd) {
             std::string response_str = resp.to_json();
             send(client_fd, response_str.c_str(), response_str.length(), 0);
             close(client_fd);
-            active_connections_--;
+            {
+                std::lock_guard<std::mutex> lock(connections_mutex_);
+                active_connections_--;
+            }
+            connections_cv_.notify_all();
             return;
         }
         
@@ -259,7 +280,11 @@ void IPCServer::handle_client(int client_fd) {
     }
     
     close(client_fd);
-    active_connections_--;
+    {
+        std::lock_guard<std::mutex> lock(connections_mutex_);
+        active_connections_--;
+    }
+    connections_cv_.notify_all();
 }
 
 Response IPCServer::dispatch(const Request& request) {

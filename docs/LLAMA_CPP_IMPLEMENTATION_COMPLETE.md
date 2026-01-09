@@ -30,12 +30,12 @@
 **File**: `daemon/src/llm/llama_wrapper.cpp`
 
 ```cpp
-// NEW: C API declarations and linking
+// NEW: C API declarations and linking (llama.cpp b2xxx+)
 extern "C" {
-    llama_model* llama_load_model_from_file(...);
-    llama_context* llama_new_context_with_model(...);
-    int llama_generate(...);
-    const char* llama_token_to_str(...);
+    llama_model* llama_model_load_from_file(...);        // Load GGUF model
+    llama_context* llama_init_from_model(...);           // Create context
+    int llama_decode(llama_context* ctx, llama_batch batch);  // Run inference
+    llama_token llama_sampler_sample(llama_sampler* smpl, llama_context* ctx, int idx);
 };
 
 // NEW: Full implementation
@@ -153,19 +153,19 @@ endif()
 
 ### Model Loading
 ```cpp
-// Loads GGUF quantized models
-llama_model* model = llama_load_model_from_file("mistral-7b.gguf", params);
-llama_context* ctx = llama_new_context_with_model(model, params);
+// Loads GGUF quantized models (llama.cpp b2xxx+ API)
+llama_model* model = llama_model_load_from_file("mistral-7b.gguf", params);
+llama_context* ctx = llama_init_from_model(model, ctx_params);
 ```
 
 ### Inference
 ```cpp
-// Generates tokens for prompt
-int tokens = llama_generate(ctx, "What packages...", 256);
-// Converts tokens to string
-for (int i = 0; i < tokens; i++) {
-    output += llama_token_to_str(ctx, i);
-}
+// Token generation loop using decode + sample (correct API)
+llama_batch batch = llama_batch_get_one(tokens, n_tokens);
+llama_decode(ctx, batch);
+llama_token new_token = llama_sampler_sample(smpl, ctx, -1);
+// Convert token to string using the model vocabulary
+const char* piece = llama_token_get_text(model, new_token);
 ```
 
 ### Configuration
@@ -240,7 +240,7 @@ cortex daemon health
 ### 5. Run Inference
 ```bash
 echo '{"command":"inference","params":{"prompt":"Hello"}}' | \
-  socat - UNIX-CONNECT:/run/cortex.sock | jq .
+  socat - UNIX-CONNECT:/run/cortex/cortex.sock | jq .
 ```
 
 ---

@@ -2,13 +2,11 @@
 Daemon management commands for Cortex CLI
 """
 
-import os
 import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
 
-from rich import print as rprint
 from rich.console import Console
 
 # Table import removed - alerts now use custom formatting for AI analysis
@@ -77,24 +75,19 @@ class DaemonManager:
             return 1
 
     def install(self) -> int:
-        """Install and start the daemon"""
-        console.print("[cyan]Installing cortexd daemon...[/cyan]")
+        """Install and start the daemon with interactive setup"""
+        console.print("[cyan]Starting cortexd daemon setup...[/cyan]\n")
 
-        # Check if daemon is built
-        if not self.check_daemon_built():
-            console.print("\n[red]✗ Cortexd binary not found![/red]")
-            console.print("\n[cyan]Please build the daemon first:[/cyan]")
-            console.print("  [bold]cd daemon && ./scripts/build.sh Release[/bold]\n")
-            return 1
-
-        script_path = Path(__file__).parent.parent / "daemon" / "scripts" / "install.sh"
+        # Use the interactive setup_daemon.py script
+        script_path = Path(__file__).parent.parent / "daemon" / "scripts" / "setup_daemon.py"
 
         if not script_path.exists():
-            console.print(f"[red]✗ Install script not found: {script_path}[/red]")
+            console.print(f"[red]✗ Setup script not found: {script_path}[/red]")
             return 1
 
         try:
-            result = subprocess.run(["sudo", str(script_path)], check=False)
+            # Run the setup script with Python
+            result = subprocess.run([sys.executable, str(script_path)], check=False)
             return result.returncode
         except Exception as e:
             console.print(f"[red]✗ Installation failed: {e}[/red]")
@@ -153,6 +146,7 @@ class DaemonManager:
     def alerts(
         self,
         severity: str | None = None,
+        alert_type: str | None = None,
         acknowledge_all: bool = False,
         dismiss_id: str | None = None,
     ) -> int:
@@ -176,11 +170,11 @@ class DaemonManager:
                 console.print(f"[green]✓ Acknowledged {count} alerts[/green]")
                 return 0
 
-            alerts = (
-                self.client.get_alerts(severity=severity)
-                if severity
-                else self.client.get_active_alerts()
-            )
+            # Filter alerts by severity and/or type
+            if severity or alert_type:
+                alerts = self.client.get_alerts(severity=severity, alert_type=alert_type)
+            else:
+                alerts = self.client.get_active_alerts()
 
             if not alerts:
                 console.print("[green]✓ No active alerts[/green]")

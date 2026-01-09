@@ -68,6 +68,7 @@ bool LLMEngine::load_model(const std::string& model_path) {
     
     const auto& config = ConfigManager::instance().get();
     
+    std::lock_guard<std::mutex> lock(mutex_);
     if (backend_->load(path, config.llm_context_length, config.llm_threads)) {
         LOG_INFO("LLMEngine", "Model loaded successfully");
         return true;
@@ -78,6 +79,7 @@ bool LLMEngine::load_model(const std::string& model_path) {
 }
 
 void LLMEngine::unload_model() {
+    std::lock_guard<std::mutex> lock(mutex_);
     if (backend_->is_loaded()) {
         backend_->unload();
         LOG_INFO("LLMEngine", "Model unloaded");
@@ -85,10 +87,14 @@ void LLMEngine::unload_model() {
 }
 
 bool LLMEngine::is_loaded() const {
+    // No mutex needed - backend_->is_loaded() just checks pointer state
+    // Acquiring mutex here would block during long inference operations
     return backend_->is_loaded();
 }
 
 std::optional<ModelInfo> LLMEngine::get_model_info() const {
+    // No mutex needed for read-only state query
+    // This avoids blocking during long inference operations
     if (!backend_->is_loaded()) {
         return std::nullopt;
     }
@@ -143,7 +149,9 @@ std::future<InferenceResult> LLMEngine::infer_async(const InferenceRequest& requ
 }
 
 InferenceResult LLMEngine::infer_sync(const InferenceRequest& request) {
-    // Direct synchronous inference
+    // Direct synchronous inference - acquire mutex to prevent TOCTOU race
+    std::lock_guard<std::mutex> lock(mutex_);
+    
     if (!backend_->is_loaded()) {
         InferenceResult result;
         result.request_id = request.request_id;
@@ -156,6 +164,9 @@ InferenceResult LLMEngine::infer_sync(const InferenceRequest& request) {
 }
 
 void LLMEngine::infer_stream(const InferenceRequest& request, TokenCallback callback) {
+    // Acquire mutex to prevent TOCTOU race
+    std::lock_guard<std::mutex> lock(mutex_);
+    
     if (!backend_->is_loaded()) {
         callback("[ERROR: Model not loaded]");
         return;
@@ -187,14 +198,17 @@ void LLMEngine::clear_queue() {
 }
 
 size_t LLMEngine::memory_usage() const {
+    // No mutex needed for read-only state query
     return backend_->memory_usage();
 }
 
 json LLMEngine::status_json() const {
+    // No mutex needed for read-only state query
+    // This avoids blocking during long inference operations
     json status = {
         {"loaded", backend_->is_loaded()},
         {"queue_size", queue_size()},
-        {"memory_bytes", memory_usage()}
+        {"memory_bytes", backend_->memory_usage()}
     };
     
     if (backend_->is_loaded()) {
@@ -229,16 +243,22 @@ void LLMEngine::worker_loop() {
         
         InferenceResult result;
         
-        if (!backend_->is_loaded()) {
-            result.request_id = queued->request.request_id;
-            result.success = false;
-            result.error = "Model not loaded";
-        } else {
-            auto start = std::chrono::high_resolution_clock::now();
-            result = backend_->generate(queued->request);
-            auto end = std::chrono::high_resolution_clock::now();
+        // Acquire mutex to protect against TOCTOU race with unload()
+        // The is_loaded() check and generate() call must be atomic
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
             
-            result.time_ms = std::chrono::duration<float, std::milli>(end - start).count();
+            if (!backend_->is_loaded()) {
+                result.request_id = queued->request.request_id;
+                result.success = false;
+                result.error = "Model not loaded";
+            } else {
+                auto start = std::chrono::high_resolution_clock::now();
+                result = backend_->generate(queued->request);
+                auto end = std::chrono::high_resolution_clock::now();
+                
+                result.time_ms = std::chrono::duration<float, std::milli>(end - start).count();
+            }
         }
         
         queued->promise.set_value(result);
