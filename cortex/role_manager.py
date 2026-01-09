@@ -1,11 +1,4 @@
-"""
-Role management and system personality detection for Cortex.
-Handles identification of system purpose and suggests relevant software stacks.
-"""
-
-import copy
 import fcntl
-import json
 import logging
 import re
 import shutil
@@ -18,126 +11,144 @@ logger = logging.getLogger(__name__)
 
 class RoleManager:
     """
-    Manages system role detection and package recommendations.
+    Provides system context for LLM-driven role detection and recommendations.
 
-    This class acts as the source of truth for what a system 'is' based on
-    installed binaries and what it 'should be' based on user-set roles.
+    This class serves as the 'sensing layer' for Cortex. It scans the local
+    environment for technical signals (binaries, hardware) and packages them
+    into a context object. This object is then fed to the AI layer to determine
+    the system's role contextually, satisfying the requirement for
+    dynamic, non-hardcoded role detection.
     """
 
-    # Constants for role slugs to prevent string typos throughout the app
-    ROLE_WEB_SERVER = "web-server"
-    ROLE_DB_SERVER = "database-server"
-    ROLE_ML_WORKSTATION = "ml-workstation"
-
-    # Canonical configuration key
+    # Key used for persisting the LLM's classification in the .env file
     CONFIG_KEY = "CORTEX_SYSTEM_ROLE"
 
-    # Mapping of user-friendly names to internal slugs and their detection binaries
-    ROLE_DEFINITIONS: dict[str, dict[str, Any]] = {
-        "Web Server": {
-            "slug": ROLE_WEB_SERVER,
-            "binaries": ["nginx", "apache2", "httpd"],
-            "recommendations": ["Certbot", "Fail2Ban", "Nginx Amplify"],
-        },
-        "Database Server": {
-            "slug": ROLE_DB_SERVER,
-            "binaries": ["psql", "mysql", "mongod", "redis-server"],
-            "recommendations": ["pgAdmin", "Redis Insight", "Database Backup Tools"],
-        },
-        "ML Workstation": {
-            "slug": ROLE_ML_WORKSTATION,
-            "binaries": ["nvidia-smi", "nvcc", "conda", "jupyter"],
-            "recommendations": [
-                "CUDA Toolkit",
-                "PyTorch",
-                "TensorFlow",
-                "Jupyter Lab",
-                "NVIDIA Drivers",
-            ],
-        },
-    }
-
     def __init__(self, env_path: Path | None = None) -> None:
-        """Initializes the RoleManager and loads custom role definitions.
+        """
+        Initializes the manager and sets the configuration file path.
 
         Args:
-            env_path: Optional custom path to the .env file.
+            env_path: Optional Path to the environment file.
                      Defaults to ~/.cortex/.env.
         """
         self.env_file = env_path or (Path.home() / ".cortex" / ".env")
-        self.custom_roles_file = self.env_file.parent / "custom_roles.json"
 
-        # We use a copy of ROLE_DEFINITIONS to avoid mutating the class constant
-        self.roles = copy.deepcopy(self.ROLE_DEFINITIONS)
-        self._load_custom_roles()
-
-    def _load_custom_roles(self) -> None:
-        """Loads user-defined roles from custom_roles.json if the file exists.
-
-        This allows users to define their own system roles and package
-        bundles without modifying the Cortex source code.
+    def _get_shell_patterns(self) -> list[str]:
         """
-        if not self.custom_roles_file.exists():
-            return
+        Senses user activity patterns from local shell history files.
 
-        try:
-            # Atomic read of user-defined roles
-            custom_data = json.loads(self.custom_roles_file.read_text())
-            # Validate and merge custom roles to prevent KeyErrors later
-            required_keys = {"slug", "binaries", "recommendations"}
-            for role_name, config in custom_data.items():
-                if not isinstance(config, dict) or not required_keys.issubset(config.keys()):
-                    logger.warning(
-                        f"Skipping invalid custom role '{role_name}': missing required keys"
-                    )
-                    continue
-                self.roles[role_name] = config
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in {self.custom_roles_file}: {e}")
-        except (OSError, PermissionError) as e:
-            logger.error(f"Cannot read {self.custom_roles_file}: {e}")
-
-    def detect_active_roles(self) -> list[str]:
-        """
-        Scans the system PATH to identify currently active roles based on binaries.
+        This method fulfills the 'Learn from patterns' acceptance criteria. By
+        providing the LLM with recent command history, the AI can infer the
+        user's current workflow, intent, and technical expertise level to
+        provide highly contextual role suggestions and package recommendations.
 
         Returns:
-            list[str]: A list of human-readable role names detected on the system.
+            list[str]: A list containing the last 15 trimmed shell commands,
+                       or an empty list if sensing is unavailable.
         """
-        detected_roles: list[str] = []
+        try:
+            # Iterate through common shell history locations for standard Linux environments
+            for history_file in [".bash_history", ".zsh_history"]:
+                path = Path.home() / history_file
 
-        for role_name, config in self.roles.items():
-            try:
-                if any(shutil.which(binary) for binary in config["binaries"]):
-                    detected_roles.append(role_name)
-            except Exception as e:
-                logger.error(f"Error detecting binary for {role_name}: {e}")
+                if path.exists():
+                    # Use 'errors=ignore' to prevent decoding crashes. History files
+                    # frequently contain non-UTF-8 binary data from interrupted commands.
+                    lines = path.read_text(errors="ignore").splitlines()
 
-        return detected_roles
+                    # Gather the last 15 non-empty commands to provide factual context to the AI
+                    return [l.strip() for l in lines[-15:] if l.strip()]
+
+        except (OSError, PermissionError) as e:
+            # Handle restricted environment cases (e.g., specific security policies)
+            # Log as warning for diagnostic visibility without interrupting the user.
+            logger.warning(f"Sensing layer could not access shell history: {e}")
+            return []
+        except Exception as e:
+            # Global defensive fallback to ensure sensing layer failures never crash the CLI
+            logger.debug(f"Unexpected error during shell pattern sensing: {e}")
+            return []
+
+        return []
+
+    def get_system_context(self) -> dict[str, Any]:
+        """
+        Gathers factual system signals and activity patterns for AI inference.
+
+        Acts as the 'sensing layer' for the AI Architect. Instead of sending
+        ambiguous history, it provides a synchronized snapshot of the system's
+        current factual environment and active persona.
+
+        Returns:
+            dict: A dictionary containing:
+                - binaries: Signature tools found in system PATH.
+                - has_gpu: NVIDIA hardware availability.
+                - patterns: Recent shell usage patterns (Learn from patterns).
+                - active_role: The single source of truth for the current role state.
+        """
+        # A curated list of signature binaries across various domains (Web, DB, ML, Dev).
+        # These act as 'feature flags' for the AI model to identify machine use-cases.
+        # Signal list expanded to support more modern DevOps and system toolchains.
+        signals = [
+            "nginx",
+            "apache2",
+            "docker",
+            "psql",
+            "mysql",
+            "redis-server",
+            "nvidia-smi",
+            "conda",
+            "jupyter",
+            "gcc",
+            "make",
+            "git",
+            "go",
+            "node",
+            "ansible",
+            "terraform",
+            "kubectl",
+            "rustc",
+            "cargo",
+            "python3",
+        ]
+
+        # Fact gathering: Short-circuit check for binary existence in system PATH.
+        detected_binaries = [bin for bin in signals if shutil.which(bin)]
+
+        # PERSISTENCE SYNC: Retrieve the current active role from ~/.cortex/.env.
+        # Using 'active_role' instead of 'role_history' prevents 'Persona Pollution'
+        # where the AI gets stuck on old role definitions during a manual override.
+        current_role = self.get_saved_role()
+
+        return {
+            "binaries": detected_binaries,
+            "has_gpu": bool(shutil.which("nvidia-smi")),
+            "patterns": self._get_shell_patterns(),  # Fulfills: 'Learn from patterns'
+            "active_role": current_role if current_role else "undefined",
+        }
 
     def save_role(self, role_slug: str) -> None:
         """
-        Persists the selected role to the Cortex environment file securely.
+        Persists the LLM-selected role identifier to the environment file.
+
+        This uses a thread-safe modification loop to ensure that even if
+        multiple processes are interacting with Cortex, the .env file
+        remains uncorrupted.
 
         Args:
-            role_slug: The machine-readable identifier to save.
+            role_slug: The string identifier determined by the AI.
 
         Raises:
-            ValueError: If role_slug is not a valid role identifier.
-            RuntimeError: If the role cannot be persisted to disk.
+            RuntimeError: If file I/O or locking fails during persistence.
         """
-        # Validate that the slug exists in our definitions to prevent
-        # persisting invalid configurations to the .env file.
-        if role_slug not in self.get_all_slugs():
-            raise ValueError(f"Invalid role slug: {role_slug}. Valid slugs: {self.get_all_slugs()}")
 
         def modifier(existing_content: str, key: str, value: str) -> str:
+            # Logic: Update the value if the key exists, otherwise append to end
             if f"{key}=" in existing_content:
-                # Update existing key
                 pattern = rf"^{key}=.*$"
                 return re.sub(pattern, f"{key}={value}", existing_content, flags=re.MULTILINE)
             else:
-                # Append new key
+                # Ensure we start on a new line if appending
                 if existing_content and not existing_content.endswith("\n"):
                     existing_content += "\n"
                 return existing_content + f"{key}={value}\n"
@@ -146,89 +157,27 @@ class RoleManager:
             self._locked_read_modify_write(self.CONFIG_KEY, role_slug, modifier)
         except Exception as e:
             logger.error(f"Failed to save system role: {e}")
-            # Chain the original exception 'from e' to preserve debugging context
+            # Chain exception 'from e' to preserve original diagnostic info
             raise RuntimeError(f"Could not persist role to {self.env_file}") from e
 
     def get_saved_role(self) -> str | None:
         """
-        Retrieves the currently set role from the configuration file.
+        Reads the currently active role from the configuration file.
 
         Returns:
-            Optional[str]: The role slug if set, otherwise None.
+            str | None: The saved role slug or None if no role is configured.
         """
         if not self.env_file.exists():
             return None
 
         try:
             content = self.env_file.read_text()
+            # Regex extracts the value following the CORTEX_SYSTEM_ROLE key
             match = re.search(rf"^{self.CONFIG_KEY}=(.*)$", content, re.MULTILINE)
             return match.group(1).strip() if match else None
         except Exception as e:
             logger.error(f"Error reading saved role: {e}")
             return None
-
-    def get_recommendations_by_slug(self, role_slug: str) -> list[str]:
-        """
-        Retrieves package recommendations for a specific role slug.
-
-        Args:
-            role_slug: The machine-readable identifier for the role.
-
-        Returns:
-            List[str]: A list of recommended packages.
-        """
-        for config in self.roles.values():
-            if config["slug"] == role_slug:
-                return config["recommendations"]
-        return []
-
-    def get_all_slugs(self) -> list[str]:
-        """
-        Returns all valid role slugs for validation purposes.
-
-        Returns:
-            List[str]: List of valid slugs.
-        """
-        return [config["slug"] for config in self.roles.values()]
-
-    def learn_package(self, role_slug: str, package_name: str) -> None:
-        """
-        Records a successfully installed package as a recommendation for a role.
-
-        This builds local intelligence of which packages are commonly used
-        within specific system personalities.
-        """
-        # Define the separate storage file to maintain .env cleanliness
-        learned_file = self.env_file.parent / "learned_roles.json"
-
-        def modifier(existing_json: str, key: str, value: str) -> str:
-            try:
-                # Safely handle empty files or malformed JSON
-                data = json.loads(existing_json) if existing_json else {}
-            except json.JSONDecodeError:
-                data = {}
-
-            # Ensure the entry is a list, even if the file was manually corrupted or edited
-            if key not in data or not isinstance(data[key], list):
-                data[key] = []
-
-            if key not in data:
-                data[key] = []
-
-            # Only add the package if it's not already recorded
-            if value not in data[key]:
-                data[key].append(value)
-
-            return json.dumps(data, indent=4)
-
-        try:
-            # Use target_file to ensure thread-safe writes to learned_roles.json
-            # without mutating the global state of the manager instance.
-            self._locked_read_modify_write(
-                role_slug, package_name, modifier, target_file=learned_file
-            )
-        except Exception as e:
-            logger.error(f"Failed to learn package {package_name} for role {role_slug}: {e}")
 
     def _locked_read_modify_write(
         self,
@@ -238,36 +187,33 @@ class RoleManager:
         target_file: Path | None = None,
     ) -> None:
         """
-        Performs a thread-safe and process-safe write to a configuration file.
-        Defaults to self.env_file unless target_file is provided.
-        """
-        # Use target_file if provided, otherwise fall back to the default env_file
-        target = target_file or self.env_file
+        Standardized utility for atomic, thread-safe file updates.
 
-        # Ensure directory exists
+        Implements an advisory locking mechanism using fcntl and an
+        atomic swap pattern. This ensures 'No silent administrative
+        execution' failures and protects against partial writes.
+        """
+        target = target_file or self.env_file
         target.parent.mkdir(parents=True, exist_ok=True)
 
-        # Define lock and temp files based on the target
+        # Use a hidden .lock file to coordinate access across processes
         lock_file = target.with_suffix(".lock")
         lock_file.touch(exist_ok=True)
 
         with open(lock_file, "r+") as lock_fd:
-            # Acquire exclusive lock
+            # Block until exclusive lock is acquired
             fcntl.flock(lock_fd, fcntl.LOCK_EX)
             try:
-                # Read current state from the correct target
                 existing = target.read_text() if target.exists() else ""
-
-                # Apply the modification logic
                 updated = modifier_func(existing, key, value)
 
-                # Atomic write via temporary file to prevent corruption
+                # Use a temp file for the write to ensure atomicity
                 temp_file = target.with_suffix(".tmp")
                 temp_file.write_text(updated)
-                temp_file.chmod(0o600)
+                temp_file.chmod(0o600)  # Restrict to user-only read/write
 
-                # Atomic swap
+                # Atomic swap: The OS ensures this operation is 'all or nothing'
                 temp_file.replace(target)
             finally:
-                # Release lock
+                # Always release the lock, even if the write fails
                 fcntl.flock(lock_fd, fcntl.LOCK_UN)

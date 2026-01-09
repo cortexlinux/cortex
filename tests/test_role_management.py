@@ -1,4 +1,4 @@
-import json
+import shutil
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -9,141 +9,145 @@ from cortex.role_manager import RoleManager
 
 @pytest.fixture
 def temp_cortex_dir(tmp_path):
-    """Creates a temporary .cortex directory for testing."""
+    """Creates a temporary directory for testing file I/O to avoid polluting user home."""
     cortex_dir = tmp_path / ".cortex"
     cortex_dir.mkdir()
     return cortex_dir
 
 
-def test_role_detection(temp_cortex_dir):
-    """Test that roles are detected when specific binaries exist."""
+def test_get_system_context_fact_gathering(temp_cortex_dir):
+    """
+    Verifies that RoleManager correctly aggregates system facts and active persona.
+    Ensures the 'Sensing Layer' provides a synchronized Single Source of Truth to the AI.
+    """
     env_path = temp_cortex_dir / ".env"
     manager = RoleManager(env_path=env_path)
 
-    # Mock shutil.which to simulate 'nginx' being installed
-    with patch(
-        "cortex.role_manager.shutil.which",
-        side_effect=lambda x: "/usr/bin/nginx" if x == "nginx" else None,
+    # Mock binaries and shell history simultaneously
+    with (
+        patch("cortex.role_manager.shutil.which") as mock_which,
+        patch("cortex.role_manager.Path.read_text") as mock_read,
+        patch("cortex.role_manager.Path.exists") as mock_exists,
     ):
-        detected = manager.detect_active_roles()
-        assert "Web Server" in detected
-        assert "ML Workstation" not in detected
+
+        # Simulate environment state (Nginx present, No GPU)
+        mock_which.side_effect = lambda x: "/usr/bin/" + x if x in ["nginx"] else None
+        mock_exists.return_value = True
+        mock_read.return_value = "git commit -m 'feat'\npip install torch\n"
+
+        context = manager.get_system_context()
+
+        # Synchronized Validation: active_role replaces role_history
+        assert "nginx" in context["binaries"]
+        assert "nvidia-smi" not in context["binaries"]
+        assert context["has_gpu"] is False
+        assert "git commit -m 'feat'" in context["patterns"]
+        assert context["active_role"] == "undefined"
 
 
-def test_save_and_get_role(temp_cortex_dir):
-    """Test persisting and retrieving the system role."""
+def test_get_shell_patterns_failure_handling(temp_cortex_dir):
+    """
+    Verifies defensive programming: sensing should not crash if history files are unreadable.
+    This satisfies robustness requirements for varied Linux environments.
+    """
     env_path = temp_cortex_dir / ".env"
     manager = RoleManager(env_path=env_path)
 
-    manager.save_role("ml-workstation")
-    assert manager.get_saved_role() == "ml-workstation"
+    with (
+        patch("cortex.role_manager.Path.exists", return_value=True),
+        patch("cortex.role_manager.Path.read_text", side_effect=PermissionError("Access Denied")),
+    ):
 
-    # Verify file content
+        # Should return empty list instead of raising PermissionError
+        patterns = manager._get_shell_patterns()
+        assert patterns == []
+
+
+def test_save_and_update_existing_role(temp_cortex_dir):
+    """
+    Tests the Regex logic to ensure roles are updated atomically without line duplication.
+    """
+    env_path = temp_cortex_dir / ".env"
+    manager = RoleManager(env_path=env_path)
+
+    # Initial save
+    manager.save_role("developer")
+    assert manager.get_saved_role() == "developer"
+
+    # Update existing role (verifies pattern substitution)
+    manager.save_role("data-scientist")
+    assert manager.get_saved_role() == "data-scientist"
+
     content = env_path.read_text()
-    assert "CORTEX_SYSTEM_ROLE=ml-workstation" in content
+    # Ensure it replaced the key rather than appending a second one
+    assert content.count("CORTEX_SYSTEM_ROLE") == 1
 
 
-def test_custom_role_loading(temp_cortex_dir):
-    """Test that custom roles from JSON are merged correctly."""
+def test_save_role_append_to_existing_env(temp_cortex_dir):
+    """Tests saving a role without overwriting other unrelated environment variables."""
     env_path = temp_cortex_dir / ".env"
-    custom_file = temp_cortex_dir / "custom_roles.json"
-
-    custom_data = {
-        "DevOps": {
-            "slug": "devops-tooling",
-            "binaries": ["terraform"],
-            "recommendations": ["Ansible", "Kubectl"],
-        }
-    }
-    custom_file.write_text(json.dumps(custom_data))
+    env_path.write_text("API_KEY=12345\n")
 
     manager = RoleManager(env_path=env_path)
-    assert "devops-tooling" in manager.get_all_slugs()
-    assert "Ansible" in manager.get_recommendations_by_slug("devops-tooling")
+    manager.save_role("web-server")
+
+    content = env_path.read_text()
+    assert "API_KEY=12345" in content
+    assert "CORTEX_SYSTEM_ROLE=web-server" in content
 
 
-def test_learn_package(temp_cortex_dir):
-    """Test that the system learns new packages for a role.
-
-    Verifies that learned packages are stored as a list keyed by the role slug
-    in the learned_roles.json file.
+def test_error_handling_atomic_write(temp_cortex_dir):
+    """
+    Ensures file I/O failures are wrapped in RuntimeErrors with clear context.
+    Verifies the system doesn't crash but reports the failure to the CLI logic.
     """
     env_path = temp_cortex_dir / ".env"
     manager = RoleManager(env_path=env_path)
 
-    # Simulate learning a new package while the role is active
-    manager.learn_package("web-server", "htop")
-
-    learned_file = temp_cortex_dir / "learned_roles.json"
-    assert learned_file.exists()
-
-    # Parse the resulting JSON to verify structure
-    data = json.loads(learned_file.read_text())
-
-    # data["web-server"] is a list of strings
-    assert "htop" in data["web-server"]
-
-
-def test_error_handling_save_role(temp_cortex_dir):
-    """Verifies that save_role raises an error when file I/O fails.
-
-    This test uses mocking to simulate a permission failure, ensuring the
-    application's error handling and logging logic are triggered.
-
-    Args:
-        temp_cortex_dir: Pytest fixture providing a temporary directory path.
-    """
-    env_path = temp_cortex_dir / ".env"
-    manager = RoleManager(env_path=env_path)
-
-    # We mock the 'builtins.open' call specifically when it tries to open the lock file
-    # to simulate a system-level permission or locking error.
-    with patch("builtins.open", side_effect=PermissionError("Permission denied")):
+    # Mock open to simulate a file lock or read-only file system
+    with patch("builtins.open", side_effect=PermissionError("File Locked")):
         with pytest.raises(RuntimeError) as excinfo:
-            manager.save_role("web-server")
+            manager.save_role("any-role")
 
-        # Verify the error message matches what we expect in the class
         assert "Could not persist role" in str(excinfo.value)
+        # Verify exception chaining (ensures 'from e' was used)
+        assert isinstance(excinfo.value.__cause__, PermissionError)
 
 
-def test_load_invalid_custom_roles(temp_cortex_dir):
-    """Verifies the RoleManager handles malformed custom role JSON gracefully.
+def test_get_saved_role_file_not_found(temp_cortex_dir):
+    """Ensures logic handles missing .env files gracefully by returning None."""
+    env_path = temp_cortex_dir / "missing.env"
+    manager = RoleManager(env_path=env_path)
 
-    Ensures that a JSONDecodeError in the custom roles file does not crash the
-    application and that default roles remain accessible.
+    assert manager.get_saved_role() is None
 
-    Args:
-        temp_cortex_dir: Pytest fixture providing a temporary directory path.
+
+def test_role_persistence_idempotency(temp_cortex_dir):
+    """Verifies that re-setting the same role is idempotent and doesn't bloat the file."""
+    env_path = temp_cortex_dir / ".env"
+    manager = RoleManager(env_path=env_path)
+
+    manager.save_role("developer")
+    manager.save_role("developer")
+
+    content = env_path.read_text()
+    assert content.count("CORTEX_SYSTEM_ROLE=developer") == 1
+
+
+def test_get_system_context_no_history(temp_cortex_dir):
+    """
+    Ensures context gathering works even if shell history files do not exist.
+    Tests the transition to 'undefined' role for first-time users.
     """
     env_path = temp_cortex_dir / ".env"
-    custom_file = temp_cortex_dir / "custom_roles.json"
-
-    # Simulate a corrupted or malformed configuration file
-    custom_file.write_text("{ invalid json ...")
-
     manager = RoleManager(env_path=env_path)
-    # Validate that built-in roles still load correctly despite the custom file error
-    assert "web-server" in manager.get_all_slugs()
 
+    # Simulate missing history files and missing binaries
+    with (
+        patch("cortex.role_manager.Path.exists", return_value=False),
+        patch("cortex.role_manager.shutil.which", return_value=None),
+    ):
 
-def test_learn_package_json_error(temp_cortex_dir):
-    """Verifies that learn_package handles malformed learned_roles JSON.
-
-    Validates the json.JSONDecodeError exception block by attempting to append
-    data to a corrupted history file.
-
-    Args:
-        temp_cortex_dir: Pytest fixture providing a temporary directory path.
-    """
-    env_path = temp_cortex_dir / ".env"
-    learned_file = temp_cortex_dir / "learned_roles.json"
-    learned_file.write_text("not json")
-
-    manager = RoleManager(env_path=env_path)
-    # The method should catch the error and overwrite/initialize a valid structure
-    manager.learn_package("ml-workstation", "numpy")
-    assert learned_file.exists()
-
-    # Verify the file now contains valid JSON with the learned package
-    data = json.loads(learned_file.read_text())
-    assert "numpy" in data.get("ml-workstation", [])
+        context = manager.get_system_context()
+        assert context["patterns"] == []
+        assert context["active_role"] == "undefined"
