@@ -253,7 +253,7 @@ class InstallationHistory:
 
     def _iterate_package_tokens(self, commands: list[str]):
         """Yield raw package tokens from commands (may include version specs).
-        
+
         This is a helper method that contains the common parsing logic shared
         between _extract_packages_from_commands and _extract_packages_with_versions.
         """

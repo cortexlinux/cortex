@@ -768,8 +768,13 @@ class CortexCLI:
                                     # The venv will be created and package installed in it
                                     # Use 'set -e' to ensure failures are properly reported
                                     import shlex
+
                                     escaped_cmds = " && ".join(
-                                        shlex.quote(cmd) if " " not in cmd else cmd.replace("'", "'\\''")
+                                        (
+                                            shlex.quote(cmd)
+                                            if " " not in cmd
+                                            else cmd.replace("'", "'\\''")
+                                        )
                                         for cmd in chosen_strategy.commands
                                     )
                                     venv_cmd = f"bash -c 'set -e && {escaped_cmds}'"
