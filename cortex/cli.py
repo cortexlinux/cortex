@@ -1143,10 +1143,17 @@ class CortexCLI:
             cx_print(f"GPU mode: {mode}")
             cx_print(f"Switch backend: {backend.value}")
             cx_print(f"Per-app assignments: {len(apps)}")
-            cx_print("Tip: `cortex gpu set integrated|hybrid|nvidia --dry-run`")
+            cx_print(
+                "Tip: `cortex gpu set integrated|hybrid|nvidia --dry-run` to preview, or add `--execute` to apply."
+            )
             return 0
 
         if args.gpu_command == "set":
+            # Defensive guard (argparse should prevent this, but keep runtime safety)
+            if getattr(args, "dry_run", False) and getattr(args, "execute", False):
+                cx_print("Error: --dry-run and --execute cannot be used together.", "error")
+                return 2
+
             # Plan the switch; invalid modes raise ValueError
             try:
                 plan = plan_gpu_mode_switch(args.mode)
@@ -1155,17 +1162,14 @@ class CortexCLI:
                 return 1
 
             if plan is None:
-                cx_print("No supported GPU switch backend found.")
+                cx_print("No supported GPU switch backend found.", "error")
                 cx_print(
-                    "Tip: install/configure prime-select or system76-power, then retry.", "info"
+                    "Tip: install/configure prime-select or system76-power, then retry.",
+                    "info",
                 )
                 return 2
 
-            # Defensive guard (argparse should prevent this, but keep runtime safety)
-            if getattr(args, "dry_run", False) and getattr(args, "execute", False):
-                cx_print("Error: --dry-run and --execute cannot be used together.", "error")
-                return 2
-
+            # Always show the plan
             cx_print(f"Backend: {plan.backend.value}")
             cx_print(f"Target mode: {plan.target_mode}")
             cx_print("Commands:")
@@ -1175,10 +1179,11 @@ class CortexCLI:
             if getattr(plan, "notes", None):
                 cx_print(f"Notes: {plan.notes}")
 
-            # Honor --dry-run explicitly (default behavior is plan-only unless --execute is set)
-            if getattr(args, "dry_run", False) and not getattr(args, "execute", False):
+            # Honor --dry-run explicitly: show plan only, do not prompt, do not execute
+            if getattr(args, "dry_run", False):
                 return 0
 
+            # Execute only when --execute is set (otherwise plan-only)
             if getattr(args, "execute", False):
                 if not getattr(args, "yes", False):
                     console.print("\n⚠ This will run GPU switch commands with sudo.")
@@ -1188,11 +1193,12 @@ class CortexCLI:
                     except (EOFError, KeyboardInterrupt):
                         resp = ""
                     if resp not in ("y", "yes"):
+                        cx_print("Operation cancelled", "info")
                         return 0
 
                 return apply_gpu_mode_switch(plan, execute=True)
 
-            # No --execute provided -> plan-only (dry-run behavior)
+            # Default: plan-only (no prompt, no execution)
             return 0
 
         if args.gpu_command == "run":
@@ -2383,11 +2389,13 @@ def main():
 
     gpu_set = gpu_sub.add_parser("set", help="Switch GPU mode")
     gpu_set.add_argument("mode", choices=["integrated", "hybrid", "nvidia"])
+
+    # Make --dry-run and --execute mutually exclusive
     gpu_set_flags = gpu_set.add_mutually_exclusive_group()
     gpu_set_flags.add_argument(
         "--dry-run",
         action="store_true",
-        help="Show the switch plan only (default behavior unless --execute is set)",
+        help="Show the switch plan only (no sudo, no changes applied)",
     )
     gpu_set_flags.add_argument(
         "--execute",
@@ -2395,7 +2403,7 @@ def main():
         help="Execute GPU switch commands (sudo required)",
     )
 
-    gpu_set.add_argument("-y", "--yes", action="store_true")
+    gpu_set.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompt")
 
     gpu_app = gpu_sub.add_parser("app", help="Per-app GPU assignment")
     gpu_app_sub = gpu_app.add_subparsers(dest="app_action", required=True)
