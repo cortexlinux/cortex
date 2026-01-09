@@ -1,9 +1,11 @@
 import shutil
 import subprocess
-from typing import List, Optional
+
 from rich.prompt import Prompt
 from rich.table import Table
-from cortex.branding import console, cx_print, cx_header
+
+from cortex.branding import console, cx_header, cx_print
+
 
 class UnifiedPackageManager:
     """
@@ -64,14 +66,14 @@ class UnifiedPackageManager:
             return
 
         self.check_backends()
-        
+
         backend = self._choose_backend(action)
         if not backend:
             return
 
         cmd = self._get_cmd(action, backend, package, scope)
         self._run_cmd(cmd, dry_run)
-    
+
     def list_packages(self):
         """Check and display status of available package backends."""
         cx_header("Package Backends Status")
@@ -88,12 +90,12 @@ class UnifiedPackageManager:
                 table.add_row("snap", "Available", "Use `snap list` to see packages")
             else:
                 table.add_row("snap", "Not Found", "")
-                
+
             if self.flatpak_avail:
                 table.add_row("flatpak", "Available", "Use `flatpak list` to see packages")
             else:
                 table.add_row("flatpak", "Not Found", "")
-            
+
         console.print(table)
         console.print("[dim]Full package listing integration is planned for future updates.[/dim]")
 
@@ -135,7 +137,7 @@ class UnifiedPackageManager:
 
         cx_header(f"Permissions: {package}")
         console.print(f"[bold]Checking confinement for {package}...[/bold]")
-        
+
         if self.snap_avail:
             console.print("Snap: [green]Strict[/green] (Default) or [yellow]Classic[/yellow]")
         elif self.flatpak_avail:
@@ -143,7 +145,7 @@ class UnifiedPackageManager:
         else:
             console.print("[dim]Backend not found, assuming standard permissions.[/dim]")
 
-    def _choose_backend(self, action: str) -> Optional[str]:
+    def _choose_backend(self, action: str) -> str | None:
         """
         Select the backend (snap/flatpak) to use.
 
@@ -155,8 +157,8 @@ class UnifiedPackageManager:
         """
         if self.snap_avail and self.flatpak_avail:
             return Prompt.ask(
-                f"Choose backend to {action}", 
-                choices=["snap", "flatpak"], 
+                f"Choose backend to {action}",
+                choices=["snap", "flatpak"],
                 default="snap"
             )
         elif self.snap_avail:
@@ -166,7 +168,7 @@ class UnifiedPackageManager:
         else:
             return "snap" # Default/Mock
 
-    def _get_cmd(self, action: str, backend: str, package: str, scope: str = "user") -> List[str]:
+    def _get_cmd(self, action: str, backend: str, package: str, scope: str = "user") -> list[str]:
         """Generate command list for action."""
         if backend == "snap":
             # Snap doesn't typically distinguish user/system scope in the same way as flatpak CLI for install,
@@ -184,16 +186,16 @@ class UnifiedPackageManager:
                 cmd.extend(["install", "-y"])
             elif action == "remove":
                 cmd.extend(["uninstall", "-y"])
-            
+
             if scope == "user":
                 cmd.append("--user")
             elif scope == "system":
                 cmd.append("--system")
-            
+
             cmd.append(package)
             return cmd
 
-    def _run_cmd(self, cmd: List[str], dry_run: bool):
+    def _run_cmd(self, cmd: list[str], dry_run: bool):
         """
         Execute the constructed command.
 
