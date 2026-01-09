@@ -11,6 +11,7 @@ Automatically patches security vulnerabilities with safety controls including:
 """
 
 import logging
+import os
 import subprocess
 import threading
 import time
@@ -25,6 +26,12 @@ from cortex.vulnerability_scanner import Severity, Vulnerability, VulnerabilityS
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+class PrivilegeError(Exception):
+    """Raised when root/sudo privileges are required but not available."""
+
+    pass
 
 
 def _get_severity_color(severity: Severity) -> str:
@@ -176,6 +183,42 @@ class AutonomousPatcher:
         except Exception as e:
             return (False, "", str(e))
 
+    def _has_root_privileges(self) -> bool:
+        """
+        Check if we have root privileges (running as root or have passwordless sudo).
+
+        Returns:
+            True if running as root or passwordless sudo is available
+        """
+        # Check if running as root
+        if os.geteuid() == 0:
+            return True
+
+        # Check if we have passwordless sudo access
+        try:
+            result = subprocess.run(
+                ["sudo", "-n", "true"], capture_output=True, timeout=2
+            )
+            return result.returncode == 0
+        except Exception:
+            return False
+
+    def _require_root_privileges(self, operation: str) -> None:
+        """
+        Check for root privileges and raise PrivilegeError if not available.
+
+        Args:
+            operation: Description of the operation requiring privileges
+
+        Raises:
+            PrivilegeError: If root privileges are not available
+        """
+        if not self._has_root_privileges():
+            raise PrivilegeError(
+                f"Root privileges required for {operation}. "
+                f"Run with sudo or as root: sudo cortex security patch"
+            )
+
     def ensure_apt_updated(self, force: bool = False) -> bool:
         """
         Ensure apt package list is updated. Thread-safe and rate-limited.
@@ -185,6 +228,9 @@ class AutonomousPatcher:
 
         Returns:
             True if update succeeded or was recently done, False on failure
+
+        Raises:
+            PrivilegeError: If root privileges are required but not available
         """
         with _apt_update_lock:
             now = datetime.now()
@@ -195,6 +241,14 @@ class AutonomousPatcher:
                 if elapsed < self.apt_update_interval:
                     logger.debug(f"Apt cache still fresh ({elapsed:.0f}s old), skipping update")
                     return True
+
+            # Check for root privileges before attempting apt-get update
+            if not self._has_root_privileges():
+                logger.warning(
+                    "Root privileges required for apt-get update. "
+                    "Run with sudo or as root: sudo cortex security patch"
+                )
+                return False
 
             # Run apt-get update
             logger.info("Updating apt package list...")
@@ -492,6 +546,23 @@ class AutonomousPatcher:
                 packages_updated=list(plan.packages_to_update.keys()),
                 success=True,
                 errors=[],
+            )
+
+        # Check for root privileges before executing apt commands
+        if not self._has_root_privileges():
+            error_msg = (
+                "Root privileges required to install packages. "
+                "Run with sudo or as root: sudo cortex security patch --apply"
+            )
+            progress.print_error(error_msg)
+            logger.error(error_msg)
+            return PatchResult(
+                patch_id=patch_id,
+                timestamp=start_time.isoformat(),
+                vulnerabilities_patched=0,
+                packages_updated=[],
+                success=False,
+                errors=[error_msg],
             )
 
         # Record installation start
