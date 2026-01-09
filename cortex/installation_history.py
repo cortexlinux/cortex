@@ -248,10 +248,12 @@ class InstallationHistory:
 
         return snapshots
 
-    def _extract_packages_from_commands(self, commands: list[str]) -> list[str]:
-        """Extract package names from installation commands"""
-        packages = set()
-
+    def _iterate_package_tokens(self, commands: list[str]):
+        """Yield raw package tokens from commands (may include version specs).
+        
+        This is a helper method that contains the common parsing logic shared
+        between _extract_packages_from_commands and _extract_packages_with_versions.
+        """
         # Patterns to match package names in commands
         patterns = [
             r"apt-get\s+(?:install|remove|purge)\s+(?:-y\s+)?(.+?)(?:\s*[|&<>]|$)",
@@ -275,14 +277,21 @@ class InstallationHistory:
                         pkg = pkg.strip()
                         # Filter out flags and invalid package names
                         if pkg and not pkg.startswith("-") and len(pkg) > 1:
-                            # Remove version constraints (e.g., package=1.0.0 or package==1.0.0)
-                            # Note: Only match '=' for pip/apt constraints, not ':'
-                            pkg = re.sub(r"=.*$", "", pkg)
-                            # Remove any trailing special characters
-                            # Use rstrip for efficiency instead of regex to avoid ReDoS
-                            pkg = pkg.rstrip("!@#$%^&*(){}[]|\\:;\"'<>,?/~`")
-                            if pkg:
-                                packages.add(pkg)
+                            yield pkg
+
+    def _extract_packages_from_commands(self, commands: list[str]) -> list[str]:
+        """Extract package names from installation commands"""
+        packages = set()
+
+        for pkg in self._iterate_package_tokens(commands):
+            # Remove version constraints (e.g., package=1.0.0 or package==1.0.0)
+            # Note: Only match '=' for pip/apt constraints, not ':'
+            pkg = re.sub(r"=.*$", "", pkg)
+            # Remove any trailing special characters
+            # Use rstrip for efficiency instead of regex to avoid ReDoS
+            pkg = pkg.rstrip("!@#$%^&*(){}[]|\\:;\"'<>,?/~`")
+            if pkg:
+                packages.add(pkg)
 
         return sorted(packages)
 
@@ -295,47 +304,27 @@ class InstallationHistory:
         packages = []
         seen = set()
 
-        # Patterns to match package names in commands
-        patterns = [
-            r"apt-get\s+(?:install|remove|purge)\s+(?:-y\s+)?(.+?)(?:\s*[|&<>]|$)",
-            r"apt\s+(?:install|remove|purge)\s+(?:-y\s+)?(.+?)(?:\s*[|&<>]|$)",
-            r"dpkg\s+-i\s+(.+?)(?:\s*[|&<>]|$)",
-            # pip/pip3 install commands
-            r"pip3?\s+install\s+(?:-[^\s]+\s+)*(.+?)(?:\s*[|&<>]|$)",
-        ]
+        for pkg in self._iterate_package_tokens(commands):
+            # Extract version if present (e.g., package=1.0.0, package==1.0.0, package===1.0.0)
+            # Use string split instead of regex to avoid ReDoS
+            # Note: lstrip("=") handles any number of leading '=' characters correctly
+            if "=" in pkg:
+                # Split on first '=' to get name, rest is version (may have leading '=')
+                name, version = pkg.split("=", 1)
+                # Strip any leading '=' characters from version (handles ==, ===, etc.)
+                version = version.lstrip("=").strip()
+                name = name.strip()
+            else:
+                name = pkg
+                version = None
 
-        for cmd in commands:
-            # Remove sudo if present
-            cmd_clean = re.sub(r"^sudo\s+", "", cmd.strip())
+            # Remove any trailing special characters from name
+            # Use rstrip for efficiency instead of regex to avoid ReDoS
+            name = name.rstrip("!@#$%^&*(){}[]|\\:;\"'<>,?/~`")
 
-            for pattern in patterns:
-                matches = re.findall(pattern, cmd_clean)
-                for match in matches:
-                    # Split by comma, space, or pipe for multiple packages
-                    pkgs = re.split(r"[,\s|]+", match.strip())
-                    for pkg in pkgs:
-                        pkg = pkg.strip()
-                        # Filter out flags and invalid package names
-                        if pkg and not pkg.startswith("-") and len(pkg) > 1:
-                            # Extract version if present (e.g., package==1.0.0 or package=1.0.0)
-                            # Use string split instead of regex to avoid ReDoS
-                            if "=" in pkg:
-                                # Split on first '=' to get name, rest is version (may have leading '=')
-                                name, version = pkg.split("=", 1)
-                                # Handle == by stripping leading '=' from version
-                                version = version.lstrip("=").strip()
-                                name = name.strip()
-                            else:
-                                name = pkg
-                                version = None
-
-                            # Remove any trailing special characters from name
-                            # Use rstrip for efficiency instead of regex to avoid ReDoS
-                            name = name.rstrip("!@#$%^&*(){}[]|\\:;\"'<>,?/~`")
-
-                            if name and name not in seen:
-                                seen.add(name)
-                                packages.append((name, version))
+            if name and name not in seen:
+                seen.add(name)
+                packages.append((name, version))
 
         return packages
 
