@@ -33,12 +33,32 @@ class LLMEngine;
  * Orchestrates all monitoring subsystems and periodically checks
  * system health, creating alerts when thresholds are exceeded.
  */
+/**
+ * @brief CPU counter values for delta-based usage calculation
+ */
+struct CpuCounters {
+    long user = 0;
+    long nice = 0;
+    long system = 0;
+    long idle = 0;
+    long iowait = 0;
+    
+    long total() const { return user + nice + system + idle + iowait; }
+    long used() const { return user + nice + system; }
+};
+
 class SystemMonitor : public Service {
 public:
     /**
      * @brief Construct with optional alert manager and LLM engine
      * @param alert_manager Shared alert manager (can be nullptr)
-     * @param llm_engine LLM engine for AI-powered alerts (can be nullptr)
+     * @param llm_engine Non-owning raw pointer to LLM engine (can be nullptr).
+     *                   LIFETIME CONTRACT: The LLMEngine instance pointed to must
+     *                   outlive this SystemMonitor instance, or be left as nullptr.
+     *                   All internal accesses to llm_engine_ are guarded by null
+     *                   checks. The caller retains ownership and is responsible
+     *                   for ensuring the pointed-to object remains valid for the
+     *                   lifetime of this SystemMonitor.
      */
     explicit SystemMonitor(std::shared_ptr<AlertManager> alert_manager = nullptr,
                           LLMEngine* llm_engine = nullptr);
@@ -108,6 +128,14 @@ private:
     
     // Thread-safe APT check counter (replaces static local)
     std::atomic<int> apt_counter_{0};
+    
+    // CPU usage delta calculation state
+    CpuCounters prev_cpu_counters_;
+    bool cpu_counters_initialized_{false};
+    
+    // AI analysis background threads (for graceful shutdown)
+    mutable std::mutex ai_threads_mutex_;
+    std::vector<std::thread> ai_threads_;
     
     /**
      * @brief Main monitoring loop

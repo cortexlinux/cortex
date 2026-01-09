@@ -34,6 +34,15 @@ SystemMonitor::SystemMonitor(std::shared_ptr<AlertManager> alert_manager, LLMEng
 
 SystemMonitor::~SystemMonitor() {
     stop();
+    
+    // Join all AI analysis background threads for graceful shutdown
+    std::lock_guard<std::mutex> lock(ai_threads_mutex_);
+    for (auto& thread : ai_threads_) {
+        if (thread.joinable()) {
+            thread.join();
+        }
+    }
+    ai_threads_.clear();
 }
 
 bool SystemMonitor::start() {
@@ -141,26 +150,44 @@ void SystemMonitor::run_checks() {
         // Get disk stats
         auto disk_stats = disk_monitor_->get_root_stats();
         
-        // Get CPU usage (simple implementation)
+        // Get CPU usage using delta between successive reads
         double cpu_usage = 0.0;
         try {
-            std::ifstream stat("/proc/stat");
-            if (stat.is_open()) {
-                std::string line;
-                std::getline(stat, line);
-                
-                std::istringstream iss(line);
-                std::string cpu_label;
-                long user, nice, system, idle, iowait;
-                iss >> cpu_label >> user >> nice >> system >> idle >> iowait;
-                
-                long total = user + nice + system + idle + iowait;
-                long used = user + nice + system;
-                
-                if (total > 0) {
-                    cpu_usage = static_cast<double>(used) / total * 100.0;
+            auto read_cpu_counters = []() -> CpuCounters {
+                CpuCounters counters;
+                std::ifstream stat("/proc/stat");
+                if (stat.is_open()) {
+                    std::string line;
+                    std::getline(stat, line);
+                    std::istringstream iss(line);
+                    std::string cpu_label;
+                    iss >> cpu_label >> counters.user >> counters.nice >> counters.system 
+                        >> counters.idle >> counters.iowait;
                 }
+                return counters;
+            };
+            
+            CpuCounters current = read_cpu_counters();
+            
+            if (!cpu_counters_initialized_) {
+                // First run: do a quick second reading after a short delay
+                // to get an initial delta-based measurement
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                prev_cpu_counters_ = current;
+                current = read_cpu_counters();
+                cpu_counters_initialized_ = true;
             }
+            
+            // Calculate deltas from previous reading
+            long delta_total = current.total() - prev_cpu_counters_.total();
+            long delta_used = current.used() - prev_cpu_counters_.used();
+            
+            if (delta_total > 0) {
+                cpu_usage = (static_cast<double>(delta_used) / delta_total) * 100.0;
+            }
+            
+            // Store current counters for next iteration
+            prev_cpu_counters_ = current;
         } catch (...) {
             // Ignore CPU errors
         }
@@ -410,49 +437,86 @@ void SystemMonitor::create_smart_alert(AlertSeverity severity, AlertType type,
         return;
     }
     
-    // Capture a weak_ptr to avoid use-after-free if SystemMonitor is destroyed
-    // while the detached thread is still running
+    // Capture a weak_ptr to avoid use-after-free if AlertManager is destroyed
     std::weak_ptr<AlertManager> weak_alert_mgr = alert_manager_;
     
-    // Spawn background thread for AI analysis (non-blocking)
-    // Use detached thread so it doesn't block health checks
-    std::thread([weak_alert_mgr, type, ai_context, title, alert_id, severity]() {
-        LOG_DEBUG("SystemMonitor", "Generating AI alert analysis in background...");
-        
-        // Lock the weak_ptr to get a shared_ptr - if this fails, the AlertManager
-        // has been destroyed and we should abort
-        auto alert_mgr = weak_alert_mgr.lock();
-        if (!alert_mgr) {
-            LOG_DEBUG("SystemMonitor", "AlertManager no longer available, skipping AI analysis");
-            return;
+    // Capture pointer to running_ atomic for safe liveness check in thread
+    // This is safe because running_ outlives all threads (joined in destructor)
+    std::atomic<bool>* running_ptr = &running_;
+    
+    // Capture this pointer for calling generate_ai_alert
+    // Safe because destructor joins all threads before destruction completes
+    SystemMonitor* self = this;
+    
+    // Create thread for AI analysis (will be joined in destructor)
+    std::thread ai_thread([weak_alert_mgr, type, ai_context, title, alert_id, severity, 
+                           running_ptr, self]() {
+        try {
+            LOG_DEBUG("SystemMonitor", "Generating AI alert analysis in background...");
+            
+            // Check if SystemMonitor is still running before accessing llm_engine_
+            if (!running_ptr->load()) {
+                LOG_DEBUG("SystemMonitor", "SystemMonitor stopping, skipping AI analysis");
+                return;
+            }
+            
+            // Lock the weak_ptr to get a shared_ptr - if this fails, the AlertManager
+            // has been destroyed and we should abort
+            auto alert_mgr = weak_alert_mgr.lock();
+            if (!alert_mgr) {
+                LOG_DEBUG("SystemMonitor", "AlertManager no longer available, skipping AI analysis");
+                return;
+            }
+            
+            // Generate AI analysis using the LLM (generate_ai_alert has internal null checks)
+            std::string ai_analysis = self->generate_ai_alert(type, ai_context);
+            
+            // Create a secondary alert with AI analysis results
+            std::map<std::string, std::string> ai_metadata;
+            ai_metadata["parent_alert_id"] = alert_id;
+            ai_metadata["ai_enhanced"] = "true";
+            ai_metadata["analysis_context"] = ai_context;
+            
+            // Build the AI message - include actual analysis if available
+            std::string ai_alert_title = "AI analysis: " + title;
+            std::string ai_message;
+            if (!ai_analysis.empty()) {
+                ai_message = "AI-generated analysis:\n\n" + ai_analysis + 
+                            "\n\n---\nParent alert: " + alert_id.substr(0, 8);
+                ai_metadata["ai_analysis"] = ai_analysis;
+            } else {
+                ai_message = "Automated analysis for alert: " + alert_id.substr(0, 8) + 
+                            "\n\nContext analyzed:\n" + ai_context +
+                            "\n\n(AI analysis unavailable or returned empty)";
+                LOG_WARN("SystemMonitor", "AI analysis returned empty for alert: " + alert_id.substr(0, 8));
+            }
+            
+            std::string ai_alert_id = alert_mgr->create(
+                AlertSeverity::INFO,
+                AlertType::AI_ANALYSIS,
+                ai_alert_title,
+                ai_message,
+                ai_metadata
+            );
+            
+            if (!ai_alert_id.empty()) {
+                LOG_DEBUG("SystemMonitor", "Created AI analysis alert: " + ai_alert_id.substr(0, 8) + 
+                         " for parent: " + alert_id.substr(0, 8));
+            } else {
+                LOG_WARN("SystemMonitor", "Failed to create AI analysis alert for: " + alert_id.substr(0, 8));
+            }
+        } catch (const std::exception& e) {
+            LOG_ERROR("SystemMonitor", "Exception in AI analysis thread: " + std::string(e.what()));
+        } catch (...) {
+            LOG_ERROR("SystemMonitor", "Unknown exception in AI analysis thread");
         }
-        
-        // Create a secondary alert with AI analysis metadata
-        std::map<std::string, std::string> ai_metadata;
-        ai_metadata["parent_alert_id"] = alert_id;
-        ai_metadata["ai_enhanced"] = "true";
-        ai_metadata["analysis_context"] = ai_context;
-        
-        // Create AI analysis alert linked to the original
-        std::string ai_alert_title = "AI analysis: " + title;
-        std::string ai_message = "Automated analysis for alert: " + alert_id.substr(0, 8) + 
-                                 "\n\nContext analyzed:\n" + ai_context;
-        
-        std::string ai_alert_id = alert_mgr->create(
-            AlertSeverity::INFO,
-            AlertType::AI_ANALYSIS,
-            ai_alert_title,
-            ai_message,
-            ai_metadata
-        );
-        
-        if (!ai_alert_id.empty()) {
-            LOG_DEBUG("SystemMonitor", "Created AI analysis alert: " + ai_alert_id.substr(0, 8) + 
-                     " for parent: " + alert_id.substr(0, 8));
-        } else {
-            LOG_WARN("SystemMonitor", "Failed to create AI analysis alert for: " + alert_id.substr(0, 8));
-        }
-    }).detach();
+    });
+    
+    // Store thread for graceful shutdown instead of detaching
+    {
+        std::lock_guard<std::mutex> lock(ai_threads_mutex_);
+        ai_threads_.push_back(std::move(ai_thread));
+    }
 }
 
 } // namespace cortexd

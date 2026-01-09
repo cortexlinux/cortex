@@ -202,65 +202,7 @@ def download_model() -> Path | None:
     return model_path if result.returncode == 0 else None
 
 
-def setup_model(model_path: str) -> bool:
-    """
-    Attempt to load an LLM model into the cortex daemon.
-
-    Tries multiple methods to load the model (sg for group membership, direct command).
-    Falls back to configuring auto-load if immediate loading fails due to permissions.
-
-    Args:
-        model_path: Path to the GGUF model file to load.
-
-    Returns:
-        bool: True if model was loaded or auto-load should be configured,
-              False if loading failed with a non-recoverable error.
-    """
-    console.print(f"[cyan]Loading model: {model_path}[/cyan]")
-    console.print("[cyan]This may take a minute depending on model size...[/cyan]")
-
-    # Try loading the model - use sg (switch group) to run with cortex group
-    # This is needed because group membership from install won't take effect
-    # until logout/login, but sg can run a command with the new group immediately
-    try:
-        # First, try with sg (switch group) to use new group membership
-        result = subprocess.run(
-            ["sg", "cortex", "-c", f"cortex daemon llm load {model_path}"],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode == 0:
-            return True
-
-        # If sg failed (group might not exist yet), try direct command
-        result = subprocess.run(
-            ["cortex", "daemon", "llm", "load", str(model_path)],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode == 0:
-            return True
-
-        # If still failing, show the error
-        if "Permission denied" in result.stderr or "Permission denied" in result.stdout:
-            console.print("[yellow]Permission denied - will configure auto-load instead.[/yellow]")
-            console.print(
-                "[yellow]The model will load automatically when the daemon restarts.[/yellow]"
-            )
-            return True  # Return True so we continue to configure auto-load
-
-        console.print(f"[red]Error: {result.stderr or result.stdout}[/red]")
-        return False
-
-    except Exception as e:
-        console.print(f"[yellow]Could not load model immediately: {e}[/yellow]")
-        console.print("[yellow]Will configure auto-load instead.[/yellow]")
-        return True  # Continue to configure auto-load
-
-
-def configure_auto_load(model_path: str) -> None:
+def configure_auto_load(model_path: Path | str) -> None:
     """
     Configure the cortex daemon to auto-load the specified model on startup.
 
@@ -268,7 +210,8 @@ def configure_auto_load(model_path: str) -> None:
     model_path and disable lazy_load, then restarts the daemon service.
 
     Args:
-        model_path: Path to the GGUF model file to configure for auto-loading.
+        model_path: Path (or string path) to the GGUF model file to configure
+                    for auto-loading. Accepts either a Path object or a string.
 
     Returns:
         None. Exits the program with code 1 on failure.
@@ -294,9 +237,14 @@ def configure_auto_load(model_path: str) -> None:
         )
         config = yaml.safe_load(result.stdout) or {}
 
-        # Update the configuration values
-        config["model_path"] = str(model_path)
-        config["lazy_load"] = False
+        # Ensure the llm section exists
+        if "llm" not in config:
+            config["llm"] = {}
+
+        # Update the configuration values under the llm section
+        # The daemon reads from llm.model_path and llm.lazy_load
+        config["llm"]["model_path"] = str(model_path)
+        config["llm"]["lazy_load"] = False
 
         # Write the updated config back via sudo tee
         updated_yaml = yaml.dump(config, default_flow_style=False, sort_keys=False)
