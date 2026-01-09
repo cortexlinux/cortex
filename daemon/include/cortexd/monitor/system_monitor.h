@@ -124,18 +124,30 @@ private:
     std::atomic<size_t> llm_queue_size_{0};
     std::mutex llm_mutex_;
     
-    std::chrono::seconds check_interval_{300};  // 5 minutes
+    std::atomic<int64_t> check_interval_secs_{300};  // 5 minutes (atomic for thread-safe access)
     
     // Thread-safe APT check counter (replaces static local)
     std::atomic<int> apt_counter_{0};
     
-    // CPU usage delta calculation state
+    // CPU usage delta calculation state (protected by cpu_mutex_)
+    mutable std::mutex cpu_mutex_;
     CpuCounters prev_cpu_counters_;
     bool cpu_counters_initialized_{false};
     
     // AI analysis background threads (for graceful shutdown)
+    // Each thread is paired with a "done" flag to enable non-blocking cleanup
+    struct AIThreadEntry {
+        std::thread thread;
+        std::shared_ptr<std::atomic<bool>> done;
+    };
     mutable std::mutex ai_threads_mutex_;
-    std::vector<std::thread> ai_threads_;
+    std::vector<AIThreadEntry> ai_threads_;
+    
+    /**
+     * @brief Clean up finished AI threads to avoid unbounded accumulation
+     * @note Must be called with ai_threads_mutex_ held
+     */
+    void cleanupFinishedAIThreads();
     
     /**
      * @brief Main monitoring loop
