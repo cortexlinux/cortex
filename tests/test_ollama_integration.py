@@ -174,6 +174,11 @@ def test_routing_decision():
     """Test routing logic with Ollama."""
     print("4. Testing routing decision...")
 
+    # Get available model
+    test_model = os.environ.get("OLLAMA_MODEL") or get_available_ollama_model()
+    if not test_model:
+        pytest.skip("No Ollama models available")
+
     try:
         router = LLMRouter(
             ollama_base_url="http://localhost:11434",
@@ -203,6 +208,11 @@ def test_routing_decision():
 def test_stats_tracking():
     """Test that stats tracking works with Ollama."""
     print("5. Testing stats tracking...")
+
+    # Get available model
+    test_model = os.environ.get("OLLAMA_MODEL") or get_available_ollama_model()
+    if not test_model:
+        pytest.skip("No Ollama models available")
 
     try:
         router = LLMRouter(

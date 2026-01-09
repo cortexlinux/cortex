@@ -4,6 +4,8 @@ import sqlite3
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Optional
 
+from cortex.config_utils import get_ollama_model
+
 if TYPE_CHECKING:
     from cortex.semantic_cache import SemanticCache
 
@@ -67,28 +69,11 @@ class CommandInterpreter:
         self._initialize_client()
 
     def _get_ollama_model(self) -> str:
-        """Get Ollama model from config file or environment."""
-        # Try environment variable first
-        env_model = os.environ.get("OLLAMA_MODEL")
-        if env_model:
-            return env_model
+        """Get Ollama model from config file or environment.
 
-        # Try config file
-        try:
-            from pathlib import Path
-
-            config_file = Path.home() / ".cortex" / "config.json"
-            if config_file.exists():
-                with open(config_file) as f:
-                    config = json.load(f)
-                    model = config.get("ollama_model")
-                    if model:
-                        return model
-        except Exception:
-            pass  # Ignore errors reading config
-
-        # Default to llama3.2
-        return "llama3.2"
+        Delegates to the shared ``get_ollama_model()`` utility function.
+        """
+        return get_ollama_model()
 
     def _initialize_client(self):
         if self.provider == APIProvider.OPENAI:
