@@ -1,0 +1,18 @@
+#!/bin/bash
+# Cortex Linux live-build auto/clean
+# Copyright 2025 AI Venture Holdings LLC
+# SPDX-License-Identifier: Apache-2.0
+
+set -e
+
+echo "Cleaning Cortex Linux build environment..."
+
+lb clean noauto "${@}"
+
+# Clean additional artifacts
+rm -f config/binary config/bootstrap config/chroot config/common config/source 2>/dev/null || true
+rm -rf .build 2>/dev/null || true
+rm -f *.iso *.hybrid.iso *.contents *.files *.packages *.zsync 2>/dev/null || true
+rm -f chroot.* binary.* source.* 2>/dev/null || true
+
+echo "Clean complete"

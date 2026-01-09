@@ -1,0 +1,22 @@
+Source: cortex-archive-keyring
+Section: misc
+Priority: important
+Maintainer: Cortex Linux Team <team@cortexlinux.com>
+Build-Depends: debhelper-compat (= 13), gnupg
+Standards-Version: 4.6.2
+Homepage: https://cortexlinux.com
+Vcs-Browser: https://github.com/cortexlinux/cortex-distro
+Vcs-Git: https://github.com/cortexlinux/cortex-distro.git
+Rules-Requires-Root: no
+
+Package: cortex-archive-keyring
+Architecture: all
+Multi-Arch: foreign
+Depends: ${misc:Depends}
+Description: GnuPG archive keys for the Cortex Linux repository
+ This package contains the GnuPG keys used to sign the Cortex Linux
+ APT repository. Installing this package allows APT to verify the
+ authenticity of packages from the Cortex repository.
+ .
+ The keyring is installed to /usr/share/keyrings/ and should be
+ referenced using the Signed-By option in APT sources files.

@@ -1,0 +1,109 @@
+# Cortex Linux Configuration
+# /etc/cortex/cortex.yaml
+# Copyright 2025 AI Venture Holdings LLC
+# SPDX-License-Identifier: Apache-2.0
+
+# API Configuration
+api:
+  # Default LLM provider (claude, openai, ollama)
+  provider: claude
+  
+  # API key location (environment variable or file path)
+  # Keys should never be stored in this file
+  key_env: CORTEX_API_KEY
+  key_file: /etc/cortex/api.key
+  
+  # Model selection
+  model: claude-sonnet-4-20250514
+  
+  # Timeout for API requests (seconds)
+  timeout: 30
+  
+  # Maximum retries on failure
+  max_retries: 3
+
+# Ollama Configuration (for offline/local LLM)
+ollama:
+  enabled: false
+  host: http://localhost:11434
+  model: llama3.2
+  fallback: true  # Use Ollama when cloud API unavailable
+
+# Security Settings
+security:
+  # Enable Firejail sandboxing for package operations
+  sandbox: true
+  
+  # AppArmor profiles
+  apparmor: true
+  
+  # Require confirmation for dangerous operations
+  confirm_destructive: true
+  
+  # Dry-run by default
+  dry_run_default: false
+  
+  # Allowed package sources
+  allowed_sources:
+    - debian
+    - cortex
+  
+  # Blocked packages (never install)
+  blocked_packages: []
+
+# Logging Configuration
+logging:
+  level: INFO
+  file: /var/log/cortex/cortex.log
+  max_size_mb: 100
+  backup_count: 5
+  
+  # Audit logging for compliance
+  audit:
+    enabled: true
+    file: /var/log/cortex/audit.log
+
+# Cache Settings
+cache:
+  # Semantic cache for LLM responses
+  enabled: true
+  directory: /var/cache/cortex
+  max_size_mb: 500
+  ttl_hours: 24
+
+# Package Management
+packages:
+  # Default behavior for recommendations
+  install_recommends: true
+  
+  # Automatic security updates
+  auto_security_updates: false
+  
+  # Transaction logging
+  log_transactions: true
+  transaction_log: /var/log/cortex/transactions.log
+
+# Hardware Detection
+hardware:
+  # Auto-detect and configure GPU
+  gpu_auto_detect: true
+  
+  # Supported GPU vendors
+  gpu_vendors:
+    - nvidia
+    - amd
+    - intel
+
+# Web Console (when cortex-console installed)
+console:
+  enabled: false
+  port: 8006
+  bind_address: 0.0.0.0
+  ssl: true
+  ssl_cert: /etc/cortex/console/cert.pem
+  ssl_key: /etc/cortex/console/key.pem
+
+# Telemetry (opt-in)
+telemetry:
+  enabled: false
+  endpoint: https://telemetry.cortexlinux.com

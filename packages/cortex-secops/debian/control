@@ -1,0 +1,63 @@
+Source: cortex-secops
+Section: admin
+Priority: optional
+Maintainer: Cortex Linux Team <team@cortexlinux.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://cortexlinux.com
+Vcs-Browser: https://github.com/cortexlinux/cortex-distro
+Vcs-Git: https://github.com/cortexlinux/cortex-distro.git
+Rules-Requires-Root: no
+
+Package: cortex-secops
+Architecture: all
+Depends: ${misc:Depends},
+ cortex-core,
+ auditd,
+ audispd-plugins,
+ aide,
+ fail2ban,
+ rkhunter,
+ chkrootkit,
+ clamav,
+ clamav-daemon,
+ clamav-freshclam,
+ logwatch,
+ sysstat,
+ acct,
+ lynis,
+ tripwire,
+ ossec-hids-agent | wazuh-agent,
+ nftables,
+ ufw
+Recommends:
+ apparmor-profiles-extra,
+ apparmor-utils,
+ libpam-pwquality,
+ libpam-tmpdir,
+ needrestart,
+ debsums,
+ apt-listbugs,
+ apt-listchanges,
+ unattended-upgrades
+Suggests:
+ suricata,
+ zeek,
+ crowdsec,
+ falco
+Description: Cortex Linux Security Operations meta-package
+ This meta-package installs security monitoring, intrusion detection,
+ and compliance tools for Cortex Linux deployments.
+ .
+ Includes:
+  - Audit framework (auditd) with comprehensive logging
+  - File integrity monitoring (AIDE, Tripwire)
+  - Intrusion detection (Fail2ban, rkhunter, chkrootkit)
+  - Antivirus scanning (ClamAV)
+  - Security auditing (Lynis)
+  - Log analysis (logwatch)
+  - System accounting (sysstat, acct)
+  - Firewall management (nftables, ufw)
+ .
+ After installation, run 'cortex secops init' to configure
+ security baselines and enable monitoring.

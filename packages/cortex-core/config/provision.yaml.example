@@ -1,0 +1,53 @@
+# Cortex Linux Provision Configuration Schema
+# /etc/cortex/provision.yaml
+# Copyright 2025 AI Venture Holdings LLC
+# SPDX-License-Identifier: Apache-2.0
+
+schema_version: "1.0"
+
+# System Identity
+hostname: cortex
+timezone: UTC
+locale: en_US.UTF-8
+keyboard: us
+
+# Network
+network:
+  method: dhcp
+
+# Admin User
+admin_user: cortex
+ssh_authorized_keys: []
+
+# SSH
+ssh:
+  enabled: true
+  port: 22
+  password_auth: false
+  permit_root_login: prohibit-password
+
+# APT
+apt:
+  cortex_repo: true
+  cortex_channel: stable
+  backports: false
+
+# Security
+security:
+  apparmor: true
+  firewall: true
+  firewall_policy: drop
+  open_ports:
+    - 8006/tcp
+  auto_security_updates: true
+
+# GPU (auto-detected)
+gpu:
+  auto_detect: true
+  auto_enable: false
+
+# LLM Runtime
+llm:
+  enabled: true
+  provider: ollama
+  model: default

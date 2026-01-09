@@ -1,0 +1,39 @@
+# Cortex Linux APT Pinning Preferences
+# /etc/apt/preferences.d/cortex.pref
+# Copyright 2025 AI Venture Holdings LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# This file ensures Cortex packages are preferred over Debian packages
+# for Cortex-owned packages, preventing mixing issues and ensuring
+# consistent system behavior.
+
+# High priority for Cortex-owned packages
+Package: cortex-*
+Pin: origin repo.cortexlinux.com
+Pin-Priority: 900
+
+# Cortex archive keyring
+Package: cortex-archive-keyring
+Pin: origin repo.cortexlinux.com
+Pin-Priority: 900
+
+# Default priority for all Cortex repository packages
+Package: *
+Pin: origin repo.cortexlinux.com
+Pin-Priority: 500
+
+# Ensure Debian stable packages are available but lower priority
+# for packages that exist in both repos
+Package: *
+Pin: release o=Debian,n=trixie
+Pin-Priority: 400
+
+# Debian security updates should have high priority
+Package: *
+Pin: release o=Debian,l=Debian-Security
+Pin-Priority: 1000
+
+# Debian backports at lower priority (opt-in)
+Package: *
+Pin: release o=Debian Backports,n=trixie-backports
+Pin-Priority: 100

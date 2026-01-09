@@ -1,0 +1,46 @@
+#!/usr/bin/make -f
+# Cortex Core Meta-Package Build Rules
+# Copyright 2025 AI Venture Holdings LLC
+# SPDX-License-Identifier: Apache-2.0
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	# Meta-package, nothing to build
+
+override_dh_auto_install:
+	# Create directories
+	install -d $(CURDIR)/debian/cortex-core/etc/cortex
+	install -d $(CURDIR)/debian/cortex-core/etc/apt/sources.list.d
+	install -d $(CURDIR)/debian/cortex-core/etc/apt/preferences.d
+	install -d $(CURDIR)/debian/cortex-core/usr/bin
+	install -d $(CURDIR)/debian/cortex-core/usr/share/doc/cortex-core
+	install -d $(CURDIR)/debian/cortex-core/usr/share/cortex/trust
+	install -d $(CURDIR)/debian/cortex-core/usr/share/cortex/sbom
+	install -d $(CURDIR)/debian/cortex-core/var/lib/cortex
+	install -d $(CURDIR)/debian/cortex-core/var/log/cortex
+	install -d $(CURDIR)/debian/cortex-core/var/cache/cortex
+	
+	# Install default configuration
+	install -m 644 config/cortex.yaml \
+		$(CURDIR)/debian/cortex-core/etc/cortex/cortex.yaml
+	install -m 644 config/provision.yaml.example \
+		$(CURDIR)/debian/cortex-core/etc/cortex/provision.yaml.example
+	
+	# Install APT configuration
+	install -m 644 config/cortex.sources \
+		$(CURDIR)/debian/cortex-core/etc/apt/sources.list.d/cortex.sources
+	install -m 644 config/cortex.pref \
+		$(CURDIR)/debian/cortex-core/etc/apt/preferences.d/cortex.pref
+	
+	# Install command-line tools
+	install -m 755 cortex-upgrade.py \
+		$(CURDIR)/debian/cortex-core/usr/bin/cortex-upgrade
+	install -m 755 cortex-gpu.py \
+		$(CURDIR)/debian/cortex-core/usr/bin/cortex-gpu
+	install -m 755 cortex-verify.py \
+		$(CURDIR)/debian/cortex-core/usr/bin/cortex-verify
+
+override_dh_auto_clean:
+	# Nothing to clean

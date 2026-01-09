@@ -1,0 +1,86 @@
+Source: cortex-llm
+Section: admin
+Priority: optional
+Maintainer: Cortex Linux Team <team@cortexlinux.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://cortexlinux.com
+Vcs-Browser: https://github.com/cortexlinux/cortex-distro
+Vcs-Git: https://github.com/cortexlinux/cortex-distro.git
+Rules-Requires-Root: no
+
+Package: cortex-llm
+Architecture: all
+Depends: ${misc:Depends},
+ cortex-core,
+ python3 (>= 3.11),
+ python3-pip,
+ python3-venv
+Recommends:
+ python3-torch,
+ python3-transformers,
+ python3-numpy,
+ python3-scipy
+Suggests:
+ cortex-gpu-nvidia | cortex-gpu-amd,
+ cortex-model-tiny,
+ ollama
+Provides: cortex-llm-backend
+Description: Cortex Linux local LLM runtime support
+ This meta-package provides local LLM inference capabilities
+ for Cortex Linux, enabling offline AI operations.
+ .
+ Features:
+  - PyTorch inference runtime
+  - Transformers library support
+  - CPU-optimized inference (default)
+  - GPU acceleration when available
+ .
+ For GPU-accelerated inference, also install:
+  - cortex-gpu-nvidia (NVIDIA GPUs)
+  - cortex-gpu-amd-rocm (AMD GPUs)
+ .
+ Pre-packaged models available:
+  - cortex-model-tiny (CPU-friendly, ~500MB)
+  - cortex-model-base (balanced, ~2GB)
+  - cortex-model-large (high-quality, ~8GB)
+
+Package: cortex-model-tiny
+Architecture: all
+Depends: ${misc:Depends},
+ cortex-llm
+Description: Cortex Linux tiny LLM model package
+ A small, CPU-friendly language model for basic Cortex operations.
+ .
+ Model characteristics:
+  - Size: ~500MB
+  - Memory: ~2GB RAM
+  - Inference: CPU-optimized
+  - Quality: Good for simple tasks
+ .
+ This model is suitable for:
+  - Package management assistance
+  - Basic system queries
+  - Simple natural language commands
+  - Offline operation on low-resource systems
+
+Package: cortex-model-base
+Architecture: all
+Depends: ${misc:Depends},
+ cortex-llm
+Recommends:
+ cortex-gpu-nvidia | cortex-gpu-amd
+Description: Cortex Linux base LLM model package
+ A balanced language model for Cortex operations.
+ .
+ Model characteristics:
+  - Size: ~2GB
+  - Memory: ~8GB RAM (16GB with GPU)
+  - Inference: CPU or GPU
+  - Quality: Good for most tasks
+ .
+ This model is suitable for:
+  - Complex system administration tasks
+  - Code generation and analysis
+  - Detailed explanations
+  - Multi-step operations

@@ -1,0 +1,23 @@
+#!/bin/bash
+# Cortex Linux live-build auto/build
+# Copyright 2025 AI Venture Holdings LLC
+# SPDX-License-Identifier: Apache-2.0
+
+set -e
+
+echo "================================================"
+echo "  Cortex Linux ISO Build"
+echo "  Started: $(date)"
+echo "================================================"
+
+# Run the build
+lb build noauto "${@}"
+
+BUILD_STATUS=$?
+
+echo "================================================"
+echo "  Build completed: $(date)"
+echo "  Status: ${BUILD_STATUS}"
+echo "================================================"
+
+exit ${BUILD_STATUS}

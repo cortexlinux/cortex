@@ -1,0 +1,8 @@
+cortex-core (0.1.0-1) trixie; urgency=medium
+
+  * Initial release
+  * Core meta-package for Cortex Linux
+  * Includes AI-powered package management dependencies
+  * Security sandbox with Firejail and AppArmor
+
+ -- Cortex Linux Team <team@cortexlinux.com>  Wed, 08 Jan 2025 00:00:00 +0000

@@ -1,0 +1,67 @@
+Source: cortex-full
+Section: admin
+Priority: optional
+Maintainer: Cortex Linux Team <team@cortexlinux.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://cortexlinux.com
+Vcs-Browser: https://github.com/cortexlinux/cortex-distro
+Vcs-Git: https://github.com/cortexlinux/cortex-distro.git
+Rules-Requires-Root: no
+
+Package: cortex-full
+Architecture: all
+Depends: ${misc:Depends},
+ cortex-core,
+ docker.io,
+ containerd,
+ nftables,
+ fail2ban,
+ auditd,
+ prometheus-node-exporter,
+ nginx-light,
+ certbot,
+ python3-certbot-nginx,
+ postgresql-client,
+ redis-tools,
+ sqlite3,
+ rsync,
+ rclone,
+ smartmontools,
+ nvme-cli,
+ htop,
+ btop,
+ iotop,
+ iftop,
+ ncdu,
+ tmux,
+ screen,
+ fzf,
+ ripgrep,
+ bat
+Recommends:
+ firmware-misc-nonfree,
+ firmware-linux-nonfree,
+ nvidia-detect
+Suggests:
+ cortex-console,
+ podman,
+ buildah
+Description: Cortex Linux full installation - AI-powered server management
+ This meta-package installs the complete Cortex Linux system with
+ all recommended packages for server management, containers, monitoring,
+ and GPU support.
+ .
+ Includes:
+  - Everything in cortex-core
+  - Docker and container tools
+  - Network security (nftables, fail2ban)
+  - Monitoring (Prometheus node exporter)
+  - Web server (nginx) and TLS (certbot)
+  - Database clients (PostgreSQL, Redis, SQLite)
+  - Storage tools (rsync, rclone, smartmontools)
+  - Modern CLI tools (htop, btop, fzf, ripgrep, bat)
+ .
+ For GPU support, install the appropriate driver package:
+  - NVIDIA: nvidia-driver
+  - AMD: firmware-amd-graphics

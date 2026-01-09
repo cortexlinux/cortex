@@ -1,0 +1,198 @@
+# Cortex Linux ISO Build Workflow
+# Builds and publishes Cortex Linux ISO images
+# Copyright 2025 AI Venture Holdings LLC
+# SPDX-License-Identifier: Apache-2.0
+
+name: Build ISO
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths:
+      - 'iso/**'
+      - 'packages/**'
+      - 'Makefile'
+      - '.github/workflows/build-iso.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'iso/**'
+      - 'packages/**'
+      - 'Makefile'
+  workflow_dispatch:
+    inputs:
+      iso_type:
+        description: 'ISO type to build'
+        required: true
+        default: 'offline'
+        type: choice
+        options:
+          - netinst
+          - offline
+          - both
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+
+jobs:
+  build-packages:
+    name: Build Debian Packages
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            dpkg-dev \
+            devscripts \
+            debhelper \
+            fakeroot \
+            gnupg
+
+      - name: Build cortex-archive-keyring
+        run: |
+          cd packages/cortex-archive-keyring
+          dpkg-buildpackage -us -uc -b
+
+      - name: Build cortex-core
+        run: |
+          cd packages/cortex-core
+          dpkg-buildpackage -us -uc -b
+
+      - name: Build cortex-full
+        run: |
+          cd packages/cortex-full
+          dpkg-buildpackage -us -uc -b
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: debian-packages
+          path: packages/*.deb
+          retention-days: 7
+
+  build-iso:
+    name: Build ISO Image
+    runs-on: ubuntu-24.04
+    needs: build-packages
+    strategy:
+      matrix:
+        arch: [amd64]
+        # arm64 builds require self-hosted runner with ARM
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: debian-packages
+          path: packages/
+
+      - name: Install live-build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            live-build \
+            debootstrap \
+            squashfs-tools \
+            xorriso \
+            isolinux \
+            syslinux-efi \
+            grub-pc-bin \
+            grub-efi-amd64-bin \
+            mtools \
+            dosfstools
+
+      - name: Configure live-build
+        run: |
+          cd iso/live-build
+          chmod +x auto/*
+          sudo lb config
+
+      - name: Copy packages to chroot
+        run: |
+          mkdir -p iso/live-build/config/packages.chroot/
+          cp packages/*.deb iso/live-build/config/packages.chroot/
+
+      - name: Build ISO
+        run: |
+          cd iso/live-build
+          sudo lb build 2>&1 | tee build.log
+
+      - name: Generate checksums
+        run: |
+          cd iso/live-build
+          sha256sum *.iso > SHA256SUMS
+          sha512sum *.iso > SHA512SUMS
+
+      - name: Upload ISO
+        uses: actions/upload-artifact@v4
+        with:
+          name: cortex-linux-${{ matrix.arch }}
+          path: |
+            iso/live-build/*.iso
+            iso/live-build/SHA256SUMS
+            iso/live-build/SHA512SUMS
+          retention-days: 14
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ matrix.arch }}
+          path: iso/live-build/build.log
+          retention-days: 7
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-24.04
+    needs: build-iso
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Download ISO artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cortex-linux-*
+          merge-multiple: true
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: debian-packages
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            *.iso
+            *.deb
+            SHA256SUMS
+            SHA512SUMS
+          body: |
+            ## Cortex Linux ${{ github.ref_name }}
+            
+            ### Downloads
+            - **cortex-linux-*-amd64-offline.iso** - Full offline installer
+            - **cortex-linux-*-amd64-netinst.iso** - Minimal network installer
+            
+            ### Verification
+            ```bash
+            sha256sum -c SHA256SUMS
+            ```
+            
+            ### Quick Start
+            1. Write ISO to USB: `dd if=cortex-linux-*.iso of=/dev/sdX bs=4M status=progress`
+            2. Boot from USB
+            3. Follow installation prompts
+            
+            ### Documentation
+            See https://cortexlinux.com/docs for full documentation.
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}

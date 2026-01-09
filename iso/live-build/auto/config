@@ -1,0 +1,65 @@
+#!/bin/bash
+# Cortex Linux live-build auto/config
+# This script is called by lb config to set build parameters
+# Copyright 2025 AI Venture Holdings LLC
+# SPDX-License-Identifier: Apache-2.0
+
+set -e
+
+# Cortex Linux build configuration
+CODENAME="trixie"
+ARCH="amd64"
+VERSION="0.1.0"
+
+lb config noauto \
+    --distribution "${CODENAME}" \
+    --parent-distribution "${CODENAME}" \
+    --parent-debian-installer-distribution "${CODENAME}" \
+    --archive-areas "main contrib non-free non-free-firmware" \
+    --architectures "${ARCH}" \
+    --binary-images iso-hybrid \
+    --bootloaders "grub-efi,syslinux" \
+    --debian-installer-distribution "${CODENAME}" \
+    --debian-installer live \
+    --debian-installer-gui false \
+    --iso-application "Cortex Linux" \
+    --iso-preparer "Cortex Linux Build System" \
+    --iso-publisher "AI Venture Holdings LLC; https://cortexlinux.com" \
+    --iso-volume "Cortex Linux ${VERSION}" \
+    --memtest none \
+    --security true \
+    --updates true \
+    --backports true \
+    --apt-indices true \
+    --apt-recommends true \
+    --apt-source-archives false \
+    --cache true \
+    --cache-indices true \
+    --cache-packages true \
+    --cache-stages true \
+    --checksums sha256 \
+    --chroot-filesystem squashfs \
+    --clean \
+    --color \
+    --compression xz \
+    --debconf-frontend noninteractive \
+    --debconf-priority critical \
+    --debootstrap-options "--variant=minbase --include=apt-transport-https,ca-certificates,gnupg" \
+    --firmware-binary true \
+    --firmware-chroot true \
+    --hdd-size auto \
+    --image-name "cortex-linux" \
+    --initramfs live-boot \
+    --initramfs-compression xz \
+    --initsystem systemd \
+    --interactive false \
+    --linux-flavours "${ARCH}" \
+    --linux-packages "linux-image linux-headers" \
+    --mode debian \
+    --quiet \
+    --system live \
+    --verbose \
+    --bootappend-live "boot=live components quiet splash locales=en_US.UTF-8 keyboard-layouts=us" \
+    "${@}"
+
+echo "Cortex Linux live-build configured successfully"

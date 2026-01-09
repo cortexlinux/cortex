@@ -1,0 +1,37 @@
+# Cortex Linux APT Repository
+# /etc/apt/sources.list.d/cortex.sources
+# Copyright 2025 AI Venture Holdings LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# This file uses deb822 format with per-repository key scoping
+# for improved security over legacy sources.list format.
+
+Types: deb
+URIs: https://repo.cortexlinux.com/apt
+Suites: cortex
+Components: main
+Signed-By: /usr/share/keyrings/cortex-archive-keyring.gpg
+Enabled: yes
+
+Types: deb
+URIs: https://repo.cortexlinux.com/apt
+Suites: cortex-updates
+Components: main
+Signed-By: /usr/share/keyrings/cortex-archive-keyring.gpg
+Enabled: yes
+
+Types: deb
+URIs: https://repo.cortexlinux.com/apt
+Suites: cortex-security
+Components: main
+Signed-By: /usr/share/keyrings/cortex-archive-keyring.gpg
+Enabled: yes
+
+# Testing repository (disabled by default)
+# Uncomment to enable pre-release packages
+#Types: deb
+#URIs: https://repo.cortexlinux.com/apt
+#Suites: cortex-testing
+#Components: main
+#Signed-By: /usr/share/keyrings/cortex-archive-keyring.gpg
+#Enabled: no

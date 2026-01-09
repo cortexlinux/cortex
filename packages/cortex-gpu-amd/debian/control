@@ -1,0 +1,63 @@
+Source: cortex-gpu-amd
+Section: admin
+Priority: optional
+Maintainer: Cortex Linux Team <team@cortexlinux.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://cortexlinux.com
+Vcs-Browser: https://github.com/cortexlinux/cortex-distro
+Vcs-Git: https://github.com/cortexlinux/cortex-distro.git
+Rules-Requires-Root: no
+
+Package: cortex-gpu-amd
+Architecture: amd64
+Depends: ${misc:Depends},
+ cortex-core,
+ firmware-amd-graphics
+Recommends:
+ libdrm-amdgpu1,
+ mesa-vulkan-drivers,
+ radeontop,
+ clinfo
+Suggests:
+ rocm-hip-runtime,
+ rocm-opencl-runtime,
+ rocm-smi,
+ rocminfo
+Provides: cortex-gpu-backend
+Description: Cortex Linux AMD GPU enablement
+ This meta-package provides AMD GPU support for Cortex Linux,
+ including firmware, drivers, and OpenCL runtime.
+ .
+ Features:
+  - AMDGPU kernel driver (in-tree)
+  - Mesa Vulkan drivers
+  - OpenCL support
+  - GPU monitoring (radeontop)
+ .
+ For ROCm compute support, install cortex-gpu-amd-rocm.
+
+Package: cortex-gpu-amd-rocm
+Architecture: amd64
+Depends: ${misc:Depends},
+ cortex-gpu-amd
+Recommends:
+ rocm-hip-runtime,
+ rocm-opencl-runtime,
+ rocm-smi,
+ rocminfo,
+ rocm-cmake,
+ hip-runtime-amd
+Description: Cortex Linux AMD ROCm compute support
+ AMD ROCm runtime for GPU compute on Cortex Linux.
+ .
+ Includes:
+  - HIP runtime for GPU compute
+  - ROCm OpenCL runtime
+  - ROCm system management (rocm-smi)
+ .
+ Supported GPU architectures:
+  - RDNA3 (MI300)
+  - CDNA2 (MI200 series)
+  - CDNA (MI100)
+  - Vega (MI50, MI60)

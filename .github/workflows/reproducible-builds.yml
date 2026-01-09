@@ -1,0 +1,313 @@
+name: Reproducible Builds
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/**'
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Package to build (or "all")'
+        required: false
+        default: 'all'
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+  SOURCE_DATE_EPOCH: 0
+
+jobs:
+  build-first:
+    name: Build (First Pass)
+    runs-on: ubuntu-24.04
+    outputs:
+      packages: ${{ steps.list.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            sbuild \
+            schroot \
+            debootstrap \
+            devscripts \
+            debhelper \
+            fakeroot \
+            mmdebstrap \
+            diffoscope \
+            reprotest
+
+      - name: Setup sbuild
+        run: |
+          sudo sbuild-createchroot \
+            --include=devscripts,debhelper,fakeroot \
+            trixie \
+            /srv/chroot/trixie-amd64 \
+            http://deb.debian.org/debian
+
+      - name: List packages to build
+        id: list
+        run: |
+          if [ "${{ github.event.inputs.package }}" = "all" ] || [ -z "${{ github.event.inputs.package }}" ]; then
+            packages=$(ls -d packages/*/ | xargs -n1 basename | jq -R -s -c 'split("\n")[:-1]')
+          else
+            packages='["${{ github.event.inputs.package }}"]'
+          fi
+          echo "packages=$packages" >> $GITHUB_OUTPUT
+
+      - name: Build packages (first pass)
+        run: |
+          mkdir -p build-1
+          for pkg in packages/*/; do
+            pkg_name=$(basename $pkg)
+            echo "Building $pkg_name (pass 1)..."
+            
+            cd $pkg
+            SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) \
+            sbuild \
+              --chroot=trixie-amd64 \
+              --arch=amd64 \
+              --build-dir=../../build-1 \
+              --no-clean-source \
+              --extra-repository="deb http://deb.debian.org/debian trixie main"
+            cd ../..
+          done
+
+      - name: Upload first build
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-pass-1
+          path: build-1/*.deb
+          retention-days: 1
+
+      - name: Upload buildinfo
+        uses: actions/upload-artifact@v4
+        with:
+          name: buildinfo-pass-1
+          path: build-1/*.buildinfo
+          retention-days: 30
+
+  build-second:
+    name: Build (Second Pass)
+    runs-on: ubuntu-24.04
+    needs: build-first
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            sbuild \
+            schroot \
+            debootstrap \
+            devscripts \
+            debhelper \
+            fakeroot \
+            mmdebstrap
+
+      - name: Setup sbuild
+        run: |
+          sudo sbuild-createchroot \
+            --include=devscripts,debhelper,fakeroot \
+            trixie \
+            /srv/chroot/trixie-amd64 \
+            http://deb.debian.org/debian
+
+      - name: Build packages (second pass)
+        run: |
+          mkdir -p build-2
+          for pkg in packages/*/; do
+            pkg_name=$(basename $pkg)
+            echo "Building $pkg_name (pass 2)..."
+            
+            cd $pkg
+            SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) \
+            sbuild \
+              --chroot=trixie-amd64 \
+              --arch=amd64 \
+              --build-dir=../../build-2 \
+              --no-clean-source \
+              --extra-repository="deb http://deb.debian.org/debian trixie main"
+            cd ../..
+          done
+
+      - name: Upload second build
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-pass-2
+          path: build-2/*.deb
+          retention-days: 1
+
+  compare:
+    name: Compare Builds
+    runs-on: ubuntu-24.04
+    needs: [build-first, build-second]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install diffoscope
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y diffoscope
+
+      - name: Download first build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-pass-1
+          path: build-1
+
+      - name: Download second build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-pass-2
+          path: build-2
+
+      - name: Compare builds
+        id: compare
+        run: |
+          mkdir -p diffoscope-output
+          reproducible=true
+          
+          for deb1 in build-1/*.deb; do
+            filename=$(basename $deb1)
+            deb2="build-2/$filename"
+            
+            if [ ! -f "$deb2" ]; then
+              echo "❌ Missing in second build: $filename"
+              reproducible=false
+              continue
+            fi
+            
+            # Calculate checksums
+            sum1=$(sha256sum "$deb1" | cut -d' ' -f1)
+            sum2=$(sha256sum "$deb2" | cut -d' ' -f1)
+            
+            if [ "$sum1" = "$sum2" ]; then
+              echo "✅ Reproducible: $filename"
+            else
+              echo "❌ Not reproducible: $filename"
+              reproducible=false
+              
+              # Generate diffoscope report
+              diffoscope \
+                --html "diffoscope-output/${filename%.deb}.html" \
+                --text "diffoscope-output/${filename%.deb}.txt" \
+                "$deb1" "$deb2" || true
+            fi
+          done
+          
+          if [ "$reproducible" = "true" ]; then
+            echo "status=pass" >> $GITHUB_OUTPUT
+          else
+            echo "status=fail" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload diffoscope reports
+        if: steps.compare.outputs.status == 'fail'
+        uses: actions/upload-artifact@v4
+        with:
+          name: diffoscope-reports
+          path: diffoscope-output/
+          retention-days: 30
+
+      - name: Check reproducibility gate
+        if: steps.compare.outputs.status == 'fail'
+        run: |
+          echo "::error::Builds are not reproducible. See diffoscope reports."
+          exit 1
+
+  lintian:
+    name: Lintian Checks
+    runs-on: ubuntu-24.04
+    needs: build-first
+    steps:
+      - name: Install lintian
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lintian
+
+      - name: Download build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-pass-1
+          path: build
+
+      - name: Run lintian
+        run: |
+          mkdir -p lintian-output
+          
+          for deb in build/*.deb; do
+            filename=$(basename $deb)
+            echo "Checking $filename..."
+            
+            lintian \
+              --pedantic \
+              --info \
+              --display-info \
+              "$deb" | tee "lintian-output/${filename%.deb}.txt"
+          done
+          
+          # Check for errors
+          if grep -rq "^E:" lintian-output/; then
+            echo "::error::Lintian found errors"
+            exit 1
+          fi
+
+      - name: Upload lintian reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: lintian-reports
+          path: lintian-output/
+          retention-days: 30
+
+  autopkgtest:
+    name: Autopkgtest
+    runs-on: ubuntu-24.04
+    needs: build-first
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install autopkgtest
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autopkgtest qemu-system-x86 qemu-utils
+
+      - name: Download build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-pass-1
+          path: build
+
+      - name: Run autopkgtest
+        run: |
+          mkdir -p autopkgtest-output
+          
+          for deb in build/*.deb; do
+            filename=$(basename $deb)
+            pkg_name=${filename%%_*}
+            
+            # Check if package has tests
+            if [ -d "packages/$pkg_name/debian/tests" ]; then
+              echo "Testing $pkg_name..."
+              
+              autopkgtest \
+                "$deb" \
+                -- null 2>&1 | tee "autopkgtest-output/${pkg_name}.txt" || true
+            else
+              echo "No tests for $pkg_name"
+            fi
+          done
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: autopkgtest-results
+          path: autopkgtest-output/
+          retention-days: 30

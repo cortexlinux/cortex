@@ -1,0 +1,142 @@
+# Cortex Linux Full Package List
+# Full server installation with GPU support and extended tooling
+# Copyright 2025 AI Venture Holdings LLC
+# SPDX-License-Identifier: Apache-2.0
+
+# =============================================================================
+# INCLUDE CORE
+# =============================================================================
+# All packages from cortex-core.list.chroot are included via live-build
+
+# =============================================================================
+# EXTENDED NETWORKING
+# =============================================================================
+nftables
+iptables
+tcpdump
+nmap
+dnsutils
+bind9-dnsutils
+whois
+traceroute
+mtr-tiny
+ethtool
+bridge-utils
+vlan
+
+# =============================================================================
+# STORAGE & BACKUP
+# =============================================================================
+rsync
+rclone
+restic
+borgbackup
+smartmontools
+hdparm
+nvme-cli
+
+# =============================================================================
+# CONTAINERS & VIRTUALIZATION
+# =============================================================================
+docker.io
+docker-compose
+containerd
+runc
+crun
+podman
+buildah
+skopeo
+qemu-utils
+libvirt-clients
+virtinst
+
+# =============================================================================
+# GPU SUPPORT (NVIDIA)
+# =============================================================================
+# Base NVIDIA support (actual driver installed via Cortex)
+nvidia-detect
+nvidia-kernel-common
+nvidia-modprobe
+nvidia-settings
+nvidia-smi
+
+# CUDA prerequisites
+ocl-icd-libopencl1
+
+# =============================================================================
+# GPU SUPPORT (AMD)
+# =============================================================================
+firmware-amd-graphics
+libdrm-amdgpu1
+mesa-vulkan-drivers
+radeontop
+
+# =============================================================================
+# AI/ML PREREQUISITES
+# =============================================================================
+# Python ML libraries prerequisites
+python3-numpy
+python3-scipy
+python3-pandas
+
+# Local LLM support (Ollama installed separately)
+# These support local inference
+libopenblas0
+libblas3
+liblapack3
+
+# =============================================================================
+# DEVELOPMENT TOOLS
+# =============================================================================
+git
+git-lfs
+tmux
+screen
+htop
+btop
+iotop
+iftop
+ncdu
+tree
+fzf
+ripgrep
+fd-find
+bat
+exa
+
+# =============================================================================
+# MONITORING & OBSERVABILITY
+# =============================================================================
+prometheus-node-exporter
+collectd
+
+# =============================================================================
+# DATABASE CLIENTS
+# =============================================================================
+postgresql-client
+mariadb-client
+redis-tools
+sqlite3
+
+# =============================================================================
+# WEB CONSOLE PREREQUISITES
+# =============================================================================
+nginx-light
+certbot
+python3-certbot-nginx
+
+# =============================================================================
+# EXTENDED SECURITY
+# =============================================================================
+fail2ban
+rkhunter
+chkrootkit
+aide
+auditd
+audispd-plugins
+
+# =============================================================================
+# CORTEX FULL PACKAGES (from Cortex repository)
+# =============================================================================
+# cortex-full
+# cortex-console

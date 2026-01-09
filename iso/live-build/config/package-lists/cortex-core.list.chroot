@@ -1,0 +1,113 @@
+# Cortex Linux Core Package List
+# Minimal server installation with Cortex AI package manager
+# Copyright 2025 AI Venture Holdings LLC
+# SPDX-License-Identifier: Apache-2.0
+
+# =============================================================================
+# SYSTEM BASE
+# =============================================================================
+# Essential system utilities
+systemd
+systemd-sysv
+dbus
+udev
+init
+
+# Core utilities
+coreutils
+util-linux
+procps
+psmisc
+lsof
+strace
+file
+less
+vim-tiny
+nano
+
+# Networking base
+iproute2
+iputils-ping
+netbase
+netcat-openbsd
+curl
+wget
+openssh-server
+openssh-client
+
+# System management
+sudo
+acl
+apt-transport-https
+ca-certificates
+gnupg
+gpg-agent
+
+# Hardware detection
+pciutils
+usbutils
+dmidecode
+hwinfo
+lshw
+
+# Filesystem
+e2fsprogs
+xfsprogs
+btrfs-progs
+lvm2
+mdadm
+parted
+gdisk
+cryptsetup
+
+# Compression
+xz-utils
+bzip2
+gzip
+zstd
+unzip
+zip
+
+# =============================================================================
+# CORTEX REQUIREMENTS
+# =============================================================================
+# Python runtime (Cortex core dependency)
+python3
+python3-pip
+python3-venv
+python3-dev
+
+# Build essentials for Python packages
+build-essential
+gcc
+g++
+make
+
+# JSON/YAML processing
+jq
+python3-yaml
+
+# Security sandbox
+firejail
+apparmor
+apparmor-utils
+
+# Logging and monitoring
+rsyslog
+logrotate
+
+# =============================================================================
+# FIRMWARE & DRIVERS
+# =============================================================================
+# Essential firmware
+firmware-linux-free
+firmware-misc-nonfree
+amd64-microcode
+intel-microcode
+
+# =============================================================================
+# CORTEX PACKAGES (from Cortex repository)
+# =============================================================================
+# These will be installed from the Cortex APT repository
+# cortex-archive-keyring
+# cortex-core

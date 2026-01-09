@@ -1,0 +1,17 @@
+#!/usr/bin/make -f
+# Cortex Full Meta-Package Build Rules
+# Copyright 2025 AI Venture Holdings LLC
+# SPDX-License-Identifier: Apache-2.0
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	# Meta-package, nothing to build
+
+override_dh_auto_install:
+	# Install documentation
+	install -d $(CURDIR)/debian/cortex-full/usr/share/doc/cortex-full
+
+override_dh_auto_clean:
+	# Nothing to clean

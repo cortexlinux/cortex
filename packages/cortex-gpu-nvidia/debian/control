@@ -1,0 +1,68 @@
+Source: cortex-gpu-nvidia
+Section: admin
+Priority: optional
+Maintainer: Cortex Linux Team <team@cortexlinux.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://cortexlinux.com
+Vcs-Browser: https://github.com/cortexlinux/cortex-distro
+Vcs-Git: https://github.com/cortexlinux/cortex-distro.git
+Rules-Requires-Root: no
+
+Package: cortex-gpu-nvidia
+Architecture: amd64
+Depends: ${misc:Depends},
+ cortex-core
+Recommends:
+ nvidia-driver,
+ nvidia-kernel-dkms | nvidia-kernel-open-dkms,
+ nvidia-smi,
+ nvidia-settings,
+ nvidia-cuda-toolkit,
+ nvidia-container-toolkit,
+ libnvidia-ml1,
+ libnvidia-compute
+Suggests:
+ cuda,
+ cudnn,
+ tensorrt
+Provides: cortex-gpu-backend
+Description: Cortex Linux NVIDIA GPU enablement
+ This meta-package provides NVIDIA GPU support for Cortex Linux,
+ including drivers, CUDA toolkit, and container integration.
+ .
+ Features:
+  - NVIDIA driver (proprietary or open kernel modules)
+  - CUDA compute support
+  - Container GPU passthrough (nvidia-container-toolkit)
+  - GPU monitoring (nvidia-smi)
+ .
+ For Secure Boot systems:
+  - Run 'cortex gpu mok-setup' to configure MOK keys
+  - Reboot and enroll keys in UEFI
+  - Then install this package
+ .
+ Supported GPU architectures:
+  - Ada Lovelace (H100, L40, RTX 40xx)
+  - Hopper (H200)
+  - Ampere (A100, A30, RTX 30xx)
+  - Turing (T4, RTX 20xx)
+  - Volta (V100)
+  - Pascal (P100, P40)
+
+Package: cortex-gpu-nvidia-datacenter
+Architecture: amd64
+Depends: ${misc:Depends},
+ cortex-gpu-nvidia
+Recommends:
+ nvidia-fabricmanager,
+ datacenter-gpu-manager,
+ nvidia-persistenced
+Description: Cortex Linux NVIDIA Datacenter GPU support
+ Extended NVIDIA support for datacenter deployments with
+ multi-GPU systems, NVLink, and GPU fabric management.
+ .
+ Includes:
+  - NVIDIA Fabric Manager for NVSwitch systems
+  - Datacenter GPU Manager (DCGM) for monitoring
+  - NVIDIA Persistence Daemon

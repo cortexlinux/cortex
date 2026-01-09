@@ -1,0 +1,6 @@
+cortex-archive-keyring (2025.01.08) trixie; urgency=medium
+
+  * Initial release
+  * GPG keyring for Cortex Linux APT repository
+
+ -- Cortex Linux Team <team@cortexlinux.com>  Wed, 08 Jan 2025 00:00:00 +0000

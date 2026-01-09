@@ -1,0 +1,71 @@
+Source: cortex-core
+Section: admin
+Priority: optional
+Maintainer: Cortex Linux Team <team@cortexlinux.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://cortexlinux.com
+Vcs-Browser: https://github.com/cortexlinux/cortex-distro
+Vcs-Git: https://github.com/cortexlinux/cortex-distro.git
+Rules-Requires-Root: no
+
+Package: cortex-core
+Architecture: all
+Depends: ${misc:Depends},
+ cortex-archive-keyring,
+ python3 (>= 3.11),
+ python3-pip,
+ python3-venv,
+ python3-yaml,
+ curl,
+ wget,
+ gnupg,
+ ca-certificates,
+ apt-transport-https,
+ openssh-server,
+ sudo,
+ firejail,
+ apparmor,
+ apparmor-utils,
+ jq,
+ git,
+ pciutils,
+ usbutils,
+ lshw,
+ dmidecode,
+ needrestart
+Recommends:
+ vim,
+ htop,
+ tmux,
+ rsync,
+ tree,
+ unattended-upgrades,
+ apt-listchanges
+Suggests:
+ cortex-full,
+ cortex-secops,
+ cortex-llm,
+ cortex-gpu-nvidia,
+ cortex-gpu-amd
+Description: Cortex Linux core system - AI-powered package management
+ This meta-package installs the core Cortex Linux system components
+ required for AI-powered package management and system administration.
+ .
+ Cortex Linux translates natural language commands into Linux operations,
+ eliminating traditional documentation complexity for server management.
+ .
+ Includes command-line tools:
+  - cortex-upgrade: Safe system upgrade with preflight checks and rollback
+  - cortex-gpu: GPU detection, driver management, Secure Boot MOK setup
+  - cortex-verify: Offline integrity and signature verification
+ .
+ Features:
+  - Natural language package management
+  - Hardware-aware optimization
+  - Security sandbox (Firejail/AppArmor)
+  - Offline-capable operation
+  - Safe upgrade orchestration with LVM/Btrfs/ZFS snapshots
+ .
+ This is the minimal installation. For a full installation with
+ GPU support and extended tooling, install cortex-full instead.

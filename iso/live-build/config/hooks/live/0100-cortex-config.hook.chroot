@@ -1,0 +1,241 @@
+#!/bin/bash
+# Cortex Linux Chroot Hook - System Configuration
+# Runs inside the chroot during ISO build
+# Copyright 2025 AI Venture Holdings LLC
+# SPDX-License-Identifier: Apache-2.0
+
+set -e
+
+echo "================================================"
+echo "  Cortex Linux Chroot Configuration"
+echo "================================================"
+
+# =============================================================================
+# SYSTEM CONFIGURATION
+# =============================================================================
+
+# Set default locale
+echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
+locale-gen
+update-locale LANG=en_US.UTF-8
+
+# Set timezone to UTC
+ln -sf /usr/share/zoneinfo/UTC /etc/localtime
+echo "UTC" > /etc/timezone
+
+# Configure hostname
+echo "cortex" > /etc/hostname
+cat > /etc/hosts << 'EOF'
+127.0.0.1       localhost
+127.0.1.1       cortex cortex.local
+
+# IPv6
+::1             localhost ip6-localhost ip6-loopback
+ff02::1         ip6-allnodes
+ff02::2         ip6-allrouters
+EOF
+
+# =============================================================================
+# CORTEX DIRECTORIES
+# =============================================================================
+
+mkdir -p /etc/cortex
+mkdir -p /var/lib/cortex
+mkdir -p /var/log/cortex
+mkdir -p /var/cache/cortex
+
+# Set permissions
+chmod 755 /etc/cortex
+chmod 755 /var/lib/cortex
+chmod 755 /var/log/cortex
+chmod 755 /var/cache/cortex
+
+# =============================================================================
+# APT CONFIGURATION
+# =============================================================================
+
+# Create Cortex APT sources (deb822 format)
+cat > /etc/apt/sources.list.d/cortex.sources << 'EOF'
+Types: deb
+URIs: https://repo.cortexlinux.com/apt
+Suites: cortex
+Components: main
+Signed-By: /usr/share/keyrings/cortex-archive-keyring.gpg
+Enabled: yes
+
+Types: deb
+URIs: https://repo.cortexlinux.com/apt
+Suites: cortex-updates
+Components: main
+Signed-By: /usr/share/keyrings/cortex-archive-keyring.gpg
+Enabled: yes
+
+Types: deb
+URIs: https://repo.cortexlinux.com/apt
+Suites: cortex-security
+Components: main
+Signed-By: /usr/share/keyrings/cortex-archive-keyring.gpg
+Enabled: yes
+EOF
+
+# APT pinning for Cortex packages
+cat > /etc/apt/preferences.d/cortex.pref << 'EOF'
+# Prefer Cortex packages over Debian for Cortex-owned packages
+Package: cortex-*
+Pin: origin repo.cortexlinux.com
+Pin-Priority: 900
+
+# Cortex archive keyring
+Package: cortex-archive-keyring
+Pin: origin repo.cortexlinux.com
+Pin-Priority: 900
+
+# Default for Cortex repository
+Package: *
+Pin: origin repo.cortexlinux.com
+Pin-Priority: 500
+EOF
+
+# =============================================================================
+# SSH CONFIGURATION
+# =============================================================================
+
+# Secure SSH defaults
+cat > /etc/ssh/sshd_config.d/cortex.conf << 'EOF'
+# Cortex Linux SSH Configuration
+# Secure defaults for server deployments
+
+# Authentication
+PermitRootLogin prohibit-password
+PasswordAuthentication no
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+
+# Security
+Protocol 2
+X11Forwarding no
+AllowTcpForwarding yes
+MaxAuthTries 3
+MaxSessions 10
+
+# Performance
+UseDNS no
+Compression delayed
+
+# Logging
+LogLevel VERBOSE
+EOF
+
+# =============================================================================
+# SYSTEMD SERVICES
+# =============================================================================
+
+# Cortex first-boot service
+cat > /etc/systemd/system/cortex-firstboot.service << 'EOF'
+[Unit]
+Description=Cortex Linux First Boot Provisioning
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=!/etc/cortex/.firstboot-complete
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/cortex/firstboot.sh
+ExecStartPost=/usr/bin/touch /etc/cortex/.firstboot-complete
+RemainAfterExit=yes
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable first-boot service
+systemctl enable cortex-firstboot.service
+
+# =============================================================================
+# SECURITY HARDENING
+# =============================================================================
+
+# Disable unnecessary services
+systemctl disable bluetooth.service 2>/dev/null || true
+systemctl disable cups.service 2>/dev/null || true
+systemctl disable avahi-daemon.service 2>/dev/null || true
+
+# Kernel security parameters
+cat > /etc/sysctl.d/99-cortex-security.conf << 'EOF'
+# Cortex Linux Security Parameters
+
+# Network security
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.default.rp_filter = 1
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv4.conf.default.accept_redirects = 0
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.default.send_redirects = 0
+net.ipv4.icmp_echo_ignore_broadcasts = 1
+net.ipv4.icmp_ignore_bogus_error_responses = 1
+net.ipv4.conf.all.log_martians = 1
+net.ipv4.conf.default.log_martians = 1
+net.ipv4.tcp_syncookies = 1
+
+# IPv6 (disable if not needed)
+net.ipv6.conf.all.accept_redirects = 0
+net.ipv6.conf.default.accept_redirects = 0
+
+# Kernel hardening
+kernel.randomize_va_space = 2
+kernel.kptr_restrict = 2
+kernel.dmesg_restrict = 1
+kernel.perf_event_paranoid = 3
+kernel.yama.ptrace_scope = 1
+
+# Filesystem hardening
+fs.protected_hardlinks = 1
+fs.protected_symlinks = 1
+fs.suid_dumpable = 0
+EOF
+
+# =============================================================================
+# MOTD / BRANDING
+# =============================================================================
+
+cat > /etc/motd << 'EOF'
+
+   ____          _             _     _                  
+  / ___|___  _ _| |_ _____  __| |   (_)_ __  _   ___  __
+ | |   / _ \| '__| __/ _ \ \/ /| |   | | '_ \| | | \ \/ /
+ | |__| (_) | |  | ||  __/>  < | |___| | | | | |_| |>  < 
+  \____\___/|_|   \__\___/_/\_\|_____|_|_| |_|\__,_/_/\_\
+                                                        
+  AI-Native Linux Distribution
+  https://cortexlinux.com
+
+  Quick Start:
+    cortex --help          Show available commands
+    cortex install <pkg>   Install packages with AI assistance
+    cortex status          Show system status
+
+EOF
+
+# Update issue
+cat > /etc/issue << 'EOF'
+Cortex Linux \n \l
+
+EOF
+
+# =============================================================================
+# CLEANUP
+# =============================================================================
+
+# Clean apt cache
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+
+# Remove temporary files
+rm -rf /tmp/*
+rm -rf /var/tmp/*
+
+echo "================================================"
+echo "  Cortex Linux Chroot Configuration Complete"
+echo "================================================"
