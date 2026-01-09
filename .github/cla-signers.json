@@ -167,7 +167,35 @@
       ],
       "signed_date": "2026-01-03",
       "cla_version": "1.0"
+    },
+    {
+      "name": "Altynai Teplova",
+      "github_username": "altynai9128",
+      "emails": [
+        "amybates2891@gmail.com"
+      ],
+      "signed_date": "2026-01-07",
+      "cla_version": "1.0"
+    },
+    {
+      "name": "Omkar Gaikwad",
+      "github_username": "Omkar1701",
+      "emails": [
+        "omkargaik495@gmail.com"
+      ],
+      "signed_date": "2026-01-09",
+      "cla_version": "1.0"
+    },
+    {
+      "name": "Jay Surse",
+      "github_username": "jaysurse",
+      "emails": [
+        "jaysurse07@gmail.com"
+      ],
+      "signed_date": "2026-01-09",
+      "cla_version": "1.0"
     }
+    
 
 
   ],
