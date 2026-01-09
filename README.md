@@ -190,10 +190,10 @@ Cortex stores configuration in `~/.cortex/`:
 │                      LLM Router                                 │
 │              Claude / GPT-4 / Ollama                            │
 │                                                                 │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │  Anthropic  │  │   OpenAI    │  │   Ollama    │             │
-│  │   Claude    │  │    GPT-4    │  │   Local     │             │
-│  └─────────────┘  └─────────────┘  └─────────────┘             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
+│  │  Anthropic  │  │   OpenAI    │  │   Ollama    │              │
+│  │   Claude    │  │    GPT-4    │  │   Local     │              │
+│  └─────────────┘  └─────────────┘  └─────────────┘              │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -343,6 +343,7 @@ pip install -e .
 - [x] Firejail sandboxing
 - [x] Dry-run preview mode
 - [x] Docker bind-mount permission fixer
+- [x] AI-driven System Role sensing layer
 
 ### In Progress
 - [ ] Conflict resolution UI
