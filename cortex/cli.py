@@ -2021,7 +2021,55 @@ class CortexCLI:
         source_url: str | None,
         version: str | None,
     ) -> int:
-        """Handle installation from source."""
+        """Install a package from a source URL by building and optionally installing it.
+
+        This method handles the complete workflow for installing packages from source code:
+        parsing version information, building the package, and optionally executing
+        installation commands. It supports dry-run mode for previewing operations and
+        records all activities in the installation history for audit purposes.
+
+        Args:
+            package_name: Name of the package to install. If version is specified
+                using "@" syntax (e.g., "python@3.12"), it will be parsed automatically
+                if version parameter is None.
+            execute: If True, executes the installation commands after building.
+                If False, only builds the package and displays commands without executing.
+            dry_run: If True, performs a dry run showing what commands would be executed
+                without actually building or installing. Takes precedence over execute.
+            source_url: Optional URL to the source code repository or tarball.
+                If None, the SourceBuilder will attempt to locate the source automatically.
+            version: Optional version string to build. If None and package_name contains
+                "@", the version will be extracted from package_name.
+
+        Returns:
+            int: Exit status code. Returns 0 on success (build/install completed or
+                dry-run completed), 1 on failure (build failed or installation failed).
+
+        Side Effects:
+            - Invokes SourceBuilder.build_from_source() to build the package
+            - May execute installation commands via InstallationCoordinator if execute=True
+            - Records installation start, progress, and completion in InstallationHistory
+            - Prints status messages and progress to console
+            - May use cached builds if available
+
+        Raises:
+            No exceptions are raised directly, but underlying operations may fail:
+            - SourceBuilder.build_from_source() failures are caught and returned as status 1
+            - InstallationCoordinator.execute() failures are caught and returned as status 1
+            - InstallationHistory exceptions are caught and logged as warnings
+
+        Special Behavior:
+            - dry_run=True: Shows build/install commands without executing any operations.
+              Returns 0 after displaying commands. Installation history is still recorded.
+            - execute=False, dry_run=False: Builds the package and displays install commands
+              but does not execute them. Returns 0. User is prompted to run with --execute.
+            - execute=True, dry_run=False: Builds the package and executes all installation
+              commands. Returns 0 on success, 1 on failure.
+            - Version parsing: If package_name contains "@" (e.g., "python@3.12") and version
+              is None, the version is automatically extracted and package_name is updated.
+            - Caching: Uses cached builds when available, printing a notification if cache
+              is used.
+        """
         from cortex.source_builder import SourceBuilder
 
         # Initialize history for audit logging (same as install() method)
