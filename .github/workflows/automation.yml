@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-=======
-[paste the simplified workflow here]
->>>>>>> eece4f6 (fix)
 name: Cortex Automation
 
 on:
