@@ -149,7 +149,7 @@ cortex rollback <installation-id>
 | `cortex install <query>` | Install packages matching natural language query |
 | `cortex install <query> --dry-run` | Preview installation plan (default) |
 | `cortex install <query> --execute` | Execute the installation |
-| `cortex role detect` | AI analysis of system context to identify and set system role |
+| `cortex role detect` | AI analysis of system context to identify system role and suggest packages |
 | `cortex role set <slug>` | Manually declare a role to receive AI-tailored recommendations |
 | `cortex docker permissions` | Fix file ownership for Docker bind mounts |
 | `cortex sandbox <cmd>` | Test packages in Docker sandbox |
