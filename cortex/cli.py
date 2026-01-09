@@ -1206,9 +1206,10 @@ class CortexCLI:
             if cmd and cmd[0] == "--":
                 cmd = cmd[1:]
             if not cmd:
-                cx_print("Missing command.")
+                cx_print("Missing command.", "error")
                 return 2
 
+            # Resolve env for the requested mode/app
             if getattr(args, "nvidia", False):
                 env = get_per_app_gpu_env(use_nvidia=True)
             elif getattr(args, "integrated", False):
@@ -1216,8 +1217,25 @@ class CortexCLI:
             elif getattr(args, "app", None):
                 env = get_per_app_gpu_env(app=args.app)
             else:
-                cx_print("Specify --app or --nvidia / --integrated")
+                cx_print("Specify one of: --app, --nvidia, or --integrated", "error")
                 return 2
+
+            # If we're launching an integrated run and env is empty, we must also
+            # explicitly UNSET PRIME vars that may be set in the parent shell.
+            integrated_case = bool(getattr(args, "integrated", False))
+            app_case = bool(getattr(args, "app", None))
+
+            if (integrated_case or app_case) and not env:
+                cmd = [
+                    "env",
+                    "-u",
+                    "__NV_PRIME_RENDER_OFFLOAD",
+                    "-u",
+                    "__GLX_VENDOR_LIBRARY_NAME",
+                    "-u",
+                    "__VK_LAYER_NV_optimus",
+                    "--",
+                ] + cmd
 
             return run_command_with_env(cmd, extra_env=env)
 
@@ -1234,8 +1252,12 @@ class CortexCLI:
 
             if args.app_action == "get":
                 pref = get_app_gpu_preference(args.app)
+                if pref is None:
+                    cx_print(f"{args.app}: GPU preference not set", "warning")
+                    return 2
                 cx_print(f"{args.app}: {pref}")
                 return 0
+
             if args.app_action == "list":
                 apps = list_app_gpu_preferences()
                 for k, v in apps.items():
@@ -2270,6 +2292,8 @@ def show_rich_help():
     table.add_row("demo", "See Cortex in action")
     table.add_row("wizard", "Configure API key")
     table.add_row("status", "System status")
+    table.add_row("gpu", "Hybrid GPU manager tools")
+    table.add_row("gpu-battery", "Estimate battery impact of current GPU usage")
     table.add_row("install <pkg>", "Install software")
     table.add_row("import <file>", "Import deps from package files")
     table.add_row("history", "View history")
