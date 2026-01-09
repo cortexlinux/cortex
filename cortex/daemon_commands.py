@@ -191,8 +191,8 @@ class DaemonManager:
                     "critical": "red bold",
                 }.get(severity_val, "white")
 
-                alert_id = alert.get("id", "")[:8]
-                alert_type = alert.get("type", "unknown")
+                alert_id_full = alert.get("id", "")
+                alert_type_val = alert.get("type", "unknown")
                 title = alert.get("title", "")
                 message = alert.get("message", "")
                 metadata = alert.get("metadata", {})
@@ -210,9 +210,9 @@ class DaemonManager:
                 console.print(
                     f"{severity_icon} [{severity_style}][bold]{title}[/bold][/{severity_style}]"
                 )
-                console.print(
-                    f"   [dim]ID: {alert_id}... | Type: {alert_type} | Severity: {severity_val}[/dim]"
-                )
+                console.print(f"   [dim]Type: {alert_type_val} | Severity: {severity_val}[/dim]")
+                # Show full ID on separate line for easy copying (needed for dismiss command)
+                console.print(f"   [dim]ID: [/dim][cyan]{alert_id_full}[/cyan]")
 
                 # Check if message contains AI analysis
                 if "💡 AI Analysis:" in message:
@@ -241,6 +241,15 @@ class DaemonManager:
                     console.print("   [dim cyan]🤖 AI-enhanced[/dim cyan]")
 
                 console.print()  # Blank line between alerts
+
+            # Show helpful commands
+            console.print("[dim]─" * 50 + "[/dim]")
+            console.print(
+                "[dim]To dismiss an alert: [/dim][cyan]cortex daemon alerts --dismiss <ID>[/cyan]"
+            )
+            console.print(
+                "[dim]To acknowledge all:  [/dim][cyan]cortex daemon alerts --acknowledge-all[/cyan]"
+            )
 
             return 0
 

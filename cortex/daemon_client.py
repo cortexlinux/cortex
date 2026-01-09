@@ -87,7 +87,7 @@ class CortexDaemonClient:
 
         Raises:
             DaemonConnectionError: If connection fails
-            DaemonProtocolError: If protocol error occurs
+            DaemonProtocolError: If protocol error occurs or message size exceeded
         """
         # Build JSON-RPC style request
         request = {"method": method, "params": params or {}}
@@ -95,40 +95,46 @@ class CortexDaemonClient:
         request_json = json.dumps(request)
         logger.debug(f"Sending: {request_json}")
 
+        sock = self._connect(timeout)
         try:
-            sock = self._connect(timeout)
             sock.sendall(request_json.encode("utf-8"))
 
-            # Receive response
+            # Receive response - accumulate into buffer
             response_data = b""
             while True:
                 try:
                     chunk = sock.recv(4096)
                     if not chunk:
+                        # EOF reached - done receiving
                         break
                     response_data += chunk
-                    # Try to parse - if valid JSON, we're done
-                    try:
-                        json.loads(response_data.decode("utf-8"))
-                        break
-                    except json.JSONDecodeError:
-                        continue
-                except TimeoutError:
-                    break
 
-            sock.close()
+                    # Enforce MAX_MESSAGE_SIZE to prevent memory exhaustion
+                    if len(response_data) > self.MAX_MESSAGE_SIZE:
+                        raise DaemonProtocolError(
+                            f"Response exceeds maximum message size ({self.MAX_MESSAGE_SIZE} bytes)"
+                        )
+                except TimeoutError:
+                    # Timeout while receiving - use what we have
+                    break
 
             if not response_data:
                 raise DaemonProtocolError("Empty response from daemon")
 
-            response = json.loads(response_data.decode("utf-8"))
+            # Parse the complete response buffer once
+            try:
+                response = json.loads(response_data.decode("utf-8"))
+            except json.JSONDecodeError as e:
+                raise DaemonProtocolError(f"Invalid JSON response: {e}")
+
             logger.debug(f"Received: {response}")
             return response
 
-        except json.JSONDecodeError as e:
-            raise DaemonProtocolError(f"Invalid JSON response: {e}")
         except TimeoutError:
             raise DaemonConnectionError("Daemon connection timeout")
+        finally:
+            # Always close the socket, even on exceptions
+            sock.close()
 
     def _check_response(self, response: dict[str, Any]) -> dict[str, Any]:
         """

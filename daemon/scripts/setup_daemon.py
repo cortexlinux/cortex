@@ -39,11 +39,28 @@ RECOMMENDED_MODELS = {
 }
 
 
-def check_daemon_built():
+def check_daemon_built() -> bool:
+    """
+    Check if the cortexd daemon binary has been built.
+
+    Checks for the existence of the cortexd binary at DAEMON_DIR / "build" / "cortexd".
+
+    Returns:
+        bool: True if the daemon binary exists, False otherwise.
+    """
     return (DAEMON_DIR / "build" / "cortexd").exists()
 
 
-def clean_build():
+def clean_build() -> None:
+    """
+    Remove the previous build directory to ensure a clean build.
+
+    Removes DAEMON_DIR / "build" using sudo rm -rf. Prints status messages
+    to console. On failure, logs an error and calls sys.exit(1) to terminate.
+
+    Returns:
+        None
+    """
     build_dir = DAEMON_DIR / "build"
     if build_dir.exists():
         console.print(f"[cyan]Removing previous build directory: {build_dir}[/cyan]")
@@ -53,13 +70,32 @@ def clean_build():
             sys.exit(1)
 
 
-def build_daemon():
+def build_daemon() -> bool:
+    """
+    Build the cortexd daemon from source.
+
+    Runs the BUILD_SCRIPT (daemon/scripts/build.sh) with "Release" argument
+    using subprocess.run.
+
+    Returns:
+        bool: True if the build completed successfully (exit code 0), False otherwise.
+    """
     console.print("[cyan]Building the daemon...[/cyan]")
     result = subprocess.run(["bash", str(BUILD_SCRIPT), "Release"], check=False)
     return result.returncode == 0
 
 
-def install_daemon():
+def install_daemon() -> bool:
+    """
+    Install the cortexd daemon system-wide.
+
+    Runs the INSTALL_SCRIPT (daemon/scripts/install.sh) with sudo using
+    subprocess.run.
+
+    Returns:
+        bool: True if the installation completed successfully (exit code 0),
+              False otherwise.
+    """
     console.print("[cyan]Installing the daemon...[/cyan]")
     result = subprocess.run(["sudo", str(INSTALL_SCRIPT)], check=False)
     return result.returncode == 0
@@ -179,13 +215,24 @@ def configure_auto_load(model_path):
 
     # Update model_path - set the path
     sed_cmd1 = f's|model_path: "".*|model_path: "{model_path}"|g'
-    subprocess.run(["sudo", "sed", "-i", sed_cmd1, CONFIG_FILE], check=False)
+    result1 = subprocess.run(["sudo", "sed", "-i", sed_cmd1, CONFIG_FILE], check=False)
+    if result1.returncode != 0:
+        console.print(
+            f"[red]Failed to update model_path in config (exit code {result1.returncode})[/red]"
+        )
+        sys.exit(1)
 
     # Set lazy_load to false so model loads on startup
     sed_cmd2 = "s|lazy_load: true|lazy_load: false|g"
-    result = subprocess.run(["sudo", "sed", "-i", sed_cmd2, CONFIG_FILE], check=False)
+    result2 = subprocess.run(["sudo", "sed", "-i", sed_cmd2, CONFIG_FILE], check=False)
+    if result2.returncode != 0:
+        console.print(
+            f"[red]Failed to update lazy_load in config (exit code {result2.returncode})[/red]"
+        )
+        sys.exit(1)
 
-    if result.returncode == 0:
+    # Both sed commands succeeded
+    if result2.returncode == 0:
         console.print(
             f"[green]Model configured to auto-load on daemon startup: {model_path}[/green]"
         )

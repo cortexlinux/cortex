@@ -78,7 +78,8 @@ enum class AlertType {
     CVE_FOUND,        // Vulnerability detected
     DEPENDENCY,       // Dependency conflict
     LLM_ERROR,        // LLM-related errors
-    DAEMON_STATUS     // Daemon status changes
+    DAEMON_STATUS,    // Daemon status changes
+    AI_ANALYSIS       // AI-generated analysis alert
 };
 
 // Convert enums to strings
@@ -103,6 +104,7 @@ inline const char* to_string(AlertType type) {
         case AlertType::DEPENDENCY: return "dependency";
         case AlertType::LLM_ERROR: return "llm_error";
         case AlertType::DAEMON_STATUS: return "daemon_status";
+        case AlertType::AI_ANALYSIS: return "ai_analysis";
         default: return "unknown";
     }
 }
@@ -125,6 +127,7 @@ inline AlertType alert_type_from_string(const std::string& s) {
     if (s == "dependency") return AlertType::DEPENDENCY;
     if (s == "llm_error") return AlertType::LLM_ERROR;
     if (s == "daemon_status") return AlertType::DAEMON_STATUS;
+    if (s == "ai_analysis") return AlertType::AI_ANALYSIS;
     return AlertType::SYSTEM;
 }
 

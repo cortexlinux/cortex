@@ -67,17 +67,22 @@ pkg-config --version
 
 ### Step 1.3: Install llama.cpp
 
-**Option A: Package Manager (Recommended)**
-```bash
-sudo apt install -y libllama-dev
+> **Note**: The `libllama-dev` package is **not available** in the official Ubuntu 22.04
+> or 24.04 repositories. You must build from source (Option B below).
 
-# Verify installation
-pkg-config --cflags llama
-pkg-config --libs llama
-# Should output: -I/usr/include -L/usr/lib -llama
+**Option A: Package Manager (DEPRECATED/UNAVAILABLE)**
+```bash
+# WARNING: This will fail on Ubuntu 22.04/24.04 as libllama-dev is not in official repos
+# sudo apt install -y libllama-dev
+# 
+# If you have a third-party PPA or custom repository with libllama-dev, you can try:
+# pkg-config --cflags llama
+# pkg-config --libs llama
+#
+# However, the recommended approach is Option B below.
 ```
 
-**Option B: Build from Source**
+**Option B: Build from Source (RECOMMENDED)**
 ```bash
 cd /tmp
 git clone https://github.com/ggerganov/llama.cpp.git
@@ -87,11 +92,21 @@ cmake ..
 make -j$(nproc)
 sudo make install
 
-# Verify
+# Update library cache
 sudo ldconfig
+
+# Verify installation
 ldconfig -p | grep llama
-# Should show libllama.so
+# Should show: libllama.so.X => /usr/local/lib/libllama.so.X
+
+# Verify pkg-config (may require setting PKG_CONFIG_PATH)
+export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
+pkg-config --cflags llama
+pkg-config --libs llama
 ```
+
+If `pkg-config` doesn't find llama after building from source, you may need to
+create a pkg-config file manually or add `/usr/local/lib` to your library path.
 
 ### Step 1.4: Create Model Directory
 
@@ -141,14 +156,44 @@ wget -c https://huggingface.co/TheBloke/orca-mini-3b-gguf/resolve/main/orca-mini
 # List models
 ls -lh ~/.cortex/models/
 
-# Verify GGUF format
+# Verify GGUF format (informational - confirms file type)
 file ~/.cortex/models/*.gguf
-# Should show: GGUF format model
+# Should show: GGUF format model (or similar GGUF identifier)
 
-# Check file integrity
+# Check file size (informational)
 du -sh ~/.cortex/models/
-# Should match expected size
+# Compare with expected sizes:
+# - phi-2.Q4_K_M.gguf: ~1.6GB
+# - Mistral-7B-Instruct-v0.1.Q4_K_M.gguf: ~4.1GB
+# - orca-mini-3b.Q4_K_M.gguf: ~1.9GB
 ```
+
+**Verifying Model Integrity (Recommended)**
+
+The commands above (`file`, `du -sh`) are informational and help confirm the file
+exists and is roughly the right size. For **full integrity verification**, you should:
+
+1. **Get expected checksums**: Visit the model's HuggingFace model card page
+   (e.g., https://huggingface.co/TheBloke/phi-2-GGUF) and look for:
+   - SHA256 checksums in the "Files and versions" tab
+   - Or MD5/SHA256 listed in the model card README
+
+2. **Calculate and compare checksums**:
+```bash
+# Calculate SHA256 (preferred - more secure)
+sha256sum ~/.cortex/models/phi-2.Q4_K_M.gguf
+
+# Or calculate MD5 (faster but less secure)
+md5sum ~/.cortex/models/phi-2.Q4_K_M.gguf
+
+# Compare the output with the expected checksum from the model card
+# If they match, the file downloaded correctly
+# If they don't match, re-download the model
+```
+
+> **Note**: If no official checksums are provided by the model publisher,
+> the `file` and `du -sh` commands serve as basic sanity checks. A corrupted
+> download will typically fail to load with an error from llama.cpp.
 
 ---
 

@@ -178,6 +178,7 @@ private:
     std::unique_ptr<AlertStore> store_;
     std::vector<AlertCallback> callbacks_;
     mutable std::mutex mutex_;
+    bool initialized_ = false;  // Track initialization status
     
     // Deduplication - recent alert hashes
     std::map<std::string, TimePoint> recent_alerts_;

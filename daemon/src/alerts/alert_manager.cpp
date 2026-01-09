@@ -8,6 +8,7 @@
 #include <uuid/uuid.h>
 #include <functional>
 #include <filesystem>
+#include <stdexcept>
 
 namespace cortexd {
 
@@ -43,7 +44,7 @@ Alert Alert::from_json(const json& j) {
 
 // AlertManager implementation
 
-AlertManager::AlertManager(const std::string& db_path) {
+AlertManager::AlertManager(const std::string& db_path) : initialized_(false) {
     std::string expanded = expand_path(db_path);
     
     // Create parent directory if needed
@@ -55,8 +56,11 @@ AlertManager::AlertManager(const std::string& db_path) {
     store_ = std::make_unique<AlertStore>(expanded);
     if (!store_->init()) {
         LOG_ERROR("AlertManager", "Failed to initialize alert store");
+        store_.reset();  // Release the store since it's not usable
+        throw std::runtime_error("AlertManager: Failed to initialize alert store at " + expanded);
     }
     
+    initialized_ = true;
     LOG_INFO("AlertManager", "Initialized with database: " + expanded);
 }
 
@@ -78,29 +82,42 @@ std::string AlertManager::create(
     alert.message = message;
     alert.metadata = metadata;
     
-    // Acquire lock before checking for duplicate to avoid race condition
-    std::lock_guard<std::mutex> lock(mutex_);
+    bool should_notify = false;
+    Alert alert_copy;  // Copy for callback notification outside lock
     
-    // Check for duplicate (now protected by mutex_)
-    if (is_duplicate(alert)) {
-        LOG_DEBUG("AlertManager", "Duplicate alert suppressed: " + title);
-        return "";
+    {
+        // Acquire lock before checking for duplicate to avoid race condition
+        std::lock_guard<std::mutex> lock(mutex_);
+        
+        // Check for duplicate (now protected by mutex_)
+        if (is_duplicate(alert)) {
+            LOG_DEBUG("AlertManager", "Duplicate alert suppressed: " + title);
+            return "";
+        }
+        
+        if (store_->insert(alert)) {
+            LOG_INFO("AlertManager", "Created alert: [" + std::string(to_string(severity)) + 
+                     "] " + title + " (" + alert.id.substr(0, 8) + ")");
+            
+            // Track for deduplication
+            recent_alerts_[get_alert_hash(alert)] = alert.timestamp;
+            
+            // Prepare for callback notification outside the lock
+            should_notify = true;
+            alert_copy = alert;
+        } else {
+            LOG_ERROR("AlertManager", "Failed to create alert: " + title);
+            return "";
+        }
+    }
+    // mutex_ released here
+    
+    // Notify callbacks outside the lock to avoid reentrancy deadlocks
+    if (should_notify) {
+        notify_callbacks(alert_copy);
+        return alert_copy.id;
     }
     
-    if (store_->insert(alert)) {
-        LOG_INFO("AlertManager", "Created alert: [" + std::string(to_string(severity)) + 
-                 "] " + title + " (" + alert.id.substr(0, 8) + ")");
-        
-        // Track for deduplication
-        recent_alerts_[get_alert_hash(alert)] = alert.timestamp;
-        
-        // Notify callbacks
-        notify_callbacks(alert);
-        
-        return alert.id;
-    }
-    
-    LOG_ERROR("AlertManager", "Failed to create alert: " + title);
     return "";
 }
 

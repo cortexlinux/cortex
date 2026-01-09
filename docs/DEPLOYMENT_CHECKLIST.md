@@ -219,8 +219,22 @@ ls -la ~/.cortex/  2>/dev/null || echo "Not present for non-root"
 **Verification**:
 - [ ] Binary: `-rwxr-xr-x` (755) or similar
 - [ ] Service files: `-rw-r--r--` (644)
-- [ ] Socket: `srwxrwxrwx` (666) - world accessible
+- [ ] Socket: `srwxrwx---` (770) - accessible by root and cortex group only
 - [ ] Config readable by root only
+
+> **Security Note on Socket Permissions**: The daemon socket at `/run/cortex/cortex.sock`
+> is intentionally restricted to root and members of the `cortex` group (770 permissions).
+> This is a deliberate design decision because the IPC dispatch handler does not perform
+> per-command authorization checks. Commands such as `config.reload`, `llm.load`,
+> `llm.unload`, and `shutdown` can be invoked by any user with socket access.
+>
+> If you need to allow unprivileged users to interact with the daemon:
+> 1. Add them to the `cortex` group: `sudo usermod -aG cortex <username>`
+> 2. The user must log out and back in for group membership to take effect
+>
+> **Do NOT change socket permissions to world-accessible (666/777)** unless you
+> explicitly trust all local users and understand that they will have full control
+> over the daemon, including the ability to shut it down or load arbitrary models.
 
 ### Step 2: Systemd Security
 ```bash

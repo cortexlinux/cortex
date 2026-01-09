@@ -106,6 +106,9 @@ private:
     
     std::chrono::seconds check_interval_{300};  // 5 minutes
     
+    // Thread-safe APT check counter (replaces static local)
+    std::atomic<int> apt_counter_{0};
+    
     /**
      * @brief Main monitoring loop
      */
