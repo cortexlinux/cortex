@@ -25,7 +25,7 @@ SystemMonitor::SystemMonitor(std::shared_ptr<AlertManager> alert_manager, LLMEng
     
     // Get interval from config
     const auto& config = ConfigManager::instance().get();
-    check_interval_ = std::chrono::seconds(config.monitor_interval_sec);
+    check_interval_secs_.store(config.monitor_interval_sec, std::memory_order_relaxed);
     
     if (llm_engine_) {
         LOG_INFO("SystemMonitor", "AI-powered alerts enabled");
@@ -37,12 +37,34 @@ SystemMonitor::~SystemMonitor() {
     
     // Join all AI analysis background threads for graceful shutdown
     std::lock_guard<std::mutex> lock(ai_threads_mutex_);
-    for (auto& thread : ai_threads_) {
-        if (thread.joinable()) {
-            thread.join();
+    for (auto& entry : ai_threads_) {
+        if (entry.thread.joinable()) {
+            entry.thread.join();
         }
     }
     ai_threads_.clear();
+}
+
+void SystemMonitor::cleanupFinishedAIThreads() {
+    // Note: Caller must hold ai_threads_mutex_
+    auto current_id = std::this_thread::get_id();
+    
+    auto it = ai_threads_.begin();
+    while (it != ai_threads_.end()) {
+        // Only clean up threads that have signaled completion
+        if (it->done && it->done->load(std::memory_order_acquire)) {
+            // Thread is finished, safe to join without blocking
+            if (it->thread.joinable() && it->thread.get_id() != current_id) {
+                it->thread.join();
+            }
+            it = ai_threads_.erase(it);
+        } else if (!it->thread.joinable()) {
+            // Thread already joined or default-constructed, remove it
+            it = ai_threads_.erase(it);
+        } else {
+            ++it;
+        }
+    }
 }
 
 bool SystemMonitor::start() {
@@ -54,7 +76,7 @@ bool SystemMonitor::start() {
     monitor_thread_ = std::make_unique<std::thread>([this] { monitor_loop(); });
     
     LOG_INFO("SystemMonitor", "Started with " + 
-             std::to_string(check_interval_.count()) + "s interval");
+             std::to_string(check_interval_secs_.load(std::memory_order_relaxed)) + "s interval");
     return true;
 }
 
@@ -111,7 +133,7 @@ void SystemMonitor::set_llm_state(bool loaded, const std::string& model_name, si
 }
 
 void SystemMonitor::set_interval(std::chrono::seconds interval) {
-    check_interval_ = interval;
+    check_interval_secs_.store(interval.count(), std::memory_order_relaxed);
 }
 
 void SystemMonitor::monitor_loop() {
@@ -130,7 +152,8 @@ void SystemMonitor::monitor_loop() {
         auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - last_check);
         
         // Check if interval elapsed or manual trigger
-        if (elapsed >= check_interval_ || check_requested_) {
+        auto interval_secs = check_interval_secs_.load(std::memory_order_relaxed);
+        if (elapsed.count() >= interval_secs || check_requested_) {
             check_requested_ = false;
             run_checks();
             last_check = now;
@@ -168,6 +191,9 @@ void SystemMonitor::run_checks() {
             };
             
             CpuCounters current = read_cpu_counters();
+            
+            // Lock cpu_mutex_ to protect access to prev_cpu_counters_ and cpu_counters_initialized_
+            std::lock_guard<std::mutex> cpu_lock(cpu_mutex_);
             
             if (!cpu_counters_initialized_) {
                 // First run: do a quick second reading after a short delay
@@ -448,9 +474,18 @@ void SystemMonitor::create_smart_alert(AlertSeverity severity, AlertType type,
     // Safe because destructor joins all threads before destruction completes
     SystemMonitor* self = this;
     
+    // Create a shared "done" flag for non-blocking cleanup
+    auto done_flag = std::make_shared<std::atomic<bool>>(false);
+    
     // Create thread for AI analysis (will be joined in destructor)
     std::thread ai_thread([weak_alert_mgr, type, ai_context, title, alert_id, severity, 
-                           running_ptr, self]() {
+                           running_ptr, self, done_flag]() {
+        // Ensure done flag is set when thread exits (success, exception, or early return)
+        struct DoneGuard {
+            std::shared_ptr<std::atomic<bool>> flag;
+            ~DoneGuard() { flag->store(true, std::memory_order_release); }
+        } guard{done_flag};
+        
         try {
             LOG_DEBUG("SystemMonitor", "Generating AI alert analysis in background...");
             
@@ -512,10 +547,13 @@ void SystemMonitor::create_smart_alert(AlertSeverity severity, AlertType type,
         }
     });
     
-    // Store thread for graceful shutdown instead of detaching
+    // Clean up finished threads before adding new one to avoid unbounded accumulation
     {
         std::lock_guard<std::mutex> lock(ai_threads_mutex_);
-        ai_threads_.push_back(std::move(ai_thread));
+        cleanupFinishedAIThreads();
+        
+        // Store the new thread with its done flag for graceful shutdown
+        ai_threads_.push_back(AIThreadEntry{std::move(ai_thread), done_flag});
     }
 }
 
