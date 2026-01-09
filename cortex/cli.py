@@ -1,11 +1,15 @@
 import argparse
 import logging
 import os
+import re
+import shutil
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+import aiofiles
 
 from cortex.api_key_detector import auto_detect_api_key, setup_api_key
 from cortex.ask import AskHandler
@@ -600,6 +604,125 @@ class CortexCLI:
         return result.exit_code
 
     # --- End Sandbox Commands ---
+
+    async def _update_manifest(self, package_name: str, version_constraint: str) -> None:
+        """Update the requirements.txt file with the resolved version.
+
+        Args:
+            package_name: The name of the package to update.
+            version_constraint: The version string to apply (e.g., "1.2.0").
+
+        Returns:
+            None
+        """
+        manifest_path = "requirements.txt"
+        if not os.path.exists(manifest_path):
+            cx_print(f"Advisory: Manual update required for {package_name}.", "warning")
+            return
+
+        try:
+            # Use aiofiles for asynchronous non-blocking read
+            async with aiofiles.open(manifest_path) as f:
+                lines = await f.readlines()
+
+            new_lines = []
+            updated = False
+            for line in lines:
+                if not line.strip() or line.startswith("#"):
+                    new_lines.append(line)
+                    continue
+
+                parts = re.split(r"[=<>~!]", line)
+                current_pkg_name = parts[0].strip()
+
+                if current_pkg_name == package_name:
+                    new_lines.append(f"{package_name}=={version_constraint}\n")
+                    updated = True
+                else:
+                    new_lines.append(line)
+
+            if not updated:
+                new_lines.append(f"{package_name}=={version_constraint}\n")
+
+            # Use aiofiles for asynchronous non-blocking write
+            async with aiofiles.open(manifest_path, mode="w") as f:
+                await f.writelines(new_lines)
+
+            status_msg = f"Updated {manifest_path}" if updated else f"Added to {manifest_path}"
+            cx_print(f"✓ {status_msg} with {package_name}", "success")
+
+        except Exception as file_err:
+            self._print_error(f"Could not update manifest: {file_err}")
+
+    async def resolve(self, args: argparse.Namespace) -> int:
+        """Handle the dependency resolution command asynchronously.
+
+        Args:
+            args: Parsed command-line arguments containing package and version data.
+
+        Returns:
+            int: 0 for successful resolution, 1 for failure.
+        """
+        from rich.prompt import Prompt
+
+        from cortex.resolver import DependencyResolver
+
+        try:
+            conflict_data = {
+                "package_a": {"name": args.package, "requires": args.version},
+                "package_b": {"name": args.package_b, "requires": args.version_b},
+                "dependency": args.dependency,
+            }
+
+            cx_header("AI Conflict Analysis")
+            cx_print(f"Analyzing conflicts for [bold]{args.dependency}[/bold]...", "thinking")
+
+            # Initialize resolver with detected credentials
+            api_key = self._get_api_key()
+            provider = self._get_provider()
+            resolver = DependencyResolver(api_key=api_key, provider=provider)
+
+            # Trigger AI/Deterministic analysis
+            results = await resolver.resolve(conflict_data)
+
+            if not results or results[0].get("type") == "Error":
+                error_msg = results[0].get("action") if results else "Unknown error"
+                self._print_error(f"Resolution failed: {error_msg}")
+                return 1
+
+            # Display strategies to the user
+            for s in results:
+                s_type = s.get("type", "Unknown")
+                color = "green" if s_type == "Recommended" else "yellow"
+                console.print(f"\n[{color}]Strategy {s['id']} ({s_type}):[/{color}]")
+                console.print(f"  [bold]Action:[/bold] {s['action']}")
+                console.print(f"  [bold]Risk:[/bold]    {s['risk']}")
+
+            # Prompt user for selection
+            choices = [str(s.get("id")) for s in results]
+            choice = Prompt.ask("\nSelect strategy to apply", choices=choices, default=choices[0])
+            selected = next((s for s in results if str(s.get("id")) == choice), None)
+
+            if selected:
+                cx_print(f"Applying strategy {choice}...", "info")
+                action = selected.get("action", "")
+
+                # Parse the action string (e.g., "Use django 4.2.0")
+                match = re.search(r"Use\s+(\S+)\s+(.+)", action)
+                if match:
+                    package_name = match.group(1)
+                    # Strip syntax symbols for clean manifest writing
+                    version_constraint = match.group(2).strip("^~ ")
+
+                    # Call the helper method to perform safe, async file I/O
+                    await self._update_manifest(package_name, version_constraint)
+
+            self._print_success("✓ Conflict resolved successfully")
+            return 0
+
+        except Exception as e:
+            self._print_error(f"Resolution process failed: {e}")
+            return 1
 
     def ask(self, question: str) -> int:
         """Answer a natural language question about the system."""
@@ -2185,6 +2308,33 @@ def main():
     rollback_parser.add_argument("id", help="Installation ID")
     rollback_parser.add_argument("--dry-run", action="store_true")
 
+    # Dependencies command
+    deps_parser = subparsers.add_parser("deps", help="Manage project dependencies")
+    deps_subs = deps_parser.add_subparsers(dest="deps_action")
+
+    resolve_parser = deps_subs.add_parser(
+        "resolve",
+        help="AI-powered version conflict resolution",
+        description="""
+    Resolve semantic version conflicts between packages using AI.
+    Examples:
+      # Basic usage
+      cortex deps resolve --package django --version ">=3.0.0" \\
+                          --package-b admin --version-b "<4.0.0" \\
+                          --dependency django
+      # Breaking change detection
+      cortex deps resolve --package api --version "^2.0.0" \\
+                          --package-b legacy --version-b "~1.9.0" \\
+                          --dependency requests
+    """,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    resolve_parser.add_argument("--package", required=True, help="Name of package A")
+    resolve_parser.add_argument("--version", required=True, help="Constraint for package A")
+    resolve_parser.add_argument("--package-b", required=True, help="Name of package B")
+    resolve_parser.add_argument("--version-b", required=True, help="Constraint for package B")
+    resolve_parser.add_argument("--dependency", required=True, help="Conflicting dependency")
+
     # --- New Notify Command ---
     notify_parser = subparsers.add_parser("notify", help="Manage desktop notifications")
     notify_subs = notify_parser.add_subparsers(dest="notify_action", help="Notify actions")
@@ -2517,6 +2667,14 @@ def main():
             return cli.history(limit=args.limit, status=args.status, show_id=args.show_id)
         elif args.command == "rollback":
             return cli.rollback(args.id, dry_run=args.dry_run)
+        elif args.command == "deps":
+            if args.deps_action == "resolve":
+                import asyncio
+
+                return asyncio.run(cli.resolve(args))
+            deps_parser.print_help()
+            return 1
+
         # Handle the new notify command
         elif args.command == "notify":
             return cli.notify(args)
