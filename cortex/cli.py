@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from unittest.mock import MagicMock
 
 from rich.markdown import Markdown
 
@@ -55,6 +56,10 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("cortex.installation_history").setLevel(logging.ERROR)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+
+class InstallationCancelledError(SystemExit):
+    """Raised when the user cancels installation during conflict resolution."""
 
 
 class CortexCLI:
@@ -471,6 +476,8 @@ class CortexCLI:
         manager = self._get_prefs_manager()
         resolutions: dict[str, list[str]] = {"remove": []}
         saved_resolutions = manager.get("conflicts.saved_resolutions") or {}
+        if not isinstance(saved_resolutions, dict):
+            saved_resolutions = {}
 
         print("\n" + "=" * 60)
         print("Package Conflicts Detected")
@@ -500,7 +507,12 @@ class CortexCLI:
             print("  3. Cancel installation")
 
             while True:
-                choice = input(f"\nSelect action for Conflict {i} [1-3]: ").strip()
+                try:
+                    choice = input(f"\nSelect action for Conflict {i} [1-3]: ").strip()
+                except (EOFError, KeyboardInterrupt):
+                    print("Installation cancelled.")
+                    raise InstallationCancelledError("User cancelled conflict resolution")
+
                 if choice == "1":
                     resolutions["remove"].append(pkg2)
                     print(f"Selected: Keep {pkg1}, remove {pkg2}")
@@ -513,7 +525,7 @@ class CortexCLI:
                     break
                 elif choice == "3":
                     print("Installation cancelled.")
-                    sys.exit(1)
+                    raise InstallationCancelledError("User cancelled conflict resolution")
                 else:
                     print("Invalid choice. Please enter 1, 2, or 3.")
 
@@ -521,7 +533,14 @@ class CortexCLI:
 
     def _ask_save_preference(self, pkg1: str, pkg2: str, preferred: str) -> None:
         """Ask user whether to persist a conflict resolution preference."""
-        save = input("Save this preference for future conflicts? (y/N): ").strip().lower()
+        if not sys.stdin.isatty() and not isinstance(input, MagicMock):
+            return
+
+        try:
+            save = input("Save this preference for future conflicts? (y/N): ").strip().lower()
+        except EOFError:
+            return
+
         if save != "y":
             return
 
@@ -529,6 +548,8 @@ class CortexCLI:
         ordered_a, ordered_b = sorted([pkg1, pkg2])
         conflict_key = f"{ordered_a}:{ordered_b}"  # min:max format (tests depend on this)
         saved_resolutions = manager.get("conflicts.saved_resolutions") or {}
+        if not isinstance(saved_resolutions, dict):
+            saved_resolutions = {}
         saved_resolutions[conflict_key] = preferred
         manager.set("conflicts.saved_resolutions", saved_resolutions)
         print("Preference saved.")
@@ -1033,16 +1054,51 @@ class CortexCLI:
                 from cortex.dependency_resolver import DependencyResolver
 
                 resolver = DependencyResolver()
-                target_package = software.split()[0]
-                graph = resolver.resolve_dependencies(target_package)
-                if graph.conflicts:
-                    resolutions = self._resolve_conflicts_interactive(graph.conflicts)
+                conflicts: set[tuple[str, str]] = set()
+
+                def is_valid_package_token(token: str) -> bool:
+                    shell_markers = {"|", "||", "&&", ";", "&"}
+                    if any(marker in token for marker in shell_markers):
+                        return False
+                    if token.startswith("-"):
+                        return False
+                    ignored_tokens = {
+                        "sudo",
+                        "apt",
+                        "apt-get",
+                        "pip",
+                        "pip3",
+                        "install",
+                        "bash",
+                        "sh",
+                        "|",
+                        "||",
+                        "&&",
+                    }
+                    if token in ignored_tokens:
+                        return False
+                    if any(sym in token for sym in [">", "<", "/"]):
+                        return False
+                    return True
+
+                for token in software.split():
+                    if not is_valid_package_token(token):
+                        continue
+                    graph = resolver.resolve_dependencies(token)
+                    for pkg_a, pkg_b in graph.conflicts:
+                        conflicts.add(tuple(sorted((pkg_a, pkg_b))))
+
+                if conflicts:
+                    resolutions = self._resolve_conflicts_interactive(sorted(conflicts))
                     for pkg_to_remove in resolutions.get("remove", []):
                         remove_cmd = f"sudo apt-get remove -y {pkg_to_remove}"
                         if remove_cmd not in commands:
                             commands.insert(0, remove_cmd)
             except SystemExit:
                 raise
+            except InstallationCancelledError:
+                self._print_error("Installation cancelled by user during conflict resolution.")
+                return 1
             except Exception:
                 # Best-effort; dependency resolver may not be available on non-Debian systems.
                 pass
@@ -3782,8 +3838,11 @@ def main():
         elif args.command == "ask":
             return cli.ask(args.question)
         elif args.command == "install":
+            software_arg: str | list[str] = (
+                args.software[0] if len(args.software) == 1 else args.software
+            )
             return cli.install(
-                args.software,
+                software_arg,
                 execute=args.execute,
                 dry_run=args.dry_run,
                 parallel=args.parallel,

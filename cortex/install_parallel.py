@@ -1,7 +1,9 @@
 import asyncio
 import concurrent.futures
 import re
+import shlex
 import subprocess
+import sys
 import time
 from collections.abc import Callable
 from concurrent.futures import Executor
@@ -63,9 +65,17 @@ async def run_single_task(
     if log_callback:
         log_callback(f"Starting {task.name}…", "info")
 
+    # Normalize python invocation to the current interpreter to avoid missing "python" alias
+    normalized_command = re.sub(
+        r"^\s*python(\b|\s)",
+        f"{shlex.quote(sys.executable)}\\1",
+        task.command,
+        flags=re.IGNORECASE,
+    )
+
     # Validate command for dangerous patterns
     for pattern in DANGEROUS_PATTERNS:
-        if re.search(pattern, task.command, re.IGNORECASE):
+        if re.search(pattern, normalized_command, re.IGNORECASE):
             task.status = TaskStatus.FAILED
             task.error = "Command blocked: matches dangerous pattern"
             task.end_time = time.time()
@@ -82,7 +92,7 @@ async def run_single_task(
                 # Use shell=True carefully - commands are validated against dangerous patterns above.
                 # shell=True is required to support complex shell commands (e.g., pipes, redirects).
                 lambda: subprocess.run(
-                    task.command,
+                    normalized_command,
                     shell=True,
                     capture_output=True,
                     text=True,
