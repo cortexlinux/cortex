@@ -21,7 +21,6 @@ import re
 import subprocess
 import tempfile
 import threading
-import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -861,8 +860,10 @@ class NetworkConfigValidator:
         """
         Apply configuration in dry-run mode with automatic revert.
 
-        This applies the configuration temporarily and automatically reverts
-        after the timeout unless the user confirms the changes.
+        This applies the configuration temporarily using `netplan try`, which
+        handles the timeout and automatic revert natively. The user must press
+        Enter to confirm the changes, or the configuration will be reverted
+        after the timeout.
 
         Args:
             timeout_seconds: Seconds before automatic revert (default: 120)
@@ -878,40 +879,26 @@ class NetworkConfigValidator:
             )
             return False
 
-        # Backup current configs
-        if not self._backup_configs_to_memory():
-            console.print("[red]Failed to backup current configuration[/red]")
-            return False
-
         console.print(
             f"\n[yellow]Applying configuration in dry-run mode...[/yellow]"
             f"\n[yellow]Configuration will automatically revert in {timeout_seconds} seconds[/yellow]"
-            f"\n[yellow]if you don't confirm the changes.[/yellow]\n"
+            f"\n[yellow]Press Enter to confirm the changes, or wait for timeout to revert.[/yellow]\n"
         )
 
-        # Start revert timer
-        self._revert_timer = threading.Timer(
-            timeout_seconds, self._auto_revert, args=[config_type]
-        )
-        self._revert_timer.start()
-
-        # Apply configuration
+        # Use netplan try which handles timeout and revert natively
+        # Do NOT use capture_output=True as this is an interactive command
         try:
             result = subprocess.run(
                 ["sudo", "netplan", "try", f"--timeout={timeout_seconds}"],
-                capture_output=True,
                 text=True,
                 timeout=timeout_seconds + 30,
             )
 
             if result.returncode == 0:
-                console.print("[green]Configuration applied successfully![/green]")
-                self._cancel_revert_timer()
-                self._backup_configs.clear()
+                console.print("[green]Configuration applied and confirmed![/green]")
                 return True
             else:
-                console.print(f"[red]Failed to apply configuration:[/red]\n{result.stderr}")
-                self._revert_configs()
+                console.print("[yellow]Configuration was reverted.[/yellow]")
                 return False
 
         except subprocess.TimeoutExpired:
@@ -919,11 +906,9 @@ class NetworkConfigValidator:
             return False
         except FileNotFoundError:
             console.print("[red]netplan command not found. Is Netplan installed?[/red]")
-            self._cancel_revert_timer()
             return False
         except subprocess.CalledProcessError as e:
             console.print(f"[red]Error applying configuration: {e}[/red]")
-            self._revert_configs()
             return False
 
     def _backup_configs_to_memory(self) -> bool:
@@ -1095,7 +1080,8 @@ class NetworkConfigValidator:
                                 for addr in addresses:
                                     console.print(f"      IP: {addr}")
 
-                                gw = iface_config.get("gateway4") or iface_config.get("routes", [{}])[0].get("via")
+                                routes = iface_config.get("routes", [])
+                                gw = iface_config.get("gateway4") or (routes[0].get("via") if routes else None)
                                 if gw:
                                     console.print(f"      Gateway: {gw}")
 

@@ -789,26 +789,15 @@ class TestDryRunMode:
             result = validator.dry_run()
             assert result is False
 
-    def test_dry_run_backup_failure(self):
-        """Test dry-run handles backup failure."""
-        validator = NetworkConfigValidator()
-        with patch.object(
-            validator, "detect_config_system", return_value=ConfigType.NETPLAN
-        ):
-            with patch.object(validator, "_backup_configs_to_memory", return_value=False):
-                result = validator.dry_run()
-                assert result is False
-
     def test_dry_run_netplan_not_found(self):
         """Test dry-run handles missing netplan command."""
         validator = NetworkConfigValidator()
         with patch.object(
             validator, "detect_config_system", return_value=ConfigType.NETPLAN
         ):
-            with patch.object(validator, "_backup_configs_to_memory", return_value=True):
-                with patch("subprocess.run", side_effect=FileNotFoundError()):
-                    result = validator.dry_run(timeout_seconds=5)
-                    assert result is False
+            with patch("subprocess.run", side_effect=FileNotFoundError()):
+                result = validator.dry_run(timeout_seconds=5)
+                assert result is False
 
 
 class TestDisplayMethods:
