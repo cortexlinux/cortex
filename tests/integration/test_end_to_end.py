@@ -107,7 +107,7 @@ class TestEndToEndWorkflows(unittest.TestCase):
 
     def test_project_tests_run_inside_container(self):
         """The unified test runner should pass within the container.
-        
+
         This test installs build deps + all packages in Docker.
         """
 
