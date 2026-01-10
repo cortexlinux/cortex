@@ -137,7 +137,7 @@ class TestTranslator:
 
     def test_missing_key_fallback_to_english(self):
         """Missing key in target language falls back to English."""
-        t = Translator("es")
+        Translator("es")
         # If a key exists in English but not Spanish, it should fallback
         # First ensure English has the key
         en_translator = Translator("en")
