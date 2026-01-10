@@ -7,6 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from rich.markdown import Markdown
+
 from cortex.api_key_detector import auto_detect_api_key, setup_api_key
 from cortex.ask import AskHandler
 from cortex.branding import VERSION, console, cx_header, cx_print, show_banner
@@ -616,7 +618,8 @@ class CortexCLI:
                 provider=provider,
             )
             answer = handler.ask(question)
-            console.print(answer)
+            # Render as markdown for proper formatting in terminal
+            console.print(Markdown(answer))
             return 0
         except ImportError as e:
             # Provide a helpful message if provider SDK is missing
