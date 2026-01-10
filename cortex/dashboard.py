@@ -998,7 +998,7 @@ class UIRenderer:
 
             # Atomically set running state before releasing lock
             self.bench_running = True
-            
+
             # User explicitly requested bench - enable monitoring
             self._enable_monitoring()
             self.monitor.enable_gpu()  # GPU only enabled for bench
@@ -1100,7 +1100,7 @@ class UIRenderer:
 
             # Atomically set running state before releasing lock
             self.doctor_running = True
-            
+
             # User explicitly requested doctor - enable monitoring
             self._enable_monitoring()
 
@@ -1239,7 +1239,7 @@ class UIRenderer:
             # Reset progress state for new installation
             self.installation_progress = InstallationProgress()
             self.installation_progress.state = InstallationState.WAITING_INPUT
-            
+
             # User explicitly requested install - enable monitoring
             self._enable_monitoring()
 
