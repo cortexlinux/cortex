@@ -789,11 +789,15 @@ class CortexCLI:
 
     def install(
         self,
-        software: str,
+        software: str | list[str],
         execute: bool = False,
         dry_run: bool = False,
         parallel: bool = False,
     ):
+        # Handle multiple packages
+        if isinstance(software, list):
+            software = " ".join(software)
+
         # Validate input first
         is_valid, error = validate_install_request(software)
         if not is_valid:
@@ -2310,7 +2314,9 @@ def main():
 
     # Install command
     install_parser = subparsers.add_parser("install", help="Install software")
-    install_parser.add_argument("software", type=str, help="Software to install")
+    install_parser.add_argument(
+        "software", nargs="+", type=str, help="Software to install (one or more packages)"
+    )
     install_parser.add_argument("--execute", action="store_true", help="Execute commands")
     install_parser.add_argument("--dry-run", action="store_true", help="Show commands only")
     install_parser.add_argument(
