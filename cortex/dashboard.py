@@ -209,9 +209,17 @@ class InstallationProgress:
     estimated_remaining: float = 0.0
 
     def update_elapsed(self):
-        """Update elapsed time"""
+        """Update elapsed time and estimate remaining time"""
         if self.start_time:
             self.elapsed_time = time.time() - self.start_time
+            # Compute per-step time and estimate remaining time
+            if self.current_step > 0 and self.total_steps > 0:
+                per_step_time = self.elapsed_time / max(1, self.current_step)
+                self.estimated_remaining = per_step_time * max(
+                    0, self.total_steps - self.current_step
+                )
+            else:
+                self.estimated_remaining = 0.0
 
 
 # =============================================================================
@@ -981,12 +989,16 @@ class UIRenderer:
     def _start_bench(self) -> None:
         """Start benchmark - explicitly enables monitoring"""
         with self.state_lock:
+            # Atomic check-and-set: verify conditions and update state atomically
             if self.bench_running or self.installation_progress.state in [
                 InstallationState.IN_PROGRESS,
                 InstallationState.PROCESSING,
             ]:
                 return
 
+            # Atomically set running state before releasing lock
+            self.bench_running = True
+            
             # User explicitly requested bench - enable monitoring
             self._enable_monitoring()
             self.monitor.enable_gpu()  # GPU only enabled for bench
@@ -994,7 +1006,6 @@ class UIRenderer:
             # Reset state for new benchmark
             self.installation_progress = InstallationProgress()
             self.doctor_results = []
-            self.bench_running = True
             self.bench_status = "Running benchmark..."
             self.current_tab = DashboardTab.PROGRESS
             self.installation_progress.state = InstallationState.PROCESSING
@@ -1080,18 +1091,21 @@ class UIRenderer:
     def _start_doctor(self) -> None:
         """Start doctor system check - explicitly enables monitoring"""
         with self.state_lock:
+            # Atomic check-and-set: verify conditions and update state atomically
             if self.doctor_running or self.installation_progress.state in [
                 InstallationState.IN_PROGRESS,
                 InstallationState.PROCESSING,
             ]:
                 return
 
+            # Atomically set running state before releasing lock
+            self.doctor_running = True
+            
             # User explicitly requested doctor - enable monitoring
             self._enable_monitoring()
 
             # Reset state for new doctor check
             self.installation_progress = InstallationProgress()
-            self.doctor_running = True
             self.doctor_results = []
             self.current_tab = DashboardTab.PROGRESS
             self.installation_progress.state = InstallationState.PROCESSING
@@ -1212,6 +1226,7 @@ class UIRenderer:
     def _start_installation(self) -> None:
         """Start installation process"""
         with self.state_lock:
+            # Atomic check-and-set: verify conditions and update state atomically
             if self.installation_progress.state in [
                 InstallationState.IN_PROGRESS,
                 InstallationState.PROCESSING,
@@ -1220,12 +1235,14 @@ class UIRenderer:
             ]:
                 return
 
-            # User explicitly requested install - enable monitoring
-            self._enable_monitoring()
-
+            # Atomically set state before releasing lock
             # Reset progress state for new installation
             self.installation_progress = InstallationProgress()
             self.installation_progress.state = InstallationState.WAITING_INPUT
+            
+            # User explicitly requested install - enable monitoring
+            self._enable_monitoring()
+
             self.input_active = True
             self.input_text = ""
             self._pending_commands = []  # Clear any pending commands
