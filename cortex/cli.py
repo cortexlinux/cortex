@@ -601,6 +601,89 @@ class CortexCLI:
 
     # --- End Sandbox Commands ---
 
+    def tarball(self, args: argparse.Namespace) -> int:
+        """Handle tarball/source build helper commands.
+
+        Args:
+            args: Parsed command-line arguments.
+
+        Returns:
+            int: Exit code (0 for success, 1 for error).
+        """
+        from cortex.tarball_helper import (
+            run_analyze_command,
+            run_cleanup_command,
+            run_install_deps_command,
+            run_list_command,
+            run_track_command,
+        )
+
+        action = getattr(args, "tarball_action", None)
+
+        if action == "analyze":
+            try:
+                run_analyze_command(args.source_dir)
+                return 0
+            except Exception as e:
+                console.print(f"[red]Error: {e}[/red]")
+                return 1
+
+        elif action == "install-deps":
+            try:
+                run_install_deps_command(
+                    args.source_dir,
+                    dry_run=getattr(args, "dry_run", False),
+                )
+                return 0
+            except Exception as e:
+                console.print(f"[red]Error: {e}[/red]")
+                return 1
+
+        elif action == "track":
+            try:
+                packages = []
+                if hasattr(args, "packages") and args.packages:
+                    packages = args.packages.split(",")
+                run_track_command(args.name, args.source_dir, packages)
+                return 0
+            except Exception as e:
+                console.print(f"[red]Error: {e}[/red]")
+                return 1
+
+        elif action == "list":
+            try:
+                run_list_command()
+                return 0
+            except Exception as e:
+                console.print(f"[red]Error: {e}[/red]")
+                return 1
+
+        elif action == "cleanup":
+            try:
+                run_cleanup_command(
+                    args.name,
+                    dry_run=getattr(args, "dry_run", False),
+                )
+                return 0
+            except Exception as e:
+                console.print(f"[red]Error: {e}[/red]")
+                return 1
+
+        else:
+            console.print("[bold]Tarball/Source Build Helper[/bold]")
+            console.print()
+            console.print("Analyze source code and install build dependencies.")
+            console.print()
+            console.print("Commands:")
+            console.print("  analyze <dir>       - Analyze source directory for dependencies")
+            console.print("  install-deps <dir>  - Install missing build dependencies")
+            console.print("  track <name> <dir>  - Track a manual installation")
+            console.print("  list                - List tracked installations")
+            console.print("  cleanup <name>      - Remove tracked installation")
+            return 0
+
+    # --- End Tarball Commands ---
+
     def ask(self, question: str) -> int:
         """Answer a natural language question about the system."""
         api_key = self._get_api_key()
@@ -2040,6 +2123,7 @@ def show_rich_help():
     table.add_row("stack <name>", "Install the stack")
     table.add_row("docker permissions", "Fix Docker bind-mount permissions")
     table.add_row("sandbox <cmd>", "Test packages in Docker sandbox")
+    table.add_row("tarball <cmd>", "Analyze & build from source")
     table.add_row("doctor", "System health check")
 
     console.print(table)
@@ -2268,6 +2352,50 @@ def main():
     sandbox_exec_parser = sandbox_subs.add_parser("exec", help="Execute command in sandbox")
     sandbox_exec_parser.add_argument("name", help="Sandbox name")
     sandbox_exec_parser.add_argument("command", nargs="+", help="Command to execute")
+    # --------------------------
+
+    # --- Tarball/Source Build Helper Commands ---
+    tarball_parser = subparsers.add_parser(
+        "tarball", help="Analyze and build software from source tarballs"
+    )
+    tarball_subs = tarball_parser.add_subparsers(dest="tarball_action", help="Tarball actions")
+
+    # tarball analyze <source_dir>
+    tarball_analyze_parser = tarball_subs.add_parser(
+        "analyze", help="Analyze source directory for build requirements"
+    )
+    tarball_analyze_parser.add_argument("source_dir", help="Path to source directory")
+
+    # tarball install-deps <source_dir> [--dry-run]
+    tarball_deps_parser = tarball_subs.add_parser(
+        "install-deps", help="Install missing build dependencies"
+    )
+    tarball_deps_parser.add_argument("source_dir", help="Path to source directory")
+    tarball_deps_parser.add_argument(
+        "--dry-run", action="store_true", help="Show what would be installed"
+    )
+
+    # tarball track <name> <source_dir> [--packages PKG1,PKG2]
+    tarball_track_parser = tarball_subs.add_parser(
+        "track", help="Track a manual installation for cleanup"
+    )
+    tarball_track_parser.add_argument("name", help="Name of the software")
+    tarball_track_parser.add_argument("source_dir", help="Path to source directory")
+    tarball_track_parser.add_argument(
+        "--packages", help="Comma-separated list of packages installed"
+    )
+
+    # tarball list
+    tarball_subs.add_parser("list", help="List tracked manual installations")
+
+    # tarball cleanup <name> [--dry-run]
+    tarball_cleanup_parser = tarball_subs.add_parser(
+        "cleanup", help="Remove a tracked installation"
+    )
+    tarball_cleanup_parser.add_argument("name", help="Name of the installation")
+    tarball_cleanup_parser.add_argument(
+        "--dry-run", action="store_true", help="Show what would be removed"
+    )
     # --------------------------
 
     # --- Environment Variable Management Commands ---
@@ -2531,6 +2659,8 @@ def main():
             return 1
         elif args.command == "env":
             return cli.env(args)
+        elif args.command == "tarball":
+            return cli.tarball(args)
         else:
             parser.print_help()
             return 1
