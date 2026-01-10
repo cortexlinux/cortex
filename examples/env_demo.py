@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 #!/usr/bin/env python3
 """
 Environment Variable Manager Demo
@@ -14,8 +16,6 @@ of Cortex, including:
 Run this script to see the env manager in action:
     python examples/env_demo.py
 """
-
-from __future__ import annotations
 
 import os
 import sys
