@@ -144,7 +144,7 @@ class PreferencesManager:
             "confirmations": asdict(self.preferences.confirmations),
             "auto_update": asdict(self.preferences.auto_update),
             "ai": {
-                **asdict(self.preferences.ai),
+                **{k: v for k, v in asdict(self.preferences.ai).items() if k != "creativity"},
                 "creativity": self.preferences.ai.creativity.value,
             },
             "packages": asdict(self.preferences.packages),

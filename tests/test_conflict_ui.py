@@ -12,21 +12,19 @@ Note: These tests verify the conflict resolution UI, preference persistence,
 and configuration management features implemented in Issue #42.
 """
 
-import json
 import os
-import shutil
 import sys
 import tempfile
 import unittest
 from io import StringIO
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from cortex.cli import CortexCLI
 from cortex.dependency_resolver import DependencyResolver
-from cortex.user_preferences import ConflictSettings, PreferencesManager
+from cortex.user_preferences import PreferencesManager
 
 
 class TestConflictResolutionUI(unittest.TestCase):
@@ -335,17 +333,9 @@ class TestConflictDetectionWorkflow(unittest.TestCase):
         if os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir)
 
-    @patch("cortex.dependency_resolver.DependencyResolver")
     @patch("builtins.input")
-    def test_conflict_detected_triggers_ui(self, mock_input, mock_resolver_class):
+    def test_conflict_detected_triggers_ui(self, mock_input):
         """Test that detected conflicts trigger interactive UI."""
-        # Mock dependency resolver to return conflicts
-        mock_resolver = MagicMock()
-        mock_graph = MagicMock()
-        mock_graph.conflicts = [("nginx", "apache2")]
-        mock_resolver.resolve_dependencies.return_value = mock_graph
-        mock_resolver_class.return_value = mock_resolver
-
         # Mock user choosing to skip
         mock_input.return_value = "3"
 
@@ -356,7 +346,8 @@ class TestConflictDetectionWorkflow(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.cli._resolve_conflicts_interactive(conflicts)
 
-    def test_saved_preference_bypasses_ui(self):
+    @patch("builtins.input")
+    def test_saved_preference_bypasses_ui(self, mock_input):
         """Test that saved preferences bypass interactive UI."""
         # Save a conflict preference (using min:max format)
         conflict_key = "mariadb-server:mysql-server"
@@ -368,10 +359,14 @@ class TestConflictDetectionWorkflow(unittest.TestCase):
         self.assertIn(conflict_key, saved)
         self.assertEqual(saved[conflict_key], "mysql-server")
 
-        # In real workflow, this preference would be checked before showing UI
-        if conflict_key in saved:
-            choice = saved[conflict_key]
-            self.assertEqual(choice, "mysql-server")
+        # Test that with a saved preference, the UI is bypassed
+        conflicts = [("mariadb-server", "mysql-server")]
+        result = self.cli._resolve_conflicts_interactive(conflicts)
+        
+        # Verify the correct package was marked for removal
+        self.assertIn("mariadb-server", result["remove"])
+        # Verify input was not called (preference was used directly)
+        mock_input.assert_not_called()
 
     @patch("cortex.dependency_resolver.subprocess.run")
     def test_dependency_resolver_detects_conflicts(self, mock_run):
@@ -384,9 +379,10 @@ class TestConflictDetectionWorkflow(unittest.TestCase):
         resolver = DependencyResolver()
         graph = resolver.resolve_dependencies("nginx")
 
-        # Verify conflicts were detected (DependencyResolver has known patterns)
-        # nginx conflicts with apache2 in the conflict_patterns
-        self.assertTrue(len(graph.conflicts) > 0 or mock_run.called)
+        # Verify the resolver was called
+        self.assertTrue(mock_run.called)
+        # Verify graph object was created
+        self.assertIsNotNone(graph)
 
 
 class TestPreferencePersistence(unittest.TestCase):

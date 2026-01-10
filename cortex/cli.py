@@ -1035,7 +1035,7 @@ class CortexCLI:
                     resolutions = self._resolve_conflicts_interactive(graph.conflicts)
                     for pkg_to_remove in resolutions.get("remove", []):
                         remove_cmd = f"sudo apt-get remove -y {pkg_to_remove}"
-                        if not any(remove_cmd in cmd for cmd in commands):
+                        if remove_cmd not in commands:
                             commands.insert(0, remove_cmd)
             except SystemExit:
                 raise
