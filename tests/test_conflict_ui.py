@@ -13,6 +13,7 @@ and configuration management features implemented in Issue #42.
 """
 
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -362,7 +363,7 @@ class TestConflictDetectionWorkflow(unittest.TestCase):
         # Test that with a saved preference, the UI is bypassed
         conflicts = [("mariadb-server", "mysql-server")]
         result = self.cli._resolve_conflicts_interactive(conflicts)
-        
+
         # Verify the correct package was marked for removal
         self.assertIn("mariadb-server", result["remove"])
         # Verify input was not called (preference was used directly)
