@@ -80,6 +80,7 @@ class ConfigManager:
             try:
                 os.chmod(directory, 0o700)
             except OSError:
+                # Best-effort permission tightening on non-POSIX platforms; ignore failures
                 pass
             return
 

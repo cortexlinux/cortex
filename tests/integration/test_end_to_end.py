@@ -7,8 +7,6 @@ import os
 import unittest
 from pathlib import Path
 
-import pytest
-
 from .docker_utils import DockerRunResult, docker_available, run_in_docker
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -107,9 +105,11 @@ class TestEndToEndWorkflows(unittest.TestCase):
         self.assertTrue(result.succeeded(), msg=result.stderr)
         self.assertIn("STEPS 1", result.stdout)
 
-    @pytest.mark.timeout(300)  # This test installs build deps + all packages in Docker
     def test_project_tests_run_inside_container(self):
-        """The unified test runner should pass within the container."""
+        """The unified test runner should pass within the container.
+        
+        This test installs build deps + all packages in Docker.
+        """
 
         env = {
             "CORTEX_PROVIDER": "fake",

@@ -12,7 +12,6 @@ Usage:
     python tests/test_ollama_integration.py
 """
 
-import shutil
 import os
 import subprocess
 import sys
@@ -92,7 +91,7 @@ pytestmark = [
 def check_ollama_installed():
     """Check if Ollama is installed."""
     print("1. Checking Ollama installation...")
-    if _ollama_installed():
+    if is_ollama_installed():
         print("   ✓ Ollama is installed")
         return True
     else:
