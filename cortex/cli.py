@@ -2001,6 +2001,66 @@ class CortexCLI:
                 console.print(f"Error: {result.error_message}", style="red")
             return 1
 
+    def systemd(self, args: argparse.Namespace) -> int:
+        """Handle systemd service helper commands.
+
+        Args:
+            args: Parsed command-line arguments.
+
+        Returns:
+            int: Exit code (0 for success, 1 for error).
+        """
+        from cortex.systemd_helper import (
+            run_deps_command,
+            run_diagnose_command,
+            run_generate_command,
+            run_status_command,
+        )
+
+        action = getattr(args, "systemd_action", None)
+
+        if action == "status":
+            try:
+                run_status_command(args.service)
+                return 0
+            except RuntimeError as e:
+                console.print(f"[red]Error: {e}[/red]")
+                return 1
+
+        elif action == "diagnose":
+            try:
+                run_diagnose_command(args.service)
+                return 0
+            except RuntimeError as e:
+                console.print(f"[red]Error: {e}[/red]")
+                return 1
+
+        elif action == "deps":
+            try:
+                run_deps_command(args.service)
+                return 0
+            except RuntimeError as e:
+                console.print(f"[red]Error: {e}[/red]")
+                return 1
+
+        elif action == "generate":
+            try:
+                run_generate_command()
+                return 0
+            except RuntimeError as e:
+                console.print(f"[red]Error: {e}[/red]")
+                return 1
+
+        else:
+            console.print("[bold]Systemd Service Helper[/bold]")
+            console.print()
+            console.print("Commands:")
+            console.print("  status <service>    - Explain service status in plain English")
+            console.print("  diagnose <service>  - Diagnose why a service failed")
+            console.print("  deps <service>      - Show service dependencies")
+            console.print("  generate            - Interactive unit file generator")
+            return 0
+
     # --------------------------
 
 
@@ -2040,6 +2100,7 @@ def show_rich_help():
     table.add_row("stack <name>", "Install the stack")
     table.add_row("docker permissions", "Fix Docker bind-mount permissions")
     table.add_row("sandbox <cmd>", "Test packages in Docker sandbox")
+    table.add_row("systemd <cmd>", "Systemd service helper")
     table.add_row("doctor", "System health check")
 
     console.print(table)
@@ -2268,6 +2329,39 @@ def main():
     sandbox_exec_parser = sandbox_subs.add_parser("exec", help="Execute command in sandbox")
     sandbox_exec_parser.add_argument("name", help="Sandbox name")
     sandbox_exec_parser.add_argument("command", nargs="+", help="Command to execute")
+    # --------------------------
+
+    # --- Systemd Service Helper Commands ---
+    systemd_parser = subparsers.add_parser(
+        "systemd", help="Systemd service helper with plain-English explanations"
+    )
+    systemd_subs = systemd_parser.add_subparsers(dest="systemd_action", help="Systemd actions")
+
+    # systemd status <service>
+    systemd_status_parser = systemd_subs.add_parser(
+        "status", help="Explain a service's status in plain English"
+    )
+    systemd_status_parser.add_argument("service", help="Service name to check")
+
+    # systemd diagnose <service> [--lines N]
+    systemd_diagnose_parser = systemd_subs.add_parser(
+        "diagnose", help="Diagnose why a service failed"
+    )
+    systemd_diagnose_parser.add_argument("service", help="Service name to diagnose")
+    systemd_diagnose_parser.add_argument(
+        "--lines", "-n", type=int, default=50, help="Number of log lines to analyze"
+    )
+
+    # systemd deps <service>
+    systemd_deps_parser = systemd_subs.add_parser(
+        "deps", help="Show service dependencies as a visual tree"
+    )
+    systemd_deps_parser.add_argument("service", help="Service name")
+
+    # systemd generate
+    systemd_subs.add_parser(
+        "generate", help="Interactive wizard to generate a systemd unit file"
+    )
     # --------------------------
 
     # --- Environment Variable Management Commands ---
@@ -2531,6 +2625,8 @@ def main():
             return 1
         elif args.command == "env":
             return cli.env(args)
+        elif args.command == "systemd":
+            return cli.systemd(args)
         else:
             parser.print_help()
             return 1
