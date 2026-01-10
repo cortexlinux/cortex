@@ -52,7 +52,18 @@ class CortexCLI:
         self.translator = get_translator(detected_language)
 
     def t(self, key: str, **kwargs) -> str:
-        """Shortcut for translator.get()"""
+        """Get a translated string by key.
+
+        Shortcut method that delegates to self.translator.get() for retrieving
+        localized strings with optional variable interpolation.
+
+        Args:
+            key: Translation key in dot notation (e.g., 'install.success').
+            **kwargs: Variables for string interpolation (e.g., package='nginx').
+
+        Returns:
+            str: The translated string, or a fallback placeholder if key is missing.
+        """
         return self.translator.get(key, **kwargs)
 
     # Define a method to handle Docker-specific permission repairs
@@ -1408,7 +1419,18 @@ class CortexCLI:
         return 0
 
     def config(self, args: argparse.Namespace) -> int:
-        """Handle configuration commands."""
+        """Handle CLI configuration commands.
+
+        Routes configuration subcommands to their respective handlers.
+        Currently supports language configuration via the 'language' subcommand.
+
+        Args:
+            args: Parsed CLI arguments containing config_action attribute
+                  and any subcommand-specific options.
+
+        Returns:
+            int: Exit code (0 on success, 1 on error or unknown subcommand).
+        """
         config_action = getattr(args, "config_action", None)
 
         if not config_action:
@@ -1463,7 +1485,6 @@ class CortexCLI:
             cx_print("Set language: cortex config language <code>", "info")
             cx_print("Example: cortex config language es", "info")
             return 0
-
 
     # --- Shell Environment Analyzer Commands ---
     def _env_audit(self, args: argparse.Namespace) -> int:
@@ -2185,11 +2206,6 @@ def main():
         "-L",
         metavar="CODE",
         help="Set display language for this command (e.g., en, es, de, ja)",
-    )
-    parser.add_argument(
-        "--set-language",
-        metavar="LANG",
-        help="Set and save display language (e.g., 'English', 'es', 'Español', 'German')",
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
