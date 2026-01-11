@@ -184,7 +184,7 @@ class VoiceInputHandler:
 
         def audio_callback(indata, frames, time_info, status):
             if status:
-                print(f"Audio status: {status}", file=sys.stderr)
+                logging.debug("Audio status: %s", status)
             if self._is_recording:
                 self._audio_buffer.append(indata.copy())
 
@@ -299,14 +299,14 @@ class VoiceInputHandler:
         indicators = ["●○○", "●●○", "●●●", "○●●", "○○●", "○○○"]
         while self._is_recording:
             indicator = indicators[dots % len(indicators)]
-            sys.stdout.write(
-                f"\r CX  | Recording {indicator} (Press {self.hotkey.upper()} to stop)   "
+            console.print(
+                f"Recording {indicator} (Press {self.hotkey.upper()} to stop)",
+                end="\r",
             )
-            sys.stdout.flush()
             dots += 1
             time.sleep(0.2)
-        sys.stdout.write("\r" + " " * 70 + "\r")  # Clear line
-        sys.stdout.flush()
+        # Clear the line
+        console.print(" " * 70, end="\r")
 
     def _get_hotkey_key(self):
         """Get the pynput key object for the configured hotkey."""
