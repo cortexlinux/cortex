@@ -1,8 +1,10 @@
 import argparse
+import json
 import logging
 import os
 import sys
 import time
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -36,11 +38,237 @@ logging.getLogger("cortex.installation_history").setLevel(logging.ERROR)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
+def _is_interactive():
+    return sys.stdin.isatty()
+
+
 class CortexCLI:
     def __init__(self, verbose: bool = False):
         self.spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         self.spinner_idx = 0
         self.verbose = verbose
+        self.stdin_data = None
+        if not sys.stdin.isatty():
+            try:
+                self.stdin_data = sys.stdin.read()
+            except OSError:
+                pass
+
+    def _build_prompt_with_stdin(self, user_prompt: str) -> str:
+        """
+        Combine optional stdin context with user prompt.
+        """
+        stdin_data = getattr(self, "stdin_data", None)
+        if stdin_data:
+            return (
+                "Context (from stdin):\n" f"{stdin_data}\n\n" "User instruction:\n" f"{user_prompt}"
+            )
+        return user_prompt
+
+    def _get_confidence_level(self, intent: dict | None) -> str:
+        """Determine confidence level: 'high', 'medium', or 'low'."""
+        if not intent:
+            return "low"
+
+        domain = intent.get("domain", "unknown")
+        try:
+            confidence = float(intent.get("confidence", 0.0))
+        except (TypeError, ValueError):
+            confidence = 0.0
+
+        # If domain is unknown, it's always low confidence
+        if domain == "unknown":
+            return "low"
+
+        # High: domain is known AND confidence >= 0.7
+        if confidence >= 0.7:
+            return "high"
+
+        # Medium: domain is known AND confidence >= 0.5 (even if specifics are vague)
+        if confidence >= 0.5:
+            return "medium"
+
+        # Low: domain is known but confidence is very low (< 0.5)
+        # Ask for clarifying questions rather than complete re-spec
+        return "medium"
+
+    def _call_llm_for_text(
+        self,
+        interpreter: CommandInterpreter,
+        prompt: str,
+        system_message: str = "You are a helpful assistant.",
+        temperature: float = 0.7,
+        max_tokens: int = 100,
+        fallback: str = "Unable to generate response",
+    ) -> str:
+        """
+        Helper method to call LLM with unified provider handling.
+        Args:
+            interpreter: CommandInterpreter instance with provider and client
+            prompt: User prompt to send to LLM
+            system_message: System message for the LLM
+            temperature: Sampling temperature
+            max_tokens: Maximum tokens in response
+            fallback: Default response if LLM unavailable
+        Returns:
+            LLM-generated text or fallback message
+        """
+        try:
+            if interpreter.provider.name == "openai":
+                response = interpreter.client.chat.completions.create(
+                    model=interpreter.model,
+                    messages=[
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
+                return response.choices[0].message.content.strip()
+            elif interpreter.provider.name == "claude":
+                response = interpreter.client.messages.create(
+                    model=interpreter.model,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    system=system_message,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                return response.content[0].text.strip()
+            elif interpreter.provider.name == "ollama":
+                full_prompt = f"System: {system_message}\n\nUser: {prompt}"
+                data = json.dumps(
+                    {
+                        "model": interpreter.model,
+                        "prompt": full_prompt,
+                        "stream": False,
+                        "options": {"temperature": temperature},
+                    }
+                ).encode("utf-8")
+                req = urllib.request.Request(
+                    f"{interpreter.ollama_url}/api/generate",
+                    data=data,
+                    headers={"Content-Type": "application/json"},
+                )
+                with urllib.request.urlopen(req, timeout=30) as response:
+                    result = json.loads(response.read().decode("utf-8"))
+                    return result.get("response", "").strip()
+            elif interpreter.provider.name == "fake":
+                return fallback
+        except Exception:
+            pass
+
+        return fallback
+
+    def _generate_understanding_message(
+        self, interpreter: CommandInterpreter, intent: dict, user_input: str
+    ) -> str:
+        """Generate a natural language message showing what we understood from the user's request."""
+        action = intent.get("action", "install")
+        domain = intent.get("domain", "general")
+
+        prompt = f"User said: '{user_input}'\nInternal understanding: action={action}, domain={domain}\n\nGenerate a natural, friendly response showing what you understood. Be concise (1-2 sentences). Respond with just the message:"
+
+        # Generate fallback based on domain
+        if domain == "unknown" or domain == "general":
+            fallback = "Got it! I'm ready to help you install what you need. Let me set that up."
+        else:
+            fallback = (
+                f"I understand you're looking for {domain} tools. Let me prepare the installation."
+            )
+
+        return self._call_llm_for_text(
+            interpreter,
+            prompt,
+            system_message="You are a helpful assistant. Respond naturally and concisely.",
+            temperature=0.5,
+            max_tokens=100,
+            fallback=fallback,
+        )
+
+    def _generate_clarifying_questions(
+        self, interpreter: CommandInterpreter, intent: dict, user_input: str
+    ) -> str:
+        """Generate natural clarifying questions for medium-confidence intents."""
+        domain = intent.get("domain", "unknown")
+
+        prompt = f"User said: '{user_input}'\nDomain: {domain}\n\nGenerate 1-2 natural, conversational clarifying questions to help narrow down what they specifically need. Ask about specific tools, frameworks, or use cases within this domain.\n\nRespond with just the questions:"
+
+        fallback = (
+            f"Would you like to specify which tools or frameworks in {domain}?"
+            if domain != "unknown"
+            else "Could you provide more details about what you'd like to install?"
+        )
+
+        return self._call_llm_for_text(
+            interpreter,
+            prompt,
+            system_message="You are a helpful assistant. Generate clarifying questions naturally and conversationally.",
+            temperature=0.7,
+            max_tokens=150,
+            fallback=fallback,
+        )
+
+    def _generate_clarification_request(
+        self, interpreter: CommandInterpreter, user_input: str, intent: dict | None = None
+    ) -> str:
+        """Generate a natural request for clarification when intent is completely unclear."""
+        prompt = f"User said: '{user_input}'\n\nGenerate a friendly, natural message asking them to clarify what they want to install. Be conversational and helpful.\n\nRespond with just the message:"
+
+        return self._call_llm_for_text(
+            interpreter,
+            prompt,
+            system_message="You are a helpful assistant. Be natural and friendly when asking for clarification.",
+            temperature=0.7,
+            max_tokens=100,
+            fallback="Could you be more specific about what you'd like to install?",
+        )
+
+    def _generate_suggestions(
+        self, interpreter: CommandInterpreter, user_input: str, intent: dict | None = None
+    ) -> list[str]:
+        """Generate suggestion alternatives for ambiguous requests."""
+        domain_hint = ""
+        if intent and intent.get("domain") != "unknown":
+            domain_hint = f" in the {intent['domain']} domain"
+
+        prompt = f"Suggest 3 clearer, more specific installation requests similar to: '{user_input}'{domain_hint}.\n\nFormat your response as:\n1. suggestion one\n2. suggestion two\n3. suggestion three"
+
+        content = self._call_llm_for_text(
+            interpreter,
+            prompt,
+            system_message="You are a helpful assistant that suggests installation requests. Be specific and relevant.",
+            temperature=0.3,
+            max_tokens=200,
+            fallback="",
+        )
+
+        # Parse numbered list from content
+        if not content:
+            # Return default suggestions if LLM failed
+            return [
+                "machine learning tools for Python",
+                "web server for static sites",
+                "database for small projects",
+            ]
+
+        suggestions = []
+        lines = content.split("\n")
+        for line in lines:
+            line = line.strip()
+            if line and line[0].isdigit() and line[1:3] in [". ", ") "]:
+                suggestion = line.split(". ", 1)[-1].split(") ", 1)[-1].strip()
+                if suggestion:
+                    suggestions.append(suggestion)
+
+        if len(suggestions) >= 3:
+            return suggestions[:3]
+
+        # Fallback suggestions
+        return [
+            "machine learning tools for Python",
+            "web server for static sites",
+            "database for small projects",
+        ]
 
     # Define a method to handle Docker-specific permission repairs
     def docker_permissions(self, args: argparse.Namespace) -> int:
@@ -638,6 +866,9 @@ class CortexCLI:
         execute: bool = False,
         dry_run: bool = False,
         parallel: bool = False,
+        api_key: str | None = None,
+        provider: str | None = None,
+        skip_clarification: bool = False,
     ):
         # Validate input first
         is_valid, error = validate_install_request(software)
@@ -658,11 +889,13 @@ class CortexCLI:
                 "pip3 install jupyter numpy pandas"
             )
 
-        api_key = self._get_api_key()
+        api_key = api_key if api_key is not None else self._get_api_key()
         if not api_key:
             return 1
 
-        provider = self._get_provider()
+        provider = provider if provider is not None else self._get_provider()
+
+        # ---------------------------------------------------
         self._debug(f"Using provider: {provider}")
         self._debug(f"API key: {api_key[:10]}...{api_key[-4:]}")
 
@@ -675,6 +908,73 @@ class CortexCLI:
             self._print_status("🧠", "Understanding request...")
 
             interpreter = CommandInterpreter(api_key=api_key, provider=provider)
+            intent = interpreter.extract_intent(software)
+
+            # Determine confidence level: high, medium, or low
+            confidence_level = self._get_confidence_level(intent)
+
+            # If user has already clarified, skip asking again
+            if skip_clarification:
+                confidence_level = "high"
+
+            if confidence_level == "low":
+                # Low confidence: ask user to clarify what they want
+                if _is_interactive():
+                    clarification_msg = self._generate_clarification_request(
+                        interpreter, software, intent
+                    )
+                    print(f"\n{clarification_msg}\n")
+                    clarified = input("What would you like to install? ").strip()
+                    if clarified:
+                        return self.install(
+                            clarified,
+                            execute,
+                            dry_run,
+                            parallel,
+                            api_key,
+                            provider,
+                            skip_clarification=True,
+                        )
+                    return 1
+                else:
+                    return 1
+
+            elif confidence_level == "medium":
+                # Medium confidence: ask clarifying questions
+                if _is_interactive():
+                    # Show what we understood first
+                    understanding_msg = self._generate_understanding_message(
+                        interpreter, intent, software
+                    )
+                    print(f"\n{understanding_msg}")
+
+                    # Ask clarifying questions
+                    clarifying_qs = self._generate_clarifying_questions(
+                        interpreter, intent, software
+                    )
+                    clarified = input(f"\n{clarifying_qs}\n> ").strip()
+                    if clarified:
+                        return self.install(
+                            clarified,
+                            execute,
+                            dry_run,
+                            parallel,
+                            api_key,
+                            provider,
+                            skip_clarification=True,
+                        )
+                    return 1
+                # In non-interactive mode, proceed with current intent
+
+            # High confidence: proceed directly
+            # Generate natural understanding message
+            if _is_interactive() or not _is_interactive():  # Always show understanding
+                understanding_msg = self._generate_understanding_message(
+                    interpreter, intent, software
+                )
+                print(f"\n{understanding_msg}\n")
+
+            install_mode = intent.get("install_mode", "system")
 
             self._print_status("📦", "Planning installation...")
 
@@ -682,8 +982,21 @@ class CortexCLI:
                 self._animate_spinner("Analyzing system requirements...")
             self._clear_line()
 
-            commands = interpreter.parse(f"install {software}")
+            # ---------- Build command-generation prompt ----------
+            if install_mode == "python":
+                base_prompt = (
+                    f"install {software}. "
+                    "Use pip and Python virtual environments. "
+                    "Do NOT use sudo or system package managers."
+                )
+            else:
+                base_prompt = f"install {software}"
 
+            prompt = self._build_prompt_with_stdin(base_prompt)
+            # ---------------------------------------------------
+
+            # Parse commands from prompt
+            commands = interpreter.parse(prompt)
             if not commands:
                 self._print_error(
                     "No commands generated. Please try again with a different request."
@@ -700,9 +1013,63 @@ class CortexCLI:
                 )
 
             self._print_status("⚙️", f"Installing {software}...")
+            # Create summary of what we're doing
+            description = intent.get("description", software)
+            domain = intent.get("domain", "general")
+            print(f"\nPlan: {description} in {domain} domain")
             print("\nGenerated commands:")
             for i, cmd in enumerate(commands, 1):
                 print(f"  {i}. {cmd}")
+
+            # ---------- User confirmation ----------
+            if execute:
+                if not _is_interactive():
+                    # Non-interactive mode (pytest / CI) → auto-approve
+                    cx_print("⚠️ Auto-approving in non-interactive mode", "warning")
+                    choice = "y"
+                else:
+                    print("\nDo you want to proceed with these commands?")
+                    print("  [y] Yes, execute")
+                    print("  [e] Edit commands")
+                    print("  [n] No, cancel")
+                    choice = input("Enter choice [y/e/n]: ").strip().lower()
+
+                if choice == "n":
+                    print("❌ Installation cancelled by user.")
+                    return 0
+
+                elif choice == "e":
+                    if not _is_interactive():
+                        self._print_error("Cannot edit commands in non-interactive mode")
+                        return 1
+
+                    print("Enter commands (one per line, empty line to finish):")
+                    edited_commands = []
+                    while True:
+                        line = input("> ").strip()
+                        if not line:
+                            break
+                        edited_commands.append(line)
+
+                    if not edited_commands:
+                        print("❌ No commands provided. Cancelling.")
+                        return 1
+
+                    commands = edited_commands
+
+                    print("\n✅ Updated commands:")
+                    for i, cmd in enumerate(commands, 1):
+                        print(f"  {i}. {cmd}")
+
+                    confirm = input("\nExecute edited commands? [y/n]: ").strip().lower()
+                    if confirm != "y":
+                        print("❌ Installation cancelled.")
+                        return 0
+
+                elif choice != "y":
+                    print("❌ Invalid choice. Cancelling.")
+                    return 1
+            # -------------------------------------
 
             if dry_run:
                 print("\n(Dry run mode - commands not executed)")
