@@ -17,9 +17,11 @@ cryptography>=42.0.0
 # Terminal UI
 rich>=13.0.0
 
-# Configuration
-pyyaml>=6.0.0
-
 # Type hints for older Python versions
 typing-extensions>=4.0.0
-PyYAML==6.0.3
+
+# Voice Input Dependencies
+faster-whisper>=0.10.0
+sounddevice>=0.4.6
+pynput>=1.7.6
+numpy>=1.24.0
