@@ -1013,6 +1013,66 @@ class CortexCLI:
         doctor = SystemDoctor()
         return doctor.run_checks()
 
+    def tutor(self, args: argparse.Namespace) -> int:
+        """AI-powered package tutor for interactive learning.
+
+        Provides LLM-powered explanations, Q&A, code examples,
+        and step-by-step tutorials for packages.
+
+        Args:
+            args: Parsed command-line arguments.
+
+        Returns:
+            Exit code (0 for success, 1 for error).
+        """
+        from cortex.tutor.cli import (
+            cmd_teach,
+            cmd_question,
+            cmd_list_packages,
+            cmd_progress,
+            cmd_reset,
+        )
+        from cortex.tutor.branding import print_banner
+
+        # Handle --list flag
+        if getattr(args, "list", False):
+            return cmd_list_packages()
+
+        # Handle --progress flag
+        if getattr(args, "progress", False):
+            package = getattr(args, "package", None)
+            return cmd_progress(package)
+
+        # Handle --reset flag
+        reset_target = getattr(args, "reset", None)
+        if reset_target is not None:
+            package = None if reset_target == "__all__" else reset_target
+            return cmd_reset(package)
+
+        # Handle -q/--question flag
+        question = getattr(args, "question", None)
+        package = getattr(args, "package", None)
+
+        if question:
+            if not package:
+                cx_print("Please specify a package: cortex tutor <package> -q 'question'", "error")
+                return 1
+            return cmd_question(package, question, verbose=self.verbose)
+
+        # Handle package argument (start interactive tutor)
+        if package:
+            print_banner()
+            fresh = getattr(args, "fresh", False)
+            return cmd_teach(package, verbose=self.verbose, force_fresh=fresh)
+
+        # No arguments - show help
+        cx_print("Usage: cortex tutor <package> [options]", "info")
+        cx_print("  cortex tutor docker       - Start interactive lesson", "info")
+        cx_print("  cortex tutor docker -q 'What is Docker?' - Quick Q&A", "info")
+        cx_print("  cortex tutor --list       - List studied packages", "info")
+        cx_print("  cortex tutor --progress   - Show learning progress", "info")
+        return 0
+
     def wizard(self):
         """Interactive setup wizard for API key configuration"""
         show_banner()
@@ -2130,6 +2190,19 @@ def main():
     # Status command (includes comprehensive health checks)
     subparsers.add_parser("status", help="Show comprehensive system status and health checks")
 
+    # Tutor command - AI-powered package education (Issue #131)
+    tutor_parser = subparsers.add_parser("tutor", help="AI-powered package tutor")
+    tutor_parser.add_argument("package", nargs="?", help="Package to learn about")
+    tutor_parser.add_argument(
+        "-q", "--question", type=str, help="Ask a quick question about the package"
+    )
+    tutor_parser.add_argument("--list", "-l", action="store_true", help="List studied packages")
+    tutor_parser.add_argument("--progress", "-p", action="store_true", help="Show learning progress")
+    tutor_parser.add_argument(
+        "--reset", nargs="?", const="__all__", metavar="PACKAGE", help="Reset progress"
+    )
+    tutor_parser.add_argument("--fresh", "-f", action="store_true", help="Skip cache, generate fresh")
+
     # Ask command
     ask_parser = subparsers.add_parser("ask", help="Ask a question about your system")
     ask_parser.add_argument("question", type=str, help="Natural language question")
@@ -2502,6 +2575,8 @@ def main():
             return cli.wizard()
         elif args.command == "status":
             return cli.status()
+        elif args.command == "tutor":
+            return cli.tutor(args)
         elif args.command == "ask":
             return cli.ask(args.question)
         elif args.command == "install":
