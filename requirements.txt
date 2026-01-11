@@ -23,3 +23,13 @@ pyyaml>=6.0.0
 # Type hints for older Python versions
 typing-extensions>=4.0.0
 PyYAML==6.0.3
+# Build and System Dependencies for cortexd daemon
+# Install with: sudo apt-get install <package>
+# cmake>=3.28.0
+# build-essential
+# libssl-dev
+# libsqlite3-dev
+# uuid-dev
+# libsystemd-dev
+# libcap-dev
+# nlohmann-json3-dev

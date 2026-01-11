@@ -71,6 +71,7 @@ cortex install "tools for video compression"
 | **Audit Trail** | Complete history in `~/.cortex/history.db` |
 | **Hardware-Aware** | Detects GPU, CPU, memory for optimized packages |
 | **Multi-LLM Support** | Works with Claude, GPT-4, or local Ollama models |
+| **System Daemon** | Embedded LLM with 1000+ model support via one-command setup |
 
 ---
 
@@ -187,10 +188,10 @@ Cortex stores configuration in `~/.cortex/`:
 │                      LLM Router                                 │
 │              Claude / GPT-4 / Ollama                            │
 │                                                                 │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │  Anthropic  │  │   OpenAI    │  │   Ollama    │             │
-│  │   Claude    │  │    GPT-4    │  │   Local     │             │
-│  └─────────────┘  └─────────────┘  └─────────────┘             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
+│  │  Anthropic  │  │   OpenAI    │  │   Ollama    │              │
+│  │   Claude    │  │    GPT-4    │  │   Local     │              │
+│  └─────────────┘  └─────────────┘  └─────────────┘              │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -220,17 +221,89 @@ Cortex stores configuration in `~/.cortex/`:
 cortex/
 ├── cortex/                 # Main package
 │   ├── cli.py              # Command-line interface
+│   ├── daemon_client.py    # Cortexd client library
+│   ├── daemon_commands.py  # Daemon CLI commands
 │   ├── coordinator.py      # Installation orchestration
 │   ├── llm_router.py       # Multi-LLM routing
 │   ├── packages.py         # Package manager wrapper
 │   ├── hardware_detection.py
 │   ├── installation_history.py
 │   └── utils/              # Utility modules
+├── daemon/                 # Cortexd (system daemon)
+│   ├── src/                # C++17 implementation
+│   ├── include/            # Header files
+│   ├── tests/              # Unit tests
+│   ├── systemd/            # Systemd integration
+│   ├── scripts/            # Build/install scripts
+│   └── CMakeLists.txt      # CMake configuration
 ├── tests/                  # Test suite
 ├── docs/                   # Documentation
 ├── examples/               # Example scripts
 └── scripts/                # Utility scripts
 ```
+
+---
+
+## Cortexd - System Daemon
+
+Cortex includes **cortexd**, a production-grade C++ system daemon that provides persistent system monitoring, embedded LLM inference, and alert management.
+
+### Quick Start
+
+```bash
+# Build and install the daemon
+cd daemon
+./scripts/build.sh Release
+sudo ./scripts/install.sh
+
+# Verify it's running
+cortex daemon status
+cortex daemon health
+
+# (Optional) Load an LLM for AI-enhanced alerts
+cortex daemon llm load ~/.cortex/models/your-model.gguf
+```
+
+> **💡 AI-Enhanced Alerts**: When an LLM is loaded, alerts automatically include intelligent analysis with actionable recommendations (e.g., specific commands to free disk space). This feature is enabled by default.
+
+### CLI Commands
+
+```bash
+cortex daemon status              # Check daemon status
+cortex daemon health              # View system metrics (CPU, memory, disk, alerts)
+cortex daemon alerts              # List active alerts
+cortex daemon alerts --severity warning   # Filter by severity
+cortex daemon alerts --acknowledge-all    # Acknowledge all alerts
+cortex daemon alerts --dismiss <id>       # Dismiss a specific alert
+cortex daemon reload-config       # Reload configuration
+cortex daemon install             # Install daemon service
+cortex daemon uninstall           # Uninstall daemon service
+
+# LLM Management (for AI-enhanced alerts)
+cortex daemon llm status          # Check if LLM is loaded
+cortex daemon llm load <path>     # Load a GGUF model
+cortex daemon llm unload          # Unload current model
+```
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| **System Monitoring** | CPU, memory, disk usage with configurable thresholds |
+| **AI-Enhanced Alerts** | Intelligent analysis with actionable recommendations (enabled by default) |
+| **Alert Management** | Create, query, acknowledge, dismiss alerts (SQLite-backed) |
+| **LLM Integration** | llama.cpp with 1000+ GGUF model support |
+| **IPC Protocol** | JSON-RPC via Unix socket (`/run/cortex/cortex.sock`) |
+| **Systemd Integration** | Type=notify, watchdog, journald logging |
+
+### Documentation
+
+- **[daemon/README.md](daemon/README.md)** - Quick reference and IPC API
+- **[DAEMON_SETUP.md](docs/DAEMON_SETUP.md)** - Installation and usage guide
+- **[DAEMON_BUILD.md](docs/DAEMON_BUILD.md)** - Build instructions
+- **[DAEMON_API.md](docs/DAEMON_API.md)** - Socket IPC protocol reference
+- **[DAEMON_ARCHITECTURE.md](docs/DAEMON_ARCHITECTURE.md)** - Technical deep-dive
+- **[DAEMON_TROUBLESHOOTING.md](docs/DAEMON_TROUBLESHOOTING.md)** - Common issues and solutions
 
 ---
 

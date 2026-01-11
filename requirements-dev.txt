@@ -8,3 +8,13 @@ black>=24.0.0
 ruff>=0.8.0
 isort>=5.13.0
 pre-commit>=3.0.0
+# Build and System Dependencies for cortexd daemon
+# Install with: sudo apt-get install <package>
+# cmake>=3.28.0
+# build-essential
+# libssl-dev
+# libsqlite3-dev
+# uuid-dev
+# libsystemd-dev
+# libcap-dev
+# nlohmann-json3-dev
