@@ -67,9 +67,10 @@ cortex install "tools for video compression"
 | **Dry-Run Default** | Preview all commands before execution |
 | **Sandboxed Execution** | Commands run in Firejail isolation |
 | **Full Rollback** | Undo any installation with `cortex rollback` |
+| **AI System Roles** | Dynamic context sensing with PII redaction and operational history learning. |
 | **Docker Permission Fixer** | Fix root-owned bind mount issues automatically |
 | **Audit Trail** | Complete history in `~/.cortex/history.db` |
-| **Hardware-Aware** | Detects GPU, CPU, memory for optimized packages |
+| **Hardware-Aware** | Optimizes for NVIDIA (CUDA), AMD (ROCm), and Intel GPU architectures. |
 | **Multi-LLM Support** | Works with Claude, GPT-4, or local Ollama models |
 
 ---
@@ -148,6 +149,8 @@ cortex rollback <installation-id>
 | `cortex install <query>` | Install packages matching natural language query |
 | `cortex install <query> --dry-run` | Preview installation plan (default) |
 | `cortex install <query> --execute` | Execute the installation |
+| `cortex role detect` | AI analysis of system context to identify system role |
+| `cortex role set <slug>` | Manually declare a role to receive AI-tailored recommendations |
 | `cortex docker permissions` | Fix file ownership for Docker bind mounts |
 | `cortex sandbox <cmd>` | Test packages in Docker sandbox |
 | `cortex history` | View all past installations |
@@ -187,10 +190,10 @@ Cortex stores configuration in `~/.cortex/`:
 │                      LLM Router                                 │
 │              Claude / GPT-4 / Ollama                            │
 │                                                                 │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │  Anthropic  │  │   OpenAI    │  │   Ollama    │             │
-│  │   Claude    │  │    GPT-4    │  │   Local     │             │
-│  └─────────────┘  └─────────────┘  └─────────────┘             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
+│  │  Anthropic  │  │   OpenAI    │  │   Ollama    │              │
+│  │   Claude    │  │    GPT-4    │  │   Local     │              │
+│  └─────────────┘  └─────────────┘  └─────────────┘              │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -202,9 +205,9 @@ Cortex stores configuration in `~/.cortex/`:
               ┌───────────────┼───────────────┐
               ▼               ▼               ▼
 ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-│    Hardware     │ │    Package      │ │    Sandbox      │
-│    Detection    │ │    Manager      │ │    Executor     │
-│                 │ │  (apt/yum/dnf)  │ │   (Firejail)    │
+│    AI Role      │ │    Package      │ │    Sandbox      │
+│    Sensing      │ │    Manager      │ │    Executor     │
+│(Redaction Layer)│ │  (apt/yum/dnf)  │ │   (Firejail)    │
 └─────────────────┘ └─────────────────┘ └─────────────────┘
                               │
                               ▼
@@ -221,6 +224,7 @@ cortex/
 ├── cortex/                 # Main package
 │   ├── cli.py              # Command-line interface
 │   ├── coordinator.py      # Installation orchestration
+│   ├── role_manager.py     # Role management logic
 │   ├── llm_router.py       # Multi-LLM routing
 │   ├── packages.py         # Package manager wrapper
 │   ├── hardware_detection.py
@@ -339,6 +343,7 @@ pip install -e .
 - [x] Firejail sandboxing
 - [x] Dry-run preview mode
 - [x] Docker bind-mount permission fixer
+- [x] AI-driven System Role sensing layer
 
 ### In Progress
 - [ ] Conflict resolution UI

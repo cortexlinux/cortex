@@ -1,8 +1,10 @@
 import argparse
 import logging
 import os
+import secrets
 import sys
 import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -23,6 +25,7 @@ from cortex.installation_history import InstallationHistory, InstallationStatus,
 from cortex.llm.interpreter import CommandInterpreter
 from cortex.network_config import NetworkConfig
 from cortex.notification_manager import NotificationManager
+from cortex.role_manager import RoleManager
 from cortex.stack_manager import StackManager
 from cortex.validators import validate_api_key, validate_install_request
 
@@ -268,6 +271,111 @@ class CortexCLI:
             return 1
 
     # -------------------------------
+
+    def role(self, args: argparse.Namespace) -> int:
+        """
+        Handle system role detection and manual setting via AI context sensing.
+        """
+        manager = RoleManager()
+        action = getattr(args, "role_action", None)
+
+        # Ensure a subcommand is provided to maintain a valid integer return state.
+        if not action:
+            self._print_error("Please specify a subcommand (detect/set)")
+            return 1
+
+        if action == "detect":
+            # Retrieve environmental facts including active persona and installation history.
+            context = manager.get_system_context()
+
+            # Format shell patterns into a bulleted list, limited to the 10 most recent entries.
+            patterns = context.get("patterns", [])
+            limited_patterns = patterns[-10:] if len(patterns) > 10 else patterns
+            patterns_str = (
+                "\n".join([f"  • {p}" for p in limited_patterns]) or "  • No patterns sensed"
+            )
+
+            signals_str = ", ".join(context.get("binaries", [])) or "none detected"
+            gpu_status = (
+                "GPU Acceleration available" if context.get("has_gpu") else "Standard CPU only"
+            )
+
+            # Cache-busting via unique session IDs and high-precision timestamps is required
+            # to ensure fresh AI inference and prevent LLM providers from returning stale
+            # or previously cached role suggestions.
+            nonce = secrets.token_urlsafe(9)
+            timestamp = datetime.now().strftime("%H:%M:%S.%f")
+
+            # Construct the architectural analysis prompt for the LLM.
+            question = (
+                f"### SYSTEM ARCHITECT ANALYSIS [ID: {nonce}] [TIME: {timestamp}] ###\n"
+                f"ENVIRONMENTAL CONTEXT:\n"
+                f"- Active Persona: {context.get('active_role')}\n"
+                f"- Detected Binaries: [{signals_str}]\n"
+                f"- Hardware Acceleration: {gpu_status}\n"
+                f"- Installation History: {'Present' if context.get('has_install_history') else 'None'}\n\n"
+                f"OPERATIONAL_HISTORY:\n{patterns_str}\n\n"
+                f"TASK: Acting as a Senior Systems Architect, analyze the data above and infer EXACTLY 3-5 professional roles (e.g., DevOps Engineer, Data Scientist).\n\n"
+                f"CRITICAL REQUIREMENTS:\n"
+                f"1. List ONLY the professional role names.\n"
+                f"2. NO shell commands, NO explanations, NO intro text.\n"
+                f"3. Output EXACTLY 3-5 roles as a numbered list.\n\n"
+                f"Detected roles:\n"
+                f"1. "
+            )
+
+            cx_print("🧠 AI is sensing system context and activity patterns...", "thinking")
+            exit_code = self.ask(question)
+
+            # Display standard installation instructions.
+            console.print(
+                "\n[dim italic]💡 To install any recommended packages, simply run:[/dim italic]"
+            )
+            console.print("[bold cyan]    cortex install <package_name>[/bold cyan]\n")
+            return exit_code
+
+        elif action == "set":
+            if not args.role_slug:
+                self._print_error("Role slug is required for 'set' command.")
+                return 1
+
+            role_slug = args.role_slug
+
+            # Persist the role slug to the environment config, catching validation errors.
+            try:
+                manager.save_role(role_slug)
+            except ValueError as e:
+                self._print_error(f"Invalid role slug: {e}")
+                return 1
+
+            cx_print(f"✓ Role set to: [bold cyan]{role_slug}[/bold cyan]", "success")
+
+            # Refresh system context and generate a unique request ID for the advisory prompt.
+            context = manager.get_system_context()
+            req_id = f"{datetime.now().strftime('%H:%M:%S.%f')}-{uuid.uuid4().hex[:4]}"
+
+            cx_print(f"🔍 Fetching tailored AI recommendations for {role_slug}...", "info")
+
+            # Construct the advisory prompt for role-specific package recommendations.
+            rec_question = (
+                f"### ARCHITECTURAL ADVISORY [ID: {req_id}] ###\n"
+                f"NEW_TARGET_PERSONA: {role_slug}\n"
+                f"OS: {sys.platform} | GPU: {'Enabled' if context.get('has_gpu') else 'None'}\n\n"
+                f"TASK: Generate 3-5 unique packages for '{role_slug}' ONLY.\n"
+                f"STRICT RULE: Do NOT repeat previous suggestions. Start with the emoji.\n\n"
+                f"💡 Recommended packages for {role_slug}:\n"
+                f"  - "
+            )
+
+            exit_code = self.ask(rec_question)
+
+            # Display upgrade instructions.
+            console.print(
+                "\n[dim italic]💡 Ready to upgrade? Install any of these using:[/dim italic]"
+            )
+            console.print("[bold cyan]    cortex install <package_name>[/bold cyan]\n")
+            return exit_code
+
     def demo(self):
         """
         Run the one-command investor demo
@@ -2204,6 +2312,27 @@ def main():
     send_parser.add_argument("--actions", nargs="*", help="Action buttons")
     # --------------------------
 
+    # --- Role Management Commands ---
+    # This parser defines the primary interface for system personality and contextual sensing.
+    role_parser = subparsers.add_parser(
+        "role", help="AI-driven system personality and context management"
+    )
+    role_subs = role_parser.add_subparsers(dest="role_action", help="Role actions")
+
+    # role detect: Dynamically triggers the sensing layer
+    role_subs.add_parser(
+        "detect", help="Dynamically sense system context and shell patterns to suggest an AI role"
+    )
+
+    # role set <slug>: Manual override for persistence
+    role_set_parser = role_subs.add_parser(
+        "set", help="Manually override the system role and receive tailored recommendations"
+    )
+    role_set_parser.add_argument(
+        "role_slug",
+        help="The role identifier (e.g., 'data-scientist', 'web-server', 'ml-workstation')",
+    )
+
     # Stack command
     stack_parser = subparsers.add_parser("stack", help="Manage pre-built package stacks")
     stack_parser.add_argument(
@@ -2517,7 +2646,8 @@ def main():
             return cli.history(limit=args.limit, status=args.status, show_id=args.show_id)
         elif args.command == "rollback":
             return cli.rollback(args.id, dry_run=args.dry_run)
-        # Handle the new notify command
+        elif args.command == "role":
+            return cli.role(args)
         elif args.command == "notify":
             return cli.notify(args)
         elif args.command == "stack":
