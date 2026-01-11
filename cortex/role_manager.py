@@ -60,22 +60,30 @@ class RoleManager:
         """
         # Advanced regex patterns to detect sensitive data (API keys, exports, and curl headers)
         sensitive_patterns = [
+            # 1. Standard Credentials & Auth Headers
             r"(?i)api[-_]?key\s*[:=]\s*[^\s]+",
             r"(?i)token\s*[:=]\s*[^\s]+",
             r"(?i)password\s*[:=]\s*[^\s]+",
             r"(?i)passwd\s*[:=]\s*[^\s]+",
             r"(?i)Authorization:\s*[^\s]+",
             r"(?i)Bearer\s+[^\s]+",
-            r"(?i)export\s+(?:[^\s]*(?:key|token|secret|password|passwd|credential|auth)[^\s]*)=[^\s]+",
-            r"(?i)-H\s+['\"][^'\"]*auth[^'\"]*['\"]",
             r"(?i)X-Api-Key:\s*[^\s]+",
+            r"(?i)-H\s+['\"][^'\"]*auth[^'\"]*['\"]",
+            # 2. Environment Variable Exports
+            r"(?i)export\s+(?:[^\s]*(?:key|token|secret|password|passwd|credential|auth)[^\s]*)=[^\s]+",
+            # 3. Cloud Provider Credentials (AWS, GCP, Azure)
             r"(?i)AWS_(?:ACCESS_KEY_ID|SECRET_ACCESS_KEY)\s*[:=]\s*[^\s]+",
-            r"(?i)(?:GITHUB|GITLAB)_TOKEN\s*[:=]\s*[^\s]+",
             r"(?i)GOOGLE_APPLICATION_CREDENTIALS\s*[:=]\s*[^\s]+",
-            # Proposed additional patterns for better coverage
+            r"(?i)GCP_(?:SERVICE_ACCOUNT|CREDENTIALS)\s*[:=]\s*[^\s]+",
+            r"(?i)AZURE_(?:CLIENT_SECRET|TENANT_ID|SUBSCRIPTION_ID)\s*[:=]\s*[^\s]+",
+            # 4. Version Control & DevOps Tokens
+            r"(?i)(?:GITHUB|GITLAB)_TOKEN\s*[:=]\s*[^\s]+",
+            r"(?i)docker\s+login.*-p\s+[^\s]+",
+            # 5. Infrastructure & Security (Keys, SSH, DB URLs)
             r"(?i)-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----",
-            r"(?i)(?:postgres|mysql|mongodb)://[^@\s]+:[^@\s]+@",
             r"(?i)sshpass\s+-p\s+[^\s]+",
+            r"(?i)ssh-add.*-k",
+            r"(?i)(?:postgres|mysql|mongodb)://[^@\s]+:[^@\s]+@",
         ]
 
         try:
@@ -256,11 +264,11 @@ class RoleManager:
             if fcntl:
                 fcntl.flock(lock_fd, fcntl.LOCK_EX)
             try:
-                existing = target.read_text() if target.exists() else ""
+                existing = target.read_text(encoding="utf-8") if target.exists() else ""
                 updated = modifier_func(existing, key, value)
 
                 temp_file = target.with_suffix(".tmp")
-                temp_file.write_text(updated)
+                temp_file.write_text(updated, encoding="utf-8")
                 temp_file.chmod(0o600)  # User-restricted permissions
 
                 # Atomic swap ensures data integrity
