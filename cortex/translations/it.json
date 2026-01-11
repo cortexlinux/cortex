@@ -1,0 +1,154 @@
+{
+  "common": {
+    "yes": "Sì",
+    "no": "No",
+    "continue": "Continua",
+    "cancel": "Annulla",
+    "error": "Errore",
+    "success": "Successo",
+    "warning": "Avvertenza",
+    "confirm": "Conferma",
+    "loading": "Caricamento...",
+    "please_wait": "Attendere prego...",
+    "back": "Indietro",
+    "next": "Avanti",
+    "exit": "Esci",
+    "info": "Informazione",
+    "done": "Fatto",
+    "required_field": "Il campo {field} è obbligatorio"
+  },
+  "cli": {
+    "help": "Visualizza questo messaggio di aiuto",
+    "version": "Mostra le informazioni sulla versione",
+    "verbose": "Abilita output dettagliato",
+    "quiet": "Sopprimi output non essenziale",
+    "dry_run": "Anteprima delle modifiche senza applicarle",
+    "force": "Forza l'esecuzione senza conferma",
+    "output_format": "Formato di output (text, json, yaml)"
+  },
+  "install": {
+    "prompt": "Cosa vorresti installare?",
+    "checking_deps": "Controllo delle dipendenze per {package}",
+    "resolving": "Risoluzione delle dipendenze dei pacchetti...",
+    "downloading": "Download di {package_count, plural, one {# pacchetto} other {# pacchetti}}",
+    "installing": "Installazione di {package}...",
+    "success": "{package} installato con successo",
+    "failed": "Installazione di {package} non riuscita: {error}",
+    "dry_run": "[DRY RUN] Installerebbe {packages}",
+    "dry_run_note": "Modalità simulazione - comandi non eseguiti",
+    "already_installed": "{package} è già installato (versione {version})",
+    "updating": "Aggiornamento di {package}...",
+    "verifying": "Verifica dell'installazione di {package}",
+    "install_time": "Installazione completata in {time}s",
+    "requires": "Richiede: {dependencies}",
+    "generated_commands": "Comandi generati",
+    "execute_note": "Per eseguire questi comandi, usa il flag --execute"
+  },
+  "remove": {
+    "prompt": "Cosa vorresti rimuovere?",
+    "removing": "Rimozione di {packages}...",
+    "success": "{package} rimosso con successo",
+    "failed": "Rimozione di {package} non riuscita: {error}",
+    "not_installed": "{package} non è installato",
+    "dry_run": "[DRY RUN] Rimuoverebbe {packages}",
+    "requires_confirmation": "Questo rimuoverà {count} pacchetto/i. Continuare?"
+  },
+  "search": {
+    "prompt": "Cerca pacchetti",
+    "searching": "Ricerca di '{query}'...",
+    "found": "Trovato/i {count, plural, one {# pacchetto} other {# pacchetti}}",
+    "not_found": "Nessun pacchetto trovato per '{query}'",
+    "results": "Risultati della ricerca per '{query}':",
+    "installed": "Installato",
+    "available": "Disponibile",
+    "description": "Descrizione",
+    "version": "Versione"
+  },
+  "config": {
+    "language_set": "Lingua impostata su {language}",
+    "language_not_found": "Lingua {language} non trovata",
+    "current_language": "Lingua attuale: {language}",
+    "available_languages": "Lingue disponibili: {languages}",
+    "saved": "Configurazione salvata",
+    "reset": "Configurazione ripristinata ai valori predefiniti",
+    "invalid_key": "Chiave di configurazione non valida: {key}",
+    "invalid_value": "Valore non valido per {key}: {value}",
+    "config_missing": "File di configurazione non trovato",
+    "config_readonly": "Il file di configurazione è di sola lettura"
+  },
+  "errors": {
+    "network": "Errore di rete: {error}",
+    "permission": "Permesso negato: {details}",
+    "invalid_package": "Pacchetto '{package}' non trovato",
+    "disk_space": "Spazio su disco insufficiente",
+    "api_key_missing": "Chiave API non impostata. Impostarla nella configurazione.",
+    "timeout": "Timeout per {operation}",
+    "parse_error": "Impossibile analizzare la risposta: {details}",
+    "invalid_input": "Input non valido: {error}",
+    "operation_failed": "Operazione fallita: {details}",
+    "unexpected": "Si è verificato un errore imprevisto. Riprova.",
+    "permission_denied": "Permesso negato",
+    "package_conflict": "Conflitto pacchetto: {package}",
+    "installation_failed": "Installazione non riuscita",
+    "unknown_error": "Errore sconosciuto",
+    "no_commands": "Nessun comando generato. Riprova con una richiesta diversa."
+  },
+  "prompts": {
+    "confirm_install": "Installare {packages}? (s/n)",
+    "confirm_remove": "Rimuovere {packages}? (s/n)",
+    "select_version": "Seleziona la versione per {package}:",
+    "enter_api_key": "Inserisci la tua chiave API {provider}:",
+    "confirm_dry_run": "Questa è una simulazione. Continuare per vedere cosa verrebbe fatto?"
+  },
+  "status": {
+    "checking": "Controllo del sistema...",
+    "understanding": "Comprensione della richiesta...",
+    "planning": "Pianificazione dell'installazione...",
+    "analyzing": "Analisi dei requisiti di sistema...",
+    "detected_os": "Sistema operativo rilevato: {os} {version}",
+    "detected_arch": "Architettura: {arch}",
+    "hardware_info": "Core CPU: {cores}, RAM: {ram}GB",
+    "checking_updates": "Ricerca aggiornamenti...",
+    "up_to_date": "Il sistema è aggiornato",
+    "updates_available": "{count, plural, one {# aggiornamento} other {# aggiornamenti}} disponibile/i"
+  },
+  "wizard": {
+    "welcome": "Benvenuto in Cortex Linux!",
+    "select_language": "Seleziona la tua lingua:",
+    "api_key": "Inserisci la tua chiave API (o premi Invio per saltare):",
+    "provider": "Quale provider AI vorresti usare?",
+    "complete": "Configurazione completata! Esegui 'cortex install <pacchetto>' per iniziare.",
+    "skip_setup": "Saltare la configurazione per ora?"
+  },
+  "history": {
+    "view": "Cronologia installazioni",
+    "date": "Data",
+    "action": "Azione",
+    "packages": "Pacchetti",
+    "status": "Stato",
+    "no_history": "Nessuna cronologia di installazione",
+    "clear_confirm": "Cancellare tutta la cronologia? Questa operazione non può essere annullata."
+  },
+  "notifications": {
+    "update_available": "Aggiornamento disponibile: {version}",
+    "install_success": "{package} installato con successo",
+    "install_failed": "Installazione di {package} non riuscita",
+    "security_update": "Aggiornamento di sicurezza disponibile per {package}",
+    "api_error": "Errore API: {details}"
+  },
+  "help": {
+    "usage": "Utilizzo:",
+    "examples": "Esempi:",
+    "options": "Opzioni:",
+    "description": "Descrizione:",
+    "subcommands": "Sottocomandi:",
+    "see_help": "Vedi 'cortex {command} --help' per maggiori informazioni"
+  },
+  "demo": {
+    "title": "Demo di Cortex Linux",
+    "scenario": "Scenario: {description}",
+    "starting": "Avvio della demo...",
+    "step": "Passo {number}: {description}",
+    "complete": "Demo completata!"
+  }
+}

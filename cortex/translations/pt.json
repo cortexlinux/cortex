@@ -1,0 +1,158 @@
+{
+  "common": {
+    "yes": "Sim",
+    "no": "Não",
+    "continue": "Continuar",
+    "cancel": "Cancelar",
+    "error": "Erro",
+    "success": "Sucesso",
+    "warning": "Aviso",
+    "confirm": "Tem certeza?",
+    "loading": "Carregando",
+    "please_wait": "Por favor, aguarde...",
+    "back": "Voltar",
+    "next": "Próximo",
+    "exit": "Sair"
+  },
+
+  "cli": {
+    "help": "Exibir esta mensagem de ajuda",
+    "version": "Mostrar informações da versão",
+    "verbose": "Ativar saída detalhada",
+    "quiet": "Suprimir saída não essencial",
+    "dry_run": "Visualizar alterações sem aplicá-las",
+    "force": "Forçar execução sem confirmação",
+    "output_format": "Formato de saída (text, json, yaml)"
+  },
+
+  "install": {
+    "prompt": "O que você gostaria de instalar?",
+    "checking_deps": "Verificando dependências para {package}",
+    "resolving": "Resolvendo dependências de pacotes...",
+    "downloading": "Baixando {package_count, plural, one {# pacote} other {# pacotes}}",
+    "installing": "Instalando {package}...",
+    "success": "{package} instalado com sucesso",
+    "failed": "Instalação de {package} falhou: {error}",
+    "dry_run": "[SIMULAÇÃO] Instalaria {packages}",
+    "dry_run_note": "Modo de simulação - comandos não executados",
+    "already_installed": "{package} já está instalado (versão {version})",
+    "updating": "Atualizando {package}...",
+    "verifying": "Verificando instalação de {package}",
+    "install_time": "Instalação concluída em {time}s",
+    "requires": "Requer: {dependencies}",
+    "generated_commands": "Comandos gerados",
+    "execute_note": "Para executar estes comandos, use a flag --execute"
+  },
+
+  "remove": {
+    "prompt": "O que você gostaria de remover?",
+    "removing": "Removendo {packages}...",
+    "success": "{package} removido com sucesso",
+    "failed": "Remoção de {package} falhou: {error}",
+    "not_installed": "{package} não está instalado",
+    "dry_run": "[SIMULAÇÃO] Removeria {packages}",
+    "requires_confirmation": "Isso removerá {count} pacote(s). Continuar?"
+  },
+
+  "search": {
+    "prompt": "Pesquisar pacotes",
+    "searching": "Pesquisando por '{query}'...",
+    "found": "{count, plural, one {# pacote encontrado} other {# pacotes encontrados}}",
+    "not_found": "Nenhum pacote encontrado para '{query}'",
+    "results": "Resultados da pesquisa para '{query}':",
+    "installed": "Instalado",
+    "available": "Disponível",
+    "description": "Descrição",
+    "version": "Versão"
+  },
+
+  "config": {
+    "language_set": "Idioma definido para {language}",
+    "language_not_found": "Idioma '{language}' não encontrado. Usando inglês.",
+    "current_language": "Idioma atual: {language}",
+    "available_languages": "Idiomas disponíveis: {languages}",
+    "saved": "Configuração salva",
+    "reset": "Configuração redefinida para padrões",
+    "invalid_key": "Chave de configuração inválida: {key}",
+    "invalid_value": "Valor inválido para {key}: {value}"
+  },
+
+  "errors": {
+    "network": "Erro de rede: {details}",
+    "permission": "Permissão negada: {details}",
+    "invalid_package": "Pacote '{package}' não encontrado",
+    "disk_space": "Espaço em disco insuficiente ({needed}GB necessário, {available}GB disponível)",
+    "api_key_missing": "Chave de API não configurada. Execute 'cortex wizard' para configurá-la.",
+    "timeout": "Operação expirou após {seconds} segundos",
+    "parse_error": "Falha ao analisar resposta: {details}",
+    "invalid_input": "Entrada inválida: {details}",
+    "operation_failed": "Operação falhou: {details}",
+    "unexpected": "Ocorreu um erro inesperado. Por favor, tente novamente.",
+    "no_commands": "Nenhum comando gerado. Por favor, tente novamente com uma solicitação diferente."
+  },
+
+  "prompts": {
+    "confirm_install": "Instalar {packages}? (s/n)",
+    "confirm_remove": "Remover {packages}? (s/n)",
+    "select_version": "Selecione a versão para {package}:",
+    "enter_api_key": "Digite sua chave de API {provider}:",
+    "confirm_dry_run": "Esta é uma simulação. Continuar para ver o que seria feito?"
+  },
+
+  "status": {
+    "checking": "Verificando sistema...",
+    "understanding": "Entendendo solicitação...",
+    "planning": "Planejando instalação...",
+    "analyzing": "Analisando requisitos do sistema...",
+    "detected_os": "SO detectado: {os} {version}",
+    "detected_arch": "Arquitetura: {arch}",
+    "hardware_info": "Núcleos de CPU: {cores}, RAM: {ram}GB",
+    "checking_updates": "Verificando atualizações...",
+    "up_to_date": "Sistema está atualizado",
+    "updates_available": "{count, plural, one {# atualização disponível} other {# atualizações disponíveis}}"
+  },
+
+  "wizard": {
+    "welcome": "Bem-vindo ao Cortex Linux!",
+    "select_language": "Selecione seu idioma:",
+    "api_key": "Digite sua chave de API (ou pressione Enter para pular):",
+    "provider": "Qual provedor de IA você gostaria de usar?",
+    "complete": "Configuração concluída! Execute 'cortex install <pacote>' para começar.",
+    "skip_setup": "Pular configuração por enquanto?"
+  },
+
+  "history": {
+    "view": "Histórico de Instalação",
+    "date": "Data",
+    "action": "Ação",
+    "packages": "Pacotes",
+    "status": "Status",
+    "no_history": "Nenhum histórico de instalação ainda",
+    "clear_confirm": "Limpar todo o histórico? Isso não pode ser desfeito."
+  },
+
+  "notifications": {
+    "update_available": "Atualização disponível: {version}",
+    "install_success": "{package} instalado com sucesso",
+    "install_failed": "Falha ao instalar {package}",
+    "security_update": "Atualização de segurança disponível para {package}",
+    "api_error": "Erro de API: {details}"
+  },
+
+  "help": {
+    "usage": "Uso:",
+    "examples": "Exemplos:",
+    "options": "Opções:",
+    "description": "Descrição:",
+    "subcommands": "Subcomandos:",
+    "see_help": "Veja 'cortex {command} --help' para mais informações"
+  },
+
+  "demo": {
+    "title": "Demo do Cortex Linux",
+    "scenario": "Cenário: {description}",
+    "starting": "Iniciando demonstração...",
+    "step": "Passo {number}: {description}",
+    "complete": "Demonstração concluída!"
+  }
+}

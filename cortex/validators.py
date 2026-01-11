@@ -88,30 +88,62 @@ def validate_api_key() -> tuple[bool, str | None, str | None]:
 
 def validate_package_name(name: str) -> tuple[bool, str | None]:
     """
-    Validate a package name for safety.
+    Validate a package name for safety against command injection.
+
+    Debian/Ubuntu package names must match: ^[a-z0-9][a-z0-9+.-]*$
+    We use a slightly more permissive pattern to allow uppercase
+    for user convenience (apt handles case-insensitively).
 
     Returns:
         Tuple of (is_valid, error_message)
     """
-    # Check for shell injection attempts
-    dangerous_chars = [";", "|", "&", "$", "`", "(", ")", "{", "}", "<", ">", "\n", "\r"]
-
-    for char in dangerous_chars:
-        if char in name:
-            return (False, f"Package name contains invalid character: '{char}'")
-
-    # Check for path traversal
-    if ".." in name or name.startswith("/"):
-        return (False, "Package name cannot contain path components")
-
-    # Check reasonable length
-    if len(name) > 200:
-        return (False, "Package name is too long (max 200 characters)")
-
-    if len(name) < 1:
+    # Check for empty
+    if not name or len(name.strip()) < 1:
         return (False, "Package name cannot be empty")
 
+    # Check reasonable length (Debian limit is 128)
+    if len(name) > 128:
+        return (False, "Package name is too long (max 128 characters)")
+
+    # Strict regex for Debian package names
+    # Must start with alphanumeric, then allow alphanumeric, +, -, .
+    # This pattern prevents shell injection and path traversal
+    package_pattern = r"^[a-zA-Z0-9][a-zA-Z0-9.+_-]*$"
+
+    if not re.match(package_pattern, name):
+        return (
+            False,
+            f"Invalid package name '{name}'. Package names must start with a letter or number "
+            "and contain only letters, numbers, dots, plus signs, underscores, or hyphens.",
+        )
+
+    # Additional safety: block path traversal attempts
+    if ".." in name or name.startswith("/") or name.startswith("~"):
+        return (False, "Package name cannot contain path components")
+
+    # Block names that look like shell commands
+    shell_commands = ["sh", "bash", "zsh", "fish", "eval", "exec", "source"]
+    if name.lower() in shell_commands and len(name) <= 6:
+        # These are actually valid package names, but check they're exact matches
+        pass  # Allow them - they are real packages
+
     return (True, None)
+
+
+def validate_package_names(names: list[str]) -> tuple[bool, str | None, list[str]]:
+    """
+    Validate a list of package names.
+
+    Returns:
+        Tuple of (all_valid, error_message, valid_names)
+    """
+    valid_names: list[str] = []
+    for name in names:
+        is_valid, error = validate_package_name(name)
+        if not is_valid:
+            return (False, error, [])
+        valid_names.append(name)
+    return (True, None, valid_names)
 
 
 def validate_install_request(request: str) -> tuple[bool, str | None]:

@@ -1,0 +1,154 @@
+{
+  "common": {
+    "yes": "Да",
+    "no": "Нет",
+    "continue": "Продолжить",
+    "cancel": "Отмена",
+    "error": "Ошибка",
+    "success": "Успех",
+    "warning": "Предупреждение",
+    "confirm": "Подтвердить",
+    "loading": "Загрузка...",
+    "please_wait": "Пожалуйста, подождите...",
+    "back": "Назад",
+    "next": "Далее",
+    "exit": "Выход",
+    "info": "Информация",
+    "done": "Готово",
+    "required_field": "Поле {field} обязательно"
+  },
+  "cli": {
+    "help": "Отобразить справочную информацию",
+    "version": "Показать информацию о версии",
+    "verbose": "Включить подробный вывод",
+    "quiet": "Подавить несущественный вывод",
+    "dry_run": "Просмотреть изменения без их применения",
+    "force": "Принудить выполнение без подтверждения",
+    "output_format": "Формат вывода (text, json, yaml)"
+  },
+  "install": {
+    "prompt": "Что вы хотите установить?",
+    "checking_deps": "Проверка зависимостей для {package}",
+    "resolving": "Разрешение зависимостей пакетов...",
+    "downloading": "Загрузка {package_count, plural, one {# пакета} few {# пакетов} other {# пакетов}}",
+    "installing": "Установка {package}...",
+    "success": "{package} успешно установлен",
+    "failed": "Ошибка установки {package}: {error}",
+    "dry_run": "[DRY RUN] Установил бы {packages}",
+    "dry_run_note": "Режим симуляции - команды не выполнены",
+    "already_installed": "{package} уже установлен (версия {version})",
+    "updating": "Обновление {package}...",
+    "verifying": "Проверка установки {package}",
+    "install_time": "Установка завершена за {time}s",
+    "requires": "Требует: {dependencies}",
+    "generated_commands": "Сгенерированные команды",
+    "execute_note": "Чтобы выполнить эти команды, используйте флаг --execute"
+  },
+  "remove": {
+    "prompt": "Что вы хотите удалить?",
+    "removing": "Удаление {packages}...",
+    "success": "{package} успешно удален",
+    "failed": "Ошибка удаления {package}: {error}",
+    "not_installed": "{package} не установлен",
+    "dry_run": "[DRY RUN] Удалил бы {packages}",
+    "requires_confirmation": "Это удалит {count, plural, one {# пакет} few {# пакета} other {# пакетов}}. Продолжить?"
+  },
+  "search": {
+    "prompt": "Поиск пакетов",
+    "searching": "Поиск '{query}'...",
+    "found": "Найдено {count, plural, one {# пакет} few {# пакета} other {# пакетов}}",
+    "not_found": "Пакеты для '{query}' не найдены",
+    "results": "Результаты поиска для '{query}':",
+    "installed": "Установлено",
+    "available": "Доступно",
+    "description": "Описание",
+    "version": "Версия"
+  },
+  "config": {
+    "language_set": "Язык установлен на {language}",
+    "language_not_found": "Язык {language} не найден",
+    "current_language": "Текущий язык: {language}",
+    "available_languages": "Доступные языки: {languages}",
+    "saved": "Конфигурация сохранена",
+    "reset": "Конфигурация сброшена к значениям по умолчанию",
+    "invalid_key": "Неверный ключ конфигурации: {key}",
+    "invalid_value": "Неверное значение для {key}: {value}",
+    "config_missing": "Файл конфигурации не найден",
+    "config_readonly": "Файл конфигурации доступен только для чтения"
+  },
+  "errors": {
+    "network": "Ошибка сети: {error}",
+    "permission": "Доступ запрещен: {details}",
+    "invalid_package": "Пакет '{package}' не найден",
+    "disk_space": "Недостаточно свободного места на диске",
+    "api_key_missing": "Ключ API не установлен. Установите его в конфигурации.",
+    "timeout": "Истекло время ожидания {operation}",
+    "parse_error": "Ошибка при разборе ответа: {details}",
+    "invalid_input": "Неверный ввод: {error}",
+    "operation_failed": "Операция не выполнена: {details}",
+    "unexpected": "Произошла неожиданная ошибка. Пожалуйста, попробуйте снова.",
+    "permission_denied": "Доступ запрещен",
+    "package_conflict": "Конфликт пакета: {package}",
+    "installation_failed": "Установка не удалась",
+    "unknown_error": "Неизвестная ошибка",
+    "no_commands": "Команды не были сгенерированы. Попробуйте другой запрос."
+  },
+  "prompts": {
+    "confirm_install": "Установить {packages}? (y/n)",
+    "confirm_remove": "Удалить {packages}? (y/n)",
+    "select_version": "Выберите версию для {package}:",
+    "enter_api_key": "Введите ваш ключ API {provider}:",
+    "confirm_dry_run": "Это пробный запуск. Продолжить, чтобы увидеть, что будет сделано?"
+  },
+  "status": {
+    "checking": "Проверка системы...",
+    "understanding": "Понимание запроса...",
+    "planning": "Планирование установки...",
+    "analyzing": "Анализ требований системы...",
+    "detected_os": "Обнаружена ОС: {os} {version}",
+    "detected_arch": "Архитектура: {arch}",
+    "hardware_info": "Ядер процессора: {cores}, ОЗУ: {ram}GB",
+    "checking_updates": "Проверка обновлений...",
+    "up_to_date": "Система актуальна",
+    "updates_available": "Доступно {count, plural, one {# обновление} few {# обновления} other {# обновлений}}"
+  },
+  "wizard": {
+    "welcome": "Добро пожаловать в Cortex Linux!",
+    "select_language": "Выберите язык:",
+    "api_key": "Введите ваш API-ключ (или нажмите Enter, чтобы пропустить):",
+    "provider": "Какой провайдер ИИ вы хотите использовать?",
+    "complete": "Настройка завершена! Запустите 'cortex install <package>' для начала работы.",
+    "skip_setup": "Пропустить настройку?"
+  },
+  "history": {
+    "view": "История установок",
+    "date": "Дата",
+    "action": "Действие",
+    "packages": "Пакеты",
+    "status": "Статус",
+    "no_history": "История установок пуста",
+    "clear_confirm": "Очистить всю историю? Это действие нельзя отменить."
+  },
+  "notifications": {
+    "update_available": "Доступно обновление: {version}",
+    "install_success": "{package} успешно установлен",
+    "install_failed": "Не удалось установить {package}",
+    "security_update": "Доступно обновление безопасности для {package}",
+    "api_error": "Ошибка API: {details}"
+  },
+  "help": {
+    "usage": "Использование:",
+    "examples": "Примеры:",
+    "options": "Опции:",
+    "description": "Описание:",
+    "subcommands": "Подкоманды:",
+    "see_help": "Для получения дополнительной информации выполните 'cortex {command} --help'"
+  },
+  "demo": {
+    "title": "Демонстрация Cortex Linux",
+    "scenario": "Сценарий: {description}",
+    "starting": "Запуск демонстрации...",
+    "step": "Шаг {number}: {description}",
+    "complete": "Демонстрация завершена!"
+  }
+}

@@ -1,0 +1,150 @@
+{
+  "common": {
+    "yes": "是",
+    "no": "否",
+    "continue": "继续",
+    "cancel": "取消",
+    "error": "错误",
+    "success": "成功",
+    "warning": "警告",
+    "confirm": "确认",
+    "loading": "加载中...",
+    "please_wait": "请稍候...",
+    "back": "返回",
+    "next": "下一步",
+    "exit": "退出",
+    "info": "信息",
+    "done": "完成",
+    "required_field": "字段 {field} 是必需的"
+  },
+  "cli": {
+    "help": "显示此帮助消息",
+    "version": "显示版本信息",
+    "verbose": "启用详细输出",
+    "quiet": "抑制非必要输出",
+    "dry_run": "预览更改而不应用",
+    "force": "无需确认强制执行",
+    "output_format": "输出格式 (text, json, yaml)"
+  },
+  "install": {
+    "prompt": "您想安装什么？",
+    "checking_deps": "正在检查 {package} 的依赖关系",
+    "resolving": "正在解析软件包依赖关系...",
+    "downloading": "正在下载 {package_count, plural, one {# 个软件包} other {# 个软件包}}",
+    "installing": "正在安装 {package}...",
+    "success": "{package} 安装成功",
+    "failed": "{package} 安装失败：{error}",
+    "dry_run": "[DRY RUN] 将安装 {packages}",
+    "already_installed": "{package} 已安装（版本 {version}）",
+    "updating": "正在更新 {package}...",
+    "verifying": "正在验证 {package} 的安装",
+    "install_time": "安装在 {time}s 内完成",
+    "requires": "需要：{dependencies}"
+  },
+  "remove": {
+    "prompt": "您想移除什么？",
+    "removing": "正在移除 {packages}...",
+    "success": "{package} 已成功移除",
+    "failed": "{package} 移除失败：{error}",
+    "not_installed": "{package} 未安装",
+    "dry_run": "[DRY RUN] 将移除 {packages}",
+    "requires_confirmation": "这将移除 {count} 个软件包。继续吗？"
+  },
+  "search": {
+    "prompt": "搜索软件包",
+    "searching": "正在搜索 '{query}'...",
+    "found": "找到 {count, plural, one {# 个软件包} other {# 个软件包}}",
+    "not_found": "未找到 '{query}' 的软件包",
+    "results": "'{query}' 的搜索结果：",
+    "installed": "已安装",
+    "available": "可用",
+    "description": "描述",
+    "version": "版本"
+  },
+  "config": {
+    "language_set": "语言已设置为 {language}",
+    "language_not_found": "语言 {language} 未找到",
+    "current_language": "当前语言：{language}",
+    "available_languages": "可用语言：{languages}",
+    "saved": "配置已保存",
+    "reset": "配置已重置为默认值",
+    "invalid_key": "无效的配置键：{key}",
+    "invalid_value": "{key} 的值无效：{value}",
+    "config_missing": "未找到配置文件",
+    "config_readonly": "配置文件为只读"
+  },
+  "errors": {
+    "network": "网络错误：{error}",
+    "permission": "权限被拒绝：{details}",
+    "invalid_package": "未找到软件包 '{package}'",
+    "disk_space": "磁盘空间不足",
+    "api_key_missing": "未设置 API 密钥。请在配置中设置。",
+    "timeout": "{operation} 超时",
+    "parse_error": "解析响应失败：{details}",
+    "invalid_input": "输入无效：{error}",
+    "operation_failed": "操作失败：{details}",
+    "unexpected": "发生意外错误。请重试。",
+    "permission_denied": "权限被拒绝",
+    "package_conflict": "软件包冲突：{package}",
+    "installation_failed": "安装失败",
+    "unknown_error": "未知错误"
+  },
+  "prompts": {
+    "confirm_install": "安装 {packages}？(y/n)",
+    "confirm_remove": "移除 {packages}？(y/n)",
+    "select_version": "选择 {package} 的版本：",
+    "enter_api_key": "输入您的 {provider} API 密钥：",
+    "confirm_dry_run": "这是模拟运行。继续以查看将执行的操作？"
+  },
+  "status": {
+    "checking": "正在检查系统...",
+    "understanding": "正在理解请求...",
+    "planning": "正在规划安装...",
+    "analyzing": "正在分析系统需求...",
+    "detected_os": "检测到的操作系统：{os} {version}",
+    "detected_arch": "架构：{arch}",
+    "hardware_info": "CPU 核心：{cores}，RAM：{ram}GB",
+    "checking_updates": "正在检查更新...",
+    "up_to_date": "系统已是最新版本",
+    "updates_available": "{count, plural, one {# 个更新} other {# 个更新}} 可用"
+  },
+  "wizard": {
+    "welcome": "欢迎使用 Cortex Linux！",
+    "select_language": "选择您的语言：",
+    "api_key": "输入您的 API 密钥（或按 Enter 跳过）：",
+    "provider": "您想使用哪个 AI 提供商？",
+    "complete": "设置完成！运行 'cortex install <package>' 开始使用。",
+    "skip_setup": "现在跳过设置？"
+  },
+  "history": {
+    "view": "安装历史",
+    "date": "日期",
+    "action": "操作",
+    "packages": "软件包",
+    "status": "状态",
+    "no_history": "尚无安装历史",
+    "clear_confirm": "清除所有历史？此操作无法撤销。"
+  },
+  "notifications": {
+    "update_available": "更新可用：{version}",
+    "install_success": "{package} 安装成功",
+    "install_failed": "安装 {package} 失败",
+    "security_update": "{package} 的安全更新可用",
+    "api_error": "API 错误：{details}"
+  },
+  "help": {
+    "usage": "用法：",
+    "examples": "示例：",
+    "options": "选项：",
+    "description": "描述：",
+    "subcommands": "子命令：",
+    "see_help": "有关更多信息，请参阅 'cortex {command} --help'"
+  },
+  "demo": {
+    "title": "Cortex Linux 演示",
+    "scenario": "场景：{description}",
+    "starting": "正在启动演示...",
+    "step": "步骤 {number}：{description}",
+    "complete": "演示完成！"
+  }
+}

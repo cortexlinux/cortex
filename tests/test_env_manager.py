@@ -21,6 +21,19 @@ from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
+# Check if cryptography is available for encryption tests
+try:
+    from cryptography import fernet as _fernet
+
+    HAS_CRYPTOGRAPHY = _fernet is not None
+except ImportError:
+    HAS_CRYPTOGRAPHY = False
+
+requires_cryptography = pytest.mark.skipif(
+    not HAS_CRYPTOGRAPHY,
+    reason="cryptography package not installed",
+)
+
 from cortex.env_manager import (
     BUILTIN_TEMPLATES,
     EncryptionManager,
@@ -269,6 +282,7 @@ class TestEncryptionManager:
         manager = EncryptionManager(key_path=key_path)
         assert manager.key_path == key_path
 
+    @requires_cryptography
     def test_encrypt_and_decrypt(self, encryption_manager):
         """Test encrypting and decrypting a value."""
         original = "my-secret-value"
@@ -282,6 +296,7 @@ class TestEncryptionManager:
         decrypted = encryption_manager.decrypt(encrypted)
         assert decrypted == original
 
+    @requires_cryptography
     def test_key_file_created_with_secure_permissions(self, temp_dir):
         """Test that key file is created with chmod 600."""
         key_path = temp_dir / ".env_key"
@@ -295,6 +310,7 @@ class TestEncryptionManager:
         mode = stat.S_IMODE(key_path.stat().st_mode)
         assert mode == 0o600, f"Expected 0600, got {oct(mode)}"
 
+    @requires_cryptography
     def test_key_persistence(self, temp_dir):
         """Test that encryption key persists across instances."""
         key_path = temp_dir / ".env_key"
@@ -309,16 +325,19 @@ class TestEncryptionManager:
 
         assert decrypted == "persistent-secret"
 
+    @requires_cryptography
     def test_is_key_available(self, encryption_manager):
         """Test key availability check."""
         assert encryption_manager.is_key_available() is True
 
+    @requires_cryptography
     def test_encrypt_empty_string(self, encryption_manager):
         """Test encrypting an empty string."""
         encrypted = encryption_manager.encrypt("")
         decrypted = encryption_manager.decrypt(encrypted)
         assert decrypted == ""
 
+    @requires_cryptography
     def test_encrypt_unicode(self, encryption_manager):
         """Test encrypting unicode characters."""
         original = "héllo wörld 🔐 密码"
@@ -432,6 +451,7 @@ class TestEnvironmentManager:
         value = env_manager.get_variable("myapp", "DATABASE_URL")
         assert value == "postgres://localhost/db"
 
+    @requires_cryptography
     def test_set_encrypted_variable(self, env_manager):
         """Test setting an encrypted variable."""
         env_manager.set_variable("myapp", "API_KEY", "secret123", encrypt=True)
@@ -511,6 +531,7 @@ class TestEnvironmentManager:
         assert "DATABASE_URL=" in content
         assert "PORT=3000" in content
 
+    @requires_cryptography
     def test_export_env_with_encrypted(self, env_manager):
         """Test exporting with encrypted variables."""
         env_manager.set_variable("myapp", "PUBLIC_KEY", "public_value")
@@ -557,6 +578,7 @@ NO_QUOTES=simple
         assert env_manager.get_variable("myapp", "SINGLE_QUOTED") == "another value"
         assert env_manager.get_variable("myapp", "NO_QUOTES") == "simple"
 
+    @requires_cryptography
     def test_import_env_with_encryption(self, env_manager):
         """Test importing with selective encryption."""
         content = """
@@ -589,6 +611,7 @@ ALSO_VALID=another
         assert len(errors) == 1
         assert "Line 3" in errors[0]
 
+    @requires_cryptography
     def test_load_to_environ(self, env_manager):
         """Test loading variables into os.environ."""
         env_manager.set_variable("myapp", "TEST_VAR_1", "value1")
@@ -709,6 +732,7 @@ class TestEnvironmentTemplates:
         assert result.valid is False
         assert any("PORT" in e for e in result.errors)
 
+    @requires_cryptography
     def test_apply_template_with_encryption(self, env_manager):
         """Test applying a template with some values encrypted."""
         result = env_manager.apply_template(
@@ -928,6 +952,7 @@ class TestEdgeCases:
 
         assert env_manager.get_variable("myapp", "KEY") == "updated"
 
+    @requires_cryptography
     def test_overwrite_plain_with_encrypted(self, env_manager):
         """Test overwriting a plain variable with encrypted one."""
         env_manager.set_variable("myapp", "KEY", "plain_value", encrypt=False)
@@ -946,6 +971,7 @@ class TestEdgeCases:
 class TestIntegration:
     """Integration tests combining multiple features."""
 
+    @requires_cryptography
     def test_full_workflow(self, env_manager):
         """Test a complete workflow: set, list, export, import, delete."""
         # Set some variables

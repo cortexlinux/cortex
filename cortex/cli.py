@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 from cortex.api_key_detector import auto_detect_api_key, setup_api_key
 from cortex.ask import AskHandler
 from cortex.branding import VERSION, console, cx_header, cx_print, show_banner
+from cortex.config_manager import ConfigManager
 from cortex.coordinator import InstallationCoordinator, InstallationStep, StepStatus
 from cortex.demo import run_demo
 from cortex.dependency_importer import (
@@ -19,6 +20,7 @@ from cortex.dependency_importer import (
     format_package_list,
 )
 from cortex.env_manager import EnvironmentManager, get_env_manager
+from cortex.i18n import LanguageManager
 from cortex.installation_history import InstallationHistory, InstallationStatus, InstallationType
 from cortex.llm.interpreter import CommandInterpreter
 from cortex.network_config import NetworkConfig
@@ -37,10 +39,32 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 class CortexCLI:
-    def __init__(self, verbose: bool = False):
+    def __init__(self, verbose: bool = False, language: str | None = None):
         self.spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         self.spinner_idx = 0
         self.verbose = verbose
+
+        # Initialize language manager and translator
+        self.lang_manager = LanguageManager()
+        detected_language = language or self.lang_manager.detect_language()
+        from cortex.i18n import get_translator
+
+        self.translator = get_translator(detected_language)
+
+    def t(self, key: str, **kwargs) -> str:
+        """Get a translated string by key.
+
+        Shortcut method that delegates to self.translator.get() for retrieving
+        localized strings with optional variable interpolation.
+
+        Args:
+            key: Translation key in dot notation (e.g., 'install.success').
+            **kwargs: Variables for string interpolation (e.g., package='nginx').
+
+        Returns:
+            str: The translated string, or a fallback placeholder if key is missing.
+        """
+        return self.translator.get(key, **kwargs)
 
     # Define a method to handle Docker-specific permission repairs
     def docker_permissions(self, args: argparse.Namespace) -> int:
@@ -514,10 +538,18 @@ class CortexCLI:
 
     def _sandbox_promote(self, sandbox, args: argparse.Namespace) -> int:
         """Promote a tested package to main system."""
+        from cortex.validators import validate_package_name
+
         name = args.name
         package = args.package
         dry_run = getattr(args, "dry_run", False)
         skip_confirm = getattr(args, "yes", False)
+
+        # Validate package name before passing to system commands
+        is_valid, error = validate_package_name(package)
+        if not is_valid:
+            self._print_error(f"Invalid package name: {error}")
+            return 1
 
         if dry_run:
             result = sandbox.promote(name, package, dry_run=True)
@@ -672,22 +704,20 @@ class CortexCLI:
         start_time = datetime.now()
 
         try:
-            self._print_status("🧠", "Understanding request...")
+            self._print_status("🧠", self.t("status.understanding"))
 
             interpreter = CommandInterpreter(api_key=api_key, provider=provider)
 
-            self._print_status("📦", "Planning installation...")
+            self._print_status("📦", self.t("status.planning"))
 
             for _ in range(10):
-                self._animate_spinner("Analyzing system requirements...")
+                self._animate_spinner(self.t("status.analyzing"))
             self._clear_line()
 
             commands = interpreter.parse(f"install {software}")
 
             if not commands:
-                self._print_error(
-                    "No commands generated. Please try again with a different request."
-                )
+                self._print_error(self.t("errors.no_commands"))
                 return 1
 
             # Extract packages from commands for tracking
@@ -699,13 +729,13 @@ class CortexCLI:
                     InstallationType.INSTALL, packages, commands, start_time
                 )
 
-            self._print_status("⚙️", f"Installing {software}...")
-            print("\nGenerated commands:")
+            self._print_status("⚙️", self.t("install.installing", package=software))
+            print(f"\n{self.t('install.generated_commands')}:")
             for i, cmd in enumerate(commands, 1):
                 print(f"  {i}. {cmd}")
 
             if dry_run:
-                print("\n(Dry run mode - commands not executed)")
+                print(f"\n({self.t('install.dry_run_note')})")
                 if install_id:
                     history.update_installation(install_id, InstallationStatus.SUCCESS)
                 return 0
@@ -1388,6 +1418,74 @@ class CortexCLI:
 
         return 0
 
+    def config(self, args: argparse.Namespace) -> int:
+        """Handle CLI configuration commands.
+
+        Routes configuration subcommands to their respective handlers.
+        Currently supports language configuration via the 'language' subcommand.
+
+        Args:
+            args: Parsed CLI arguments containing config_action attribute
+                  and any subcommand-specific options.
+
+        Returns:
+            int: Exit code (0 on success, 1 on error or unknown subcommand).
+        """
+        config_action = getattr(args, "config_action", None)
+
+        if not config_action:
+            self._print_error("Please specify a subcommand (language)")
+            return 1
+
+        if config_action == "language":
+            return self._config_language(args)
+        else:
+            self._print_error(f"Unknown config subcommand: {config_action}")
+            return 1
+
+    def _config_language(self, args: argparse.Namespace) -> int:
+        """Handle language configuration."""
+        config_mgr = ConfigManager()
+        lang_mgr = LanguageManager()
+        new_language = getattr(args, "language_code", None)
+
+        # Load current preferences
+        prefs = config_mgr.load_preferences()
+        current_lang = prefs.get("language", "en")
+
+        if new_language:
+            # Resolve language (accepts codes like 'es' or names like 'Spanish', 'Español')
+            resolved = lang_mgr.resolve_language(new_language)
+            if not resolved:
+                self._print_error(f"Language '{new_language}' is not supported")
+                cx_print("Supported languages:", "info")
+                for code, name in lang_mgr.get_available_languages().items():
+                    console.print(f"  [green]{code}[/green] - {name}")
+                return 1
+
+            # Save preference
+            prefs["language"] = resolved
+            config_mgr.save_preferences(prefs)
+
+            lang_name = lang_mgr.get_language_name(resolved)
+            cx_print(f"✓ Language set to {lang_name} ({resolved})", "success")
+            cx_print("This will be used for all future Cortex commands.", "info")
+            return 0
+        else:
+            # Show current language and available options
+            lang_name = lang_mgr.get_language_name(current_lang)
+            cx_header("Language Configuration")
+            console.print(f"  Current language: [green]{lang_name}[/green] ({current_lang})")
+            console.print()
+            console.print("[bold]Available languages:[/bold]")
+            for code, name in sorted(lang_mgr.get_available_languages().items()):
+                marker = " [cyan]◄[/cyan]" if code == current_lang else ""
+                console.print(f"  [green]{code}[/green] - {name}{marker}")
+            console.print()
+            cx_print("Set language: cortex config language <code>", "info")
+            cx_print("Example: cortex config language es", "info")
+            return 0
+
     # --- Shell Environment Analyzer Commands ---
     def _env_audit(self, args: argparse.Namespace) -> int:
         """Audit shell environment variables and show their sources."""
@@ -2036,6 +2134,7 @@ def show_rich_help():
     table.add_row("rollback <id>", "Undo installation")
     table.add_row("notify", "Manage desktop notifications")
     table.add_row("env", "Manage environment variables")
+    table.add_row("config", "Configure Cortex settings")
     table.add_row("cache stats", "Show LLM cache statistics")
     table.add_row("stack <name>", "Install the stack")
     table.add_row("docker permissions", "Fix Docker bind-mount permissions")
@@ -2102,6 +2201,12 @@ def main():
     # Global flags
     parser.add_argument("--version", "-V", action="version", version=f"cortex {VERSION}")
     parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
+    parser.add_argument(
+        "--language",
+        "-L",
+        metavar="CODE",
+        help="Set display language for this command (e.g., en, es, de, ja)",
+    )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -2219,6 +2324,18 @@ def main():
     cache_parser = subparsers.add_parser("cache", help="Cache operations")
     cache_subs = cache_parser.add_subparsers(dest="cache_action", help="Cache actions")
     cache_subs.add_parser("stats", help="Show cache statistics")
+
+    # --- Configuration Commands ---
+    config_parser = subparsers.add_parser("config", help="Manage Cortex configuration")
+    config_subs = config_parser.add_subparsers(dest="config_action", help="Configuration actions")
+
+    # config language [code]
+    config_lang_parser = config_subs.add_parser("language", help="Get or set display language")
+    config_lang_parser.add_argument(
+        "language_code",
+        nargs="?",
+        help="Language code to set (e.g., en, es, fr, de, pt, ja, zh, ko, ar, hi, ru, it)",
+    )
 
     # --- Sandbox Commands (Docker-based package testing) ---
     sandbox_parser = subparsers.add_parser(
@@ -2531,6 +2648,8 @@ def main():
             return 1
         elif args.command == "env":
             return cli.env(args)
+        elif args.command == "config":
+            return cli.config(args)
         else:
             parser.print_help()
             return 1

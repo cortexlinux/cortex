@@ -26,6 +26,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from cortex.validators import validate_package_name
+
 logger = logging.getLogger(__name__)
 
 
@@ -432,6 +434,15 @@ class DockerSandbox:
         Returns:
             SandboxExecutionResult with installation status
         """
+        # Validate package name before passing to system commands
+        is_valid, error = validate_package_name(package)
+        if not is_valid:
+            return SandboxExecutionResult(
+                success=False,
+                message=f"Invalid package name: {error}",
+                exit_code=1,
+            )
+
         self.require_docker()
 
         # Load sandbox metadata
@@ -657,6 +668,15 @@ class DockerSandbox:
         Returns:
             SandboxExecutionResult with promotion status
         """
+        # Validate package name before passing to system commands
+        is_valid, error = validate_package_name(package)
+        if not is_valid:
+            return SandboxExecutionResult(
+                success=False,
+                message=f"Invalid package name: {error}",
+                exit_code=1,
+            )
+
         # Verify sandbox exists and package was tested
         info = self._load_metadata(name)
         if not info:

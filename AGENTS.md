@@ -75,6 +75,10 @@ cortex-detect-hardware
 - All tests must pass
 - Documentation required for new features
 
+## AI/IDE Agents Used
+
+Used Cursor Copilot with Claude Opus 4.5 model for generating test cases and documentation. Core implementation was done manually.
+
 ## Contact
 
 - Discord: https://discord.gg/uCqHvxjU83

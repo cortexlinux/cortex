@@ -304,6 +304,31 @@ class ConfigManager:
         except Exception as e:
             raise RuntimeError(f"Failed to save preferences: {e}")
 
+    def load_preferences(self) -> dict[str, Any]:
+        """
+        Load user preferences from ~/.cortex/preferences.yaml.
+
+        Public API for accessing user preferences.
+
+        Returns:
+            Dictionary of preferences (empty dict if none exist)
+        """
+        return self._load_preferences()
+
+    def save_preferences(self, preferences: dict[str, Any]) -> None:
+        """
+        Save user preferences to ~/.cortex/preferences.yaml.
+
+        Public API for persisting user preferences.
+
+        Args:
+            preferences: Dictionary of preferences to save
+
+        Raises:
+            RuntimeError: If preferences cannot be saved
+        """
+        self._save_preferences(preferences)
+
     def export_configuration(
         self,
         output_path: str,

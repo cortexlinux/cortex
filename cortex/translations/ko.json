@@ -1,0 +1,154 @@
+{
+  "common": {
+    "yes": "예",
+    "no": "아니오",
+    "continue": "계속",
+    "cancel": "취소",
+    "error": "오류",
+    "success": "성공",
+    "warning": "경고",
+    "confirm": "확인",
+    "loading": "로딩 중...",
+    "please_wait": "잠시 기다려주세요...",
+    "back": "뒤로",
+    "next": "다음",
+    "exit": "종료",
+    "info": "정보",
+    "done": "완료",
+    "required_field": "{field} 필드는 필수입니다"
+  },
+  "cli": {
+    "help": "이 도움말 메시지 표시",
+    "version": "버전 정보 표시",
+    "verbose": "상세 출력 활성화",
+    "quiet": "불필요한 출력 억제",
+    "dry_run": "적용하지 않고 변경 사항 미리보기",
+    "force": "확인 없이 강제 실행",
+    "output_format": "출력 형식 (text, json, yaml)"
+  },
+  "install": {
+    "prompt": "무엇을 설치하시겠습니까?",
+    "checking_deps": "{package}의 종속성 확인 중",
+    "resolving": "패키지 종속성 해석 중...",
+    "downloading": "{package_count, plural, one {# 개 패키지} other {# 개 패키지}} 다운로드 중",
+    "installing": "{package} 설치 중...",
+    "success": "{package}이(가) 성공적으로 설치되었습니다",
+    "failed": "{package} 설치 실패: {error}",
+    "dry_run": "[DRY RUN] {packages}을(를) 설치했을 것입니다",
+    "dry_run_note": "시뮬레이션 모드 - 명령이 실행되지 않았습니다",
+    "already_installed": "{package}은(는) 이미 설치되어 있습니다 (버전 {version})",
+    "updating": "{package} 업데이트 중...",
+    "verifying": "{package} 설치 검증 중",
+    "install_time": "설치가 {time}초 내에 완료되었습니다",
+    "requires": "필요함: {dependencies}",
+    "generated_commands": "생성된 명령",
+    "execute_note": "이 명령을 실행하려면 --execute 플래그를 사용하세요"
+  },
+  "remove": {
+    "prompt": "제거할 항목을 선택하세요",
+    "removing": "{packages} 제거 중...",
+    "success": "{package}이(가) 성공적으로 제거되었습니다",
+    "failed": "{package} 제거 실패: {error}",
+    "not_installed": "{package}은(는) 설치되어 있지 않습니다",
+    "dry_run": "[DRY RUN] {packages}을(를) 제거했을 것입니다",
+    "requires_confirmation": "이 작업은 {count}개의 패키지를 제거합니다. 계속하시겠습니까?"
+  },
+  "search": {
+    "prompt": "패키지 검색",
+    "searching": "'{query}' 검색 중...",
+    "found": "{count, plural, one {# 개 패키지} other {# 개 패키지}} 찾음",
+    "not_found": "'{query}'에 대한 패키지를 찾을 수 없습니다",
+    "results": "'{query}' 검색 결과:",
+    "installed": "설치됨",
+    "available": "사용 가능",
+    "description": "설명",
+    "version": "버전"
+  },
+  "config": {
+    "language_set": "언어가 {language}로 설정되었습니다",
+    "language_not_found": "언어 {language}를 찾을 수 없습니다",
+    "current_language": "현재 언어: {language}",
+    "available_languages": "사용 가능한 언어: {languages}",
+    "saved": "구성이 저장되었습니다",
+    "reset": "구성이 기본값으로 재설정되었습니다",
+    "invalid_key": "잘못된 구성 키: {key}",
+    "invalid_value": "{key}의 값이 잘못되었습니다: {value}",
+    "config_missing": "구성 파일을 찾을 수 없습니다",
+    "config_readonly": "구성 파일은 읽기 전용입니다"
+  },
+  "errors": {
+    "network": "네트워크 오류: {error}",
+    "permission": "권한 거부: {details}",
+    "invalid_package": "패키지 '{package}'을(를) 찾을 수 없습니다",
+    "disk_space": "디스크 공간 부족",
+    "api_key_missing": "API 키가 설정되지 않았습니다. 구성에서 설정하세요.",
+    "timeout": "{operation} 시간 초과",
+    "parse_error": "응답 파싱 실패: {details}",
+    "invalid_input": "잘못된 입력: {error}",
+    "operation_failed": "작업 실패: {details}",
+    "unexpected": "예기치 않은 오류가 발생했습니다. 다시 시도해주세요.",
+    "permission_denied": "권한 거부",
+    "package_conflict": "패키지 충돌: {package}",
+    "installation_failed": "설치 실패",
+    "unknown_error": "알 수 없는 오류",
+    "no_commands": "명령이 생성되지 않았습니다. 다른 요청으로 다시 시도해주세요."
+  },
+  "prompts": {
+    "confirm_install": "{packages}을(를) 설치하시겠습니까? (y/n)",
+    "confirm_remove": "{packages}을(를) 제거하시겠습니까? (y/n)",
+    "select_version": "{package}의 버전을 선택하세요:",
+    "enter_api_key": "{provider} API 키를 입력하세요:",
+    "confirm_dry_run": "이것은 시뮬레이션입니다. 계속하여 수행될 작업을 확인하시겠습니까?"
+  },
+  "status": {
+    "checking": "시스템 확인 중...",
+    "understanding": "요청 이해 중...",
+    "planning": "설치 계획 중...",
+    "analyzing": "시스템 요구 사항 분석 중...",
+    "detected_os": "감지된 OS: {os} {version}",
+    "detected_arch": "아키텍처: {arch}",
+    "hardware_info": "CPU 코어: {cores}, RAM: {ram}GB",
+    "checking_updates": "업데이트 확인 중...",
+    "up_to_date": "시스템이 최신 상태입니다",
+    "updates_available": "{count, plural, one {# 개 업데이트} other {# 개 업데이트}} 사용 가능"
+  },
+  "wizard": {
+    "welcome": "Cortex Linux에 오신 것을 환영합니다!",
+    "select_language": "언어를 선택하세요:",
+    "api_key": "API 키를 입력하세요 (건너뛰려면 Enter를 누르세요):",
+    "provider": "어떤 AI 제공업체를 사용하시겠습니까?",
+    "complete": "설정이 완료되었습니다! 'cortex install <package>'를 실행하여 시작하세요.",
+    "skip_setup": "지금 설정을 건너뛰시겠습니까?"
+  },
+  "history": {
+    "view": "설치 기록",
+    "date": "날짜",
+    "action": "작업",
+    "packages": "패키지",
+    "status": "상태",
+    "no_history": "아직 설치 기록이 없습니다",
+    "clear_confirm": "모든 기록을 지우시겠습니까? 이 작업은 되돌릴 수 없습니다."
+  },
+  "notifications": {
+    "update_available": "업데이트 사용 가능: {version}",
+    "install_success": "{package}이(가) 성공적으로 설치되었습니다",
+    "install_failed": "{package} 설치 실패",
+    "security_update": "{package}에 대한 보안 업데이트 사용 가능",
+    "api_error": "API 오류: {details}"
+  },
+  "help": {
+    "usage": "사용법:",
+    "examples": "예제:",
+    "options": "옵션:",
+    "description": "설명:",
+    "subcommands": "하위 명령:",
+    "see_help": "자세한 내용은 'cortex {command} --help'를 참조하세요"
+  },
+  "demo": {
+    "title": "Cortex Linux 데모",
+    "scenario": "시나리오: {description}",
+    "starting": "데모 시작 중...",
+    "step": "단계 {number}: {description}",
+    "complete": "데모 완료!"
+  }
+}
