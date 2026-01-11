@@ -304,7 +304,7 @@ class CortexCLI:
             # Cache-busting via unique session IDs and high-precision timestamps is required
             # to ensure fresh AI inference and prevent LLM providers from returning stale
             # or previously cached role suggestions.
-            nonce = secrets.token_urlsafe(9)[:12]
+            nonce = secrets.token_urlsafe(9)
             timestamp = datetime.now().strftime("%H:%M:%S.%f")
 
             # Construct the architectural analysis prompt for the LLM.
@@ -362,7 +362,7 @@ class CortexCLI:
                 f"### ARCHITECTURAL ADVISORY [ID: {req_id}] ###\n"
                 f"NEW_TARGET_PERSONA: {role_slug}\n"
                 f"OS: {sys.platform} | GPU: {'Enabled' if context.get('has_gpu') else 'None'}\n\n"
-                f"TASK: Generate exactly 4 unique packages for '{role_slug}' ONLY.\n"
+                f"TASK: Generate 3-5 unique packages for '{role_slug}' ONLY.\n"
                 f"STRICT RULE: Do NOT repeat previous suggestions. Start with the emoji.\n\n"
                 f"💡 Recommended packages for {role_slug}:\n"
                 f"  - "

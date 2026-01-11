@@ -66,14 +66,16 @@ class RoleManager:
             r"(?i)passwd\s*[:=]\s*[^\s]+",
             r"(?i)Authorization:\s*[^\s]+",
             r"(?i)Bearer\s+[^\s]+",
-            # Refined export pattern:
             r"(?i)export\s+(?:[^\s]*(?:key|token|secret|password|passwd|credential|auth)[^\s]*)=[^\s]+",
             r"(?i)-H\s+['\"][^'\"]*auth[^'\"]*['\"]",
             r"(?i)X-Api-Key:\s*[^\s]+",
-            # ADDED: Explicit patterns for common cloud provider credentials
             r"(?i)AWS_(?:ACCESS_KEY_ID|SECRET_ACCESS_KEY)\s*[:=]\s*[^\s]+",
             r"(?i)(?:GITHUB|GITLAB)_TOKEN\s*[:=]\s*[^\s]+",
             r"(?i)GOOGLE_APPLICATION_CREDENTIALS\s*[:=]\s*[^\s]+",
+            # Proposed additional patterns for better coverage
+            r"(?i)-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----",
+            r"(?i)(?:postgres|mysql|mongodb)://[^@\s]+:[^@\s]+@",
+            r"(?i)sshpass\s+-p\s+[^\s]+",
         ]
 
         try:
@@ -207,8 +209,10 @@ class RoleManager:
             return None
 
         try:
-            content = self.env_file.read_text()
+            # Use explicit UTF-8 encoding for cross-platform consistency
+            content = self.env_file.read_text(encoding="utf-8")
             match = re.search(rf"^{self.CONFIG_KEY}=(.*)$", content, re.MULTILINE)
+            # Normalize whitespace-only/empty matches to None
             value = match.group(1).strip() if match else None
             return value if value else None
         except Exception as e:
@@ -224,6 +228,23 @@ class RoleManager:
     ) -> None:
         """
         Performs an atomic, thread-safe file update with advisory locking.
+
+        Uses a write-to-temp-then-replace pattern to ensure atomicity. On POSIX
+        systems, fcntl advisory locks prevent concurrent writes. On Windows,
+        locking is unavailable but atomicity is still provided by the OS-level
+        file replace operation.
+
+        Args:
+            key: Configuration key to update
+            value: New value for the key
+            modifier_func: Function that takes (existing_content, key, value)
+                          and returns the modified content
+            target_file: Optional override for the target file path
+                        (defaults to self.env_file)
+
+        Raises:
+            OSError: If file operations fail
+            Exception: Propagates exceptions from modifier_func
         """
         target = target_file or self.env_file
         target.parent.mkdir(parents=True, exist_ok=True)
