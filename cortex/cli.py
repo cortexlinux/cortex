@@ -1,8 +1,11 @@
 import argparse
 import logging
 import os
+import random
+import string
 import sys
 import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -273,57 +276,56 @@ class CortexCLI:
     def role(self, args: argparse.Namespace) -> int:
         """
         Handle system role detection and manual setting via AI context sensing.
-
-        This method implements an AI-first sensing layer. Instead of relying on
-        static mappings, it aggregates environmental signals—including installed
-        binaries, hardware status, and recent shell activity patterns—to provide
-        the LLM with a factual ground truth for role inference and
-        tailored system optimizations.
-
-        Args:
-            args: The parsed command-line arguments containing role_action
-                  and optional role_slug.
-
-        Returns:
-            int: 0 for success, 1 for errors.
         """
         manager = RoleManager()
         action = getattr(args, "role_action", None)
 
         if action == "detect":
-            # SENSING LAYER: Aggregates environmental facts (binaries, hardware, shell history).
-            # This fulfills the 'Learn from patterns' and 'Contextual detection' criteria.
+            # 1. SENSING LAYER (Includes Active Role & Installation History)
             context = manager.get_system_context()
 
-            signals_str = ", ".join(context["binaries"]) if context["binaries"] else "none detected"
+            # Addressing 'Messy Formatting' by bulleting history (10 command limit)
+            patterns = context.get("patterns", [])
+            limited_patterns = patterns[-10:] if len(patterns) > 10 else patterns
             patterns_str = (
-                "\n".join(context["patterns"])
-                if context["patterns"]
-                else "no recent patterns sensed"
+                "\n".join([f"  • {p}" for p in limited_patterns]) or "  • No patterns sensed"
             )
-            gpu_status = "GPU Acceleration available" if context["has_gpu"] else "Standard CPU only"
 
-            # POSITIVE REINFORCEMENT PROMPT: Forces structured output for small LLMs.
-            # We use a mathematical checklist (1, 2) to ensure no instructions are skipped.
+            signals_str = ", ".join(context.get("binaries", [])) or "none detected"
+            gpu_status = (
+                "GPU Acceleration available" if context.get("has_gpu") else "Standard CPU only"
+            )
+
+            # CACHE BUSTING
+            nonce = "".join(random.choices(string.ascii_letters + string.digits, k=12))
+            timestamp = datetime.now().strftime("%H:%M:%S.%f")
+
+            # NEW LOGIC PROMPT: Forces inference and cleans formatting
             question = (
-                f"### SYSTEM ARCHITECT ANALYSIS ###\n"
-                f"CONTEXT: Tools=[{signals_str}], Hardware={gpu_status}.\n"
-                f"PATTERNS: {patterns_str}\n\n"
-                f"TASK: Acting as a Linux Systems Architect, provide:\n"
-                f"1. DETECTED ROLES: A list of likely roles with reasoning.\n"
-                f"2. RECOMMENDATIONS: 5 packages for the primary role.\n\n"
-                f"FORMAT: Use the header 'Detected roles:' followed by bullet points, "
-                f"then '💡 Recommended packages for [Role]:'."
+                f"### SYSTEM ARCHITECT ANALYSIS [ID: {nonce}] [TIME: {timestamp}] ###\n"
+                f"ENVIRONMENTAL CONTEXT:\n"
+                f"- Active Persona: {context.get('active_role')}\n"
+                f"- Detected Binaries: [{signals_str}]\n"
+                f"- Hardware Acceleration: {gpu_status}\n"
+                f"- Installation History: {'Present' if context.get('has_install_history') else 'None'}\n\n"
+                f"OPERATIONAL_HISTORY:\n{patterns_str}\n\n"
+                f"TASK: Acting as a Senior Systems Architect, analyze the data above and infer EXACTLY 3-5 professional roles (e.g., DevOps Engineer, Data Scientist).\n\n"
+                f"CRITICAL REQUIREMENTS:\n"
+                f"1. List ONLY the professional role names.\n"
+                f"2. NO shell commands, NO explanations, NO intro text.\n"
+                f"3. Output EXACTLY 3-5 roles as a numbered list.\n\n"
+                f"Detected roles:\n"
+                f"1. "
             )
 
             cx_print("🧠 AI is sensing system context and activity patterns...", "thinking")
             exit_code = self.ask(question)
 
-            # UI FOOTER: Guides user on how to act on AI output.
+            # OLD UI FOOTER
             console.print(
                 "\n[dim italic]💡 To install any recommended packages, simply run:[/dim italic]"
             )
-            console.print("[bold cyan]   cortex install <package_name>[/bold cyan]\n")
+            console.print("[bold cyan]    cortex install <package_name>[/bold cyan]\n")
             return exit_code
 
         elif action == "set":
@@ -332,50 +334,36 @@ class CortexCLI:
                 return 1
 
             role_slug = args.role_slug
-            try:
-                # 1. PERSISTENCE: Save to ~/.cortex/.env using thread-safe locking.
-                manager.save_role(role_slug)
-                cx_print(f"✓ Role set to: [bold cyan]{role_slug}[/bold cyan]", "success")
+            manager.save_role(role_slug)
 
-                # 2. SYNC: Refresh context to ensure the AI knows the role is now active.
-                context = manager.get_system_context()
-                gpu_status = "available" if context["has_gpu"] else "unavailable"
+            # OLD UI SUCCESS MESSAGE
+            cx_print(f"✓ Role set to: [bold cyan]{role_slug}[/bold cyan]", "success")
 
-                cx_print(f"🔍 Fetching tailored AI recommendations for {role_slug}...", "info")
+            # 2. SYNC & CACHE BUSTING
+            context = manager.get_system_context()
+            req_id = f"{datetime.now().strftime('%H:%M:%S.%f')}-{uuid.uuid4().hex[:4]}"
 
-                # 3. CACHE BUSTING: High-precision timestamp to force a unique AI query.
-                req_id = datetime.now().strftime("%H:%M:%S.%f")
+            cx_print(f"🔍 Fetching tailored AI recommendations for {role_slug}...", "info")
 
-                # 4. STRUCTURAL PROMPT: The 'Recency' fix for 1b models.
-                # We move the specific output format to the very last line to prevent skips.
-                rec_question = (
-                    f"### SYSTEM ARCHITECT [ID: {req_id}] ###\n"
-                    f"OS: {sys.platform} | Role: {role_slug}\n\n"
-                    f"Follow this example format exactly:\n\n"
-                    f"💡 Recommended packages for {role_slug}:\n"
-                    f"   - package1\n"
-                    f"   - package2\n\n"
-                    f"🛠 Configuration Tweaks:\n"
-                    f"   - tweak1\n"
-                    f"   - tweak2\n\n"
-                    f"Now, provide the real recommendations for a '{role_slug}' role. "
-                    f"Answer ONLY for '{role_slug}'. Do not add conversational text."
-                )
+            # NEW LOGIC PROMPT: Strict Anchoring to Role Slug
+            rec_question = (
+                f"### ARCHITECTURAL ADVISORY [ID: {req_id}] ###\n"
+                f"NEW_TARGET_PERSONA: {role_slug}\n"
+                f"OS: {sys.platform} | GPU: {'Enabled' if context.get('has_gpu') else 'None'}\n\n"
+                f"TASK: Generate exactly 4 unique packages for '{role_slug}' ONLY.\n"
+                f"STRICT RULE: Do NOT repeat previous suggestions. Start with the emoji.\n\n"
+                f"💡 Recommended packages for {role_slug}:\n"
+                f"  - "
+            )
 
-                exit_code = self.ask(rec_question)
+            exit_code = self.ask(rec_question)
 
-                # 5. ACTIONABLE FOOTER: Connects AI advice to CLI utility.
-                console.print(
-                    "\n[dim italic]💡 Ready to upgrade? Install any of these using:[/dim italic]"
-                )
-                console.print("[bold cyan]   cortex install <package_name>[/bold cyan]\n")
-
-                return exit_code
-
-            except Exception as e:
-                # Defensive error handling to prevent CLI crashes.
-                self._print_error(f"Failed to execute role-switch: {e}")
-                return 1
+            # OLD UI FOOTER
+            console.print(
+                "\n[dim italic]💡 Ready to upgrade? Install any of these using:[/dim italic]"
+            )
+            console.print("[bold cyan]    cortex install <package_name>[/bold cyan]\n")
+            return exit_code
 
     def demo(self):
         """

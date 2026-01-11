@@ -168,3 +168,57 @@ def test_save_role_key_in_value_edge_case(temp_cortex_dir):
     # Should have exactly one CORTEX_SYSTEM_ROLE at line start
     assert content.count("CORTEX_SYSTEM_ROLE=") == 1
     assert "CORTEX_SYSTEM_ROLE=web-server" in content
+
+
+def test_save_role_slug_validation_variants(temp_cortex_dir):
+    """
+    Verifies that the regex supports short slugs, uppercase, and underscores
+    as requested by the maintainer.
+    """
+    env_path = temp_cortex_dir / ".env"
+    manager = RoleManager(env_path=env_path)
+
+    # Test 'ml' (Short slug)
+    manager.save_role("ml")
+    assert manager.get_saved_role() == "ml"
+
+    # Test 'ML-Workstation' (Uppercase and dashes)
+    manager.save_role("ML-Workstation")
+    assert manager.get_saved_role() == "ML-Workstation"
+
+    # Test 'dev_ops' (Underscores)
+    manager.save_role("dev_ops")
+    assert manager.get_saved_role() == "dev_ops"
+
+    # Verify that malicious injection still fails
+    with pytest.raises(ValueError):
+        manager.save_role("dev\nAPI_KEY=stolen")
+
+
+def test_shell_pattern_redaction_robustness(temp_cortex_dir):
+    """
+    Verifies that the sensing layer redacts PII (API keys/secrets) from shell
+    history while preserving non-sensitive technical signals.
+    """
+    env_path = temp_cortex_dir / ".env"
+    manager = RoleManager(env_path=env_path)
+
+    with patch("cortex.role_manager.Path.home", return_value=temp_cortex_dir):
+        # Setup mock history with sensitive and safe commands
+        bash_history = temp_cortex_dir / ".bash_history"
+        leaking_commands = (
+            "export MY_API_KEY=abc123\n" 'curl -H "X-Api-Key: secret" http://api.com\n' "ls -la\n"
+        )
+        bash_history.write_text(leaking_commands, encoding="utf-8")
+
+        patterns = manager._get_shell_patterns()
+
+        # 1. Ensure raw secrets are successfully scrubbed from all patterns
+        assert not any("abc123" in p for p in patterns)
+        assert not any("secret" in p for p in patterns)
+
+        # 2. Confirm the placeholder is present for the sensitive lines
+        assert "<redacted>" in patterns
+
+        # 3. Confirm that safe technical signals are preserved for AI context
+        assert "ls -la" in patterns

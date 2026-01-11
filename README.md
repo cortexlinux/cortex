@@ -67,10 +67,10 @@ cortex install "tools for video compression"
 | **Dry-Run Default** | Preview all commands before execution |
 | **Sandboxed Execution** | Commands run in Firejail isolation |
 | **Full Rollback** | Undo any installation with `cortex rollback` |
-| **AI System Roles** | Autonomous role detection and contextual package suggestions |
+| **AI System Roles** | Dynamic context sensing with PII redaction and operational history learning. |
 | **Docker Permission Fixer** | Fix root-owned bind mount issues automatically |
 | **Audit Trail** | Complete history in `~/.cortex/history.db` |
-| **Hardware-Aware** | Detects GPU, CPU, memory for optimized packages |
+| **Hardware-Aware** | Optimizes for NVIDIA (CUDA), AMD (ROCm), and Intel GPU architectures. |
 | **Multi-LLM Support** | Works with Claude, GPT-4, or local Ollama models |
 
 ---
@@ -149,7 +149,7 @@ cortex rollback <installation-id>
 | `cortex install <query>` | Install packages matching natural language query |
 | `cortex install <query> --dry-run` | Preview installation plan (default) |
 | `cortex install <query> --execute` | Execute the installation |
-| `cortex role detect` | AI analysis of system context to identify system role and suggest packages |
+| `cortex role detect` | AI analysis of system context to identify system role |
 | `cortex role set <slug>` | Manually declare a role to receive AI-tailored recommendations |
 | `cortex docker permissions` | Fix file ownership for Docker bind mounts |
 | `cortex sandbox <cmd>` | Test packages in Docker sandbox |
@@ -207,7 +207,7 @@ Cortex stores configuration in `~/.cortex/`:
 ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
 │    AI Role      │ │    Package      │ │    Sandbox      │
 │    Sensing      │ │    Manager      │ │    Executor     │
-│ (Context Layer) │ │  (apt/yum/dnf)  │ │   (Firejail)    │
+│(Redaction Layer)│ │  (apt/yum/dnf)  │ │   (Firejail)    │
 └─────────────────┘ └─────────────────┘ └─────────────────┘
                               │
                               ▼
