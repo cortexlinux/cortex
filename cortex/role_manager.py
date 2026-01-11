@@ -7,9 +7,19 @@ import re
 import shutil
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 logger = logging.getLogger(__name__)
+
+
+class SystemContext(TypedDict):
+    """Structured type for system architectural facts."""
+
+    binaries: list[str]
+    has_gpu: bool
+    patterns: list[str]
+    active_role: str
+    has_install_history: bool
 
 
 class RoleManager:
@@ -60,6 +70,10 @@ class RoleManager:
             r"(?i)export\s+(?:[^\s]*(?:key|token|secret|password|passwd|credential|auth)[^\s]*)=[^\s]+",
             r"(?i)-H\s+['\"][^'\"]*auth[^'\"]*['\"]",
             r"(?i)X-Api-Key:\s*[^\s]+",
+            # ADDED: Explicit patterns for common cloud provider credentials
+            r"(?i)AWS_(?:ACCESS_KEY_ID|SECRET_ACCESS_KEY)\s*[:=]\s*[^\s]+",
+            r"(?i)(?:GITHUB|GITLAB)_TOKEN\s*[:=]\s*[^\s]+",
+            r"(?i)GOOGLE_APPLICATION_CREDENTIALS\s*[:=]\s*[^\s]+",
         ]
 
         try:
@@ -90,7 +104,7 @@ class RoleManager:
             logger.debug("Unexpected error during shell pattern sensing: %s", e)
             return []
 
-    def get_system_context(self) -> dict[str, Any]:
+    def get_system_context(self) -> SystemContext:
         """
         Aggregates factual system signals and activity patterns for AI inference.
 
@@ -99,8 +113,8 @@ class RoleManager:
         installation history to provide a complete factual ground truth.
 
         Returns:
-            dict: Synchronized facts including binaries, hardware acceleration,
-                  patterns, active persona, and installation history flag.
+            SystemContext: Structured facts including binaries, hardware
+                           acceleration, patterns, and installation status.
         """
         # Curated signature binaries for cross-domain identification (Web, DB, ML, Dev)
         signals = [
@@ -136,6 +150,7 @@ class RoleManager:
         # Check for installation history to satisfy 'Learning from installations'
         has_install_history = self.history_db.exists()
 
+        # Explicitly return as the SystemContext TypedDict
         return {
             "binaries": detected_binaries,
             "has_gpu": has_gpu,
@@ -194,7 +209,8 @@ class RoleManager:
         try:
             content = self.env_file.read_text()
             match = re.search(rf"^{self.CONFIG_KEY}=(.*)$", content, re.MULTILINE)
-            return match.group(1).strip() if match else None
+            value = match.group(1).strip() if match else None
+            return value if value else None
         except Exception as e:
             logger.error("Error reading saved role: %s", e)
             return None

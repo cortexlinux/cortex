@@ -304,7 +304,7 @@ class CortexCLI:
             # Cache-busting via unique session IDs and high-precision timestamps is required
             # to ensure fresh AI inference and prevent LLM providers from returning stale
             # or previously cached role suggestions.
-            nonce = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
+            nonce = secrets.token_urlsafe(9)[:12]
             timestamp = datetime.now().strftime("%H:%M:%S.%f")
 
             # Construct the architectural analysis prompt for the LLM.
