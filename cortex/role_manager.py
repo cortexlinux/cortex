@@ -86,15 +86,22 @@ class RoleManager:
 
     def _get_shell_patterns(self) -> list[str]:
         """
-        Senses user intent from shell history while minimizing privacy risk.
+        Senses user activity patterns from local shell history while minimizing privacy risk.
 
-        Provides a toggle for history sensing via 'CORTEX_SENSE_HISTORY' env var.
-        Uses intent tokenization to strip raw arguments, returning coarse-grained
-        activity tokens instead of raw strings to avoid leaking local metadata.
+        This method fulfills the 'Learn from patterns' requirement by providing
+        contextual intent to the AI. It applies several layers of protection:
+        1. Opt-out via 'CORTEX_SENSE_HISTORY' environment variable.
+        2. Precompiled regex redaction for known sensitive patterns (API keys, etc.).
+        3. Intent tokenization to strip raw arguments and local file paths.
+        4. Cleaning of shell-specific metadata (e.g., zsh epoch/duration stamps).
 
         Returns:
-            list[str]: A list of coarse-grained intent tokens (e.g., 'intent:install').
+            list[str]: A list of coarse-grained intent tokens (e.g., 'intent:install')
+                       or '<redacted>' for sensitive lines.
         """
+        import shlex
+
+        # Global opt-out mechanism for users in high-privacy environments
         if os.environ.get("CORTEX_SENSE_HISTORY", "true").lower() == "false":
             return []
 
@@ -118,16 +125,22 @@ class RoleManager:
                 if not path.exists():
                     continue
 
-                # errors="ignore" prevents crashes on non-UTF-8 binary data in history files
+                # Using errors="replace" ensures the CLI handles binary data or
+                # corrupted bytes in history files without crashing.
                 all_history_lines.extend(
-                    path.read_text(encoding="utf-8", errors="ignore").splitlines()
+                    path.read_text(encoding="utf-8", errors="replace").splitlines()
                 )
 
             trimmed_commands = [l.strip() for l in all_history_lines if l.strip()]
             recent_commands = trimmed_commands[-15:]
 
-            patterns = []
+            patterns: list[str] = []
             for cmd in recent_commands:
+                # Handle zsh extended history format: ": <epoch>:<duration>;<command>"
+                if cmd.startswith(":") and ";" in cmd:
+                    cmd = cmd.split(";", 1)[1].strip()
+
+                # Exclude local role management operations from context
                 if cmd.startswith("cortex role set"):
                     continue
 
@@ -136,12 +149,31 @@ class RoleManager:
                     patterns.append("<redacted>")
                     continue
 
-                # Data Minimization: Extract the verb and map to an intent token
-                parts = cmd.split()
+                # Robust tokenization: Extract the verb using shell-aware splitting
+                try:
+                    parts = shlex.split(cmd)
+                except ValueError:
+                    # Fallback to standard split if history has malformed quoting
+                    parts = cmd.split()
+
                 if not parts:
                     continue
 
+                # Skip leading environment variable assignments: KEY=value cmd ...
+                # This prevents leaking secrets passed directly in the command line.
+                while parts and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", parts[0]):
+                    parts.pop(0)
+
+                if not parts:
+                    patterns.append("<redacted>")
+                    continue
+
+                # Data Minimization: Use only the base command name (e.g., /usr/bin/git -> git)
                 verb = parts[0].lower()
+                if "/" in verb:
+                    verb = Path(verb).name
+
+                # Map to a generalized intent or a coarse-grained command token
                 patterns.append(intent_map.get(verb, f"intent:{verb}"))
 
             return patterns
@@ -202,19 +234,25 @@ class RoleManager:
     def save_role(self, role_slug: str) -> None:
         """
         Persists the system role identifier using an atomic update pattern.
-
-        Args:
-            role_slug: The role identifier (e.g., 'data-scientist').
+        Preserves existing formatting such as 'export' prefixes and quotes.
         """
         if not re.fullmatch(r"[a-zA-Z0-9](?:[a-zA-Z0-9_-]*[a-zA-Z0-9])?", role_slug):
             logger.error("Invalid role slug rejected: %r", role_slug)
             raise ValueError(f"Invalid role slug format: {role_slug!r}")
 
         def modifier(existing_content: str, key: str, value: str) -> str:
-            pattern = rf"^(?:export\s+)?{re.escape(key)}\s*=.*$"
+            # Fix: Added $ anchor and clarified groups to prevent value concatenation
+            # Group 1: Prefix | Group 2: Quote | Group 3: Old Value | Group 4: Closing Quote/End
+            pattern = (
+                rf"^(\s*(?:export\s+)?{re.escape(key)}\s*=\s*)(['\"]?)(.*?)(['\"]?\s*(?:#.*)?)$"
+            )
+
             if re.search(pattern, existing_content, flags=re.MULTILINE):
                 return re.sub(
-                    pattern, lambda _: f"{key}={value}", existing_content, flags=re.MULTILINE
+                    pattern,
+                    lambda m: f"{m.group(1)}{m.group(2)}{value}{m.group(4)}",
+                    existing_content,
+                    flags=re.MULTILINE,
                 )
             else:
                 if existing_content and not existing_content.endswith("\n"):
@@ -231,24 +269,30 @@ class RoleManager:
         """
         Reads the active role with tolerant parsing for standard shell file formats.
 
-        Returns:
-            str | None: The saved role slug or None if no meaningful value is found.
+        Handles leading whitespace, optional 'export' prefix, flexible assignment
+        spacing, quotes, and ignores trailing inline comments.
         """
         if not self.env_file.exists():
             return None
 
         try:
-            # Use errors="replace" to handle decoding issues on corrupted environment files
             content = self.env_file.read_text(encoding="utf-8", errors="replace")
 
-            # Tolerant parsing handles optional 'export', flexible spacing, and quotes
-            pattern = rf"^(?:export\s+)?{re.escape(self.CONFIG_KEY)}\s*=\s*['\"]?(.*?)['\"]?$"
-            match = re.search(pattern, content, re.MULTILINE)
+            # Improved Regex:
+            # ^\s* -> Allows leading whitespace
+            # (?:export\s+)? -> Optional export
+            # \s*=\s* -> Flexible spacing around equals
+            # ['\"]?(.*?)['\"]? -> Non-greedy capture of value inside optional quotes
+            # (?:\s*#.*)?$   -> Ignores trailing whitespace and inline comments
+            pattern = rf"^\s*(?:export\s+)?{re.escape(self.CONFIG_KEY)}\s*=\s*['\"]?(.*?)['\"]?(?:\s*#.*)?$"
 
-            if not match:
+            # Use findall and pick the last match to follow standard shell override behavior
+            matches = re.findall(pattern, content, re.MULTILINE)
+
+            if not matches:
                 return None
 
-            value = match.group(1).strip()
+            value = matches[-1].strip()
             return value if value else None
         except Exception as e:
             logger.error("Error reading saved role: %s", e)
@@ -264,49 +308,78 @@ class RoleManager:
         """
         Performs a thread-safe, atomic file update with cross-platform locking support.
 
-        Implements POSIX advisory locking (fcntl) or Windows byte-range locking
-        (msvcrt) to prevent lost updates. Employs a write-to-temporary-and-swap
-        pattern with explicit cleanup to ensure file integrity.
+        This internal utility implements a 'write-to-temporary-and-swap' pattern to
+        ensure file integrity. It prevents lost updates by using POSIX advisory
+        locking (fcntl) or Windows byte-range locking (msvcrt). It specifically
+        handles file path collisions and provides safety for restricted filesystems.
+
+        Args:
+            key: The configuration key to update.
+            value: The new value to set.
+            modifier_func: A callback to handle the specific string manipulation.
+            target_file: Optional path override for the target file.
         """
         target = target_file or self.env_file
         target.parent.mkdir(parents=True, exist_ok=True)
 
-        lock_file = target.with_suffix(".lock")
+        # 1. Collision Prevention: Use full filename for companion files.
+        # This prevents collisions between '.env' and '.env.local' companion files.
+        lock_file = target.parent.joinpath(f"{target.name}.lock")
         lock_file.touch(exist_ok=True)
         try:
             lock_file.chmod(0o600)
         except OSError:
+            # Silently ignore chmod failures on unsupported filesystems (e.g., WSL, FAT32)
             pass
 
-        temp_file = target.with_suffix(".tmp")
+        temp_file = target.parent.joinpath(f"{target.name}.tmp")
+
         try:
             with open(lock_file, "r+") as lock_fd:
-                # Platform-aware concurrency protection
+                # 2. Acquire platform-specific exclusive lock.
+                # Logic switches between POSIX (fcntl) and Windows (msvcrt).
                 if fcntl:
                     fcntl.flock(lock_fd, fcntl.LOCK_EX)
                 elif msvcrt:
+                    # Windows locking requires a specific byte range; 1 byte is sufficient.
                     msvcrt.locking(lock_fd.fileno(), msvcrt.LK_LOCK, 1)
+                else:
+                    # Defensive signal: Warn if the environment lacks atomic locking support.
+                    logger.warning(
+                        "No file locking backend available (fcntl/msvcrt missing). "
+                        "Concurrent updates to %s may result in data loss.",
+                        target.name,
+                    )
 
                 try:
+                    # 3. Read existing data with error-resilient decoding.
+                    # 'replace' handler prevents crashes on corrupted binary markers.
                     existing = (
                         target.read_text(encoding="utf-8", errors="replace")
                         if target.exists()
                         else ""
                     )
+
+                    # 4. Generate modified content via the provided callback.
                     updated = modifier_func(existing, key, value)
 
+                    # 5. Write to temporary file with secure permissions.
                     temp_file.write_text(updated, encoding="utf-8")
-                    temp_file.chmod(0o600)
+                    try:
+                        temp_file.chmod(0o600)
+                    except OSError:
+                        pass
 
-                    # Atomic swap guaranteed by the OS replace operation
+                    # 6. Atomic swap guaranteed by the OS 'replace' operation.
                     temp_file.replace(target)
                 finally:
+                    # 7. Release lock regardless of write success.
                     if fcntl:
                         fcntl.flock(lock_fd, fcntl.LOCK_UN)
                     elif msvcrt:
                         msvcrt.locking(lock_fd.fileno(), msvcrt.LK_UNLCK, 1)
         finally:
-            # Cleanup mechanism to remove orphaned temporary files on failure
+            # 8. Integrity Cleanup: Remove orphaned temporary files if replace() failed.
             if temp_file.exists():
                 try:
                     os.remove(temp_file)

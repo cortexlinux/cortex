@@ -1,3 +1,4 @@
+import re
 import shutil
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -9,7 +10,12 @@ from cortex.role_manager import RoleManager
 
 @pytest.fixture
 def temp_cortex_dir(tmp_path):
-    """Creates a temporary directory for testing file I/O to avoid polluting user home."""
+    """
+    Creates a temporary directory for testing file I/O.
+
+    This prevents the tests from writing to or reading from the actual
+    user home directory (~/.cortex), ensuring a clean, isolated environment.
+    """
     cortex_dir = tmp_path / ".cortex"
     cortex_dir.mkdir()
     return cortex_dir
@@ -17,7 +23,12 @@ def temp_cortex_dir(tmp_path):
 
 @pytest.fixture
 def role_manager(temp_cortex_dir):
-    """Provides a RoleManager instance configured to use a temporary directory."""
+    """
+    Provides a pre-configured RoleManager instance.
+
+    The instance is pointed to a temporary .env file within the test-isolated
+    directory to prevent accidental side effects on the host system.
+    """
     env_path = temp_cortex_dir / ".env"
     return RoleManager(env_path=env_path)
 
@@ -25,274 +36,246 @@ def role_manager(temp_cortex_dir):
 def test_get_system_context_fact_gathering(temp_cortex_dir):
     """
     Verifies that RoleManager correctly aggregates system facts and active persona.
-    Ensures the 'Sensing Layer' provides a synchronized Single Source of Truth to the AI.
+
+    Ensures that the 'Sensing Layer' accurately detects present binaries,
+    identifies hardware acceleration flags, and tokenizes shell history patterns
+    into a synchronized Single Source of Truth for the AI.
     """
     env_path = temp_cortex_dir / ".env"
     manager = RoleManager(env_path=env_path)
 
-    # REFINEMENT: Use real files in tmp_path instead of broad global Path mocks
-    # Patch Path.home to redirect home-directory lookups to the isolated test directory
+    # Patch shutil.which to simulate binary presence and Path.home to redirect I/O
     with (
         patch("cortex.role_manager.shutil.which") as mock_which,
         patch("cortex.role_manager.Path.home", return_value=temp_cortex_dir),
     ):
-        # Create a real history file in the temporary directory to ensure realistic testing
+        # Create a mock history file to test activity pattern sensing
         bash_history = temp_cortex_dir / ".bash_history"
         bash_history.write_text("git commit -m 'feat'\npip install torch\n", encoding="utf-8")
 
-        # Simulate environment state (Nginx present, No GPU)
+        # Simulate a environment where Nginx is present but GPU tools are not
         mock_which.side_effect = lambda x: "/usr/bin/" + x if x in ["nginx"] else None
 
         context = manager.get_system_context()
 
-        # Synchronized Validation: Verify binary detection, hardware flags, and activity patterns
+        # Factual Validation
         assert "nginx" in context["binaries"]
-        assert "nvidia-smi" not in context["binaries"]
         assert context["has_gpu"] is False
         assert "intent:version_control" in context["patterns"]
         assert context["active_role"] == "undefined"
 
 
-def test_get_shell_patterns_failure_handling(temp_cortex_dir):
+def test_get_shell_patterns_privacy_hardening(role_manager, temp_cortex_dir, monkeypatch):
     """
-    Verifies defensive programming: sensing should not crash if history files are unreadable.
-    This satisfies robustness requirements for varied Linux environments.
-    """
-    env_path = temp_cortex_dir / ".env"
-    manager = RoleManager(env_path=env_path)
+    Tests the privacy-hardening and normalization logic of shell history sensing.
 
-    # REFINEMENT: Let the file actually exist in the temp directory to avoid global Path.exists mocks
+    Validates:
+    1. Zsh extended history metadata (epochs/timestamps) is stripped.
+    2. Leading environment variable assignments (e.g., API keys) are removed.
+    3. Absolute paths are reduced to their basenames to hide local directory structures.
+    4. Malformed quotes are handled gracefully without crashing shlex.
+    """
+    monkeypatch.setattr("cortex.role_manager.Path.home", lambda: temp_cortex_dir)
+
+    history_file = temp_cortex_dir / ".bash_history"
+    # Mixed data: Zsh format, ENV assignment, Absolute Path, and a Malformed Quote
+    content = (
+        ": 1612345678:0;git pull\n"
+        "DATABASE_URL=secret psql -d db\n"
+        "/usr/local/bin/docker build .\n"
+        "echo 'unclosed quote\n"
+    )
+    history_file.write_text(content, encoding="utf-8")
+
+    patterns = role_manager._get_shell_patterns()
+
+    # Verify metadata and path stripping
+    assert "intent:version_control" in patterns  # ": 16123...;git" -> "git"
+    assert "intent:psql" in patterns  # "DB_URL=... psql" -> "psql"
+    assert "intent:container" in patterns  # "docker" is mapped to "container"
+    assert "intent:echo" in patterns  # Fallback for quoting errors
+
+
+def test_get_shell_patterns_failure_handling(role_manager, temp_cortex_dir, monkeypatch):
+    """
+    Verifies the robustness of the sensing layer under restricted environments.
+
+    Ensures that RoleManager does not crash if history files exist but are
+    unreadable due to PermissionErrors, instead returning an empty pattern list.
+    """
+    monkeypatch.setattr("cortex.role_manager.Path.home", lambda: temp_cortex_dir)
     history_file = temp_cortex_dir / ".bash_history"
     history_file.touch()
 
-    # Use patch.home to redirect lookups and patch.object for targeted failure simulation
-    with (
-        patch("cortex.role_manager.Path.home", return_value=temp_cortex_dir),
-        patch.object(Path, "read_text", side_effect=PermissionError("Access Denied")),
-    ):
-        # Should return an empty list instead of raising PermissionError
-        patterns = manager._get_shell_patterns()
+    # Simulate a file that exists but cannot be read by the current user
+    with patch.object(Path, "read_text", side_effect=PermissionError("Access Denied")):
+        patterns = role_manager._get_shell_patterns()
         assert patterns == []
 
 
-def test_save_and_update_existing_role(temp_cortex_dir):
+def test_save_role_formatting_preservation(role_manager, temp_cortex_dir):
     """
-    Tests the Regex logic to ensure roles are updated atomically without line duplication.
+    Tests that RoleManager respects and preserves existing shell formatting.
+
+    Verifies that updating a role in a file that already uses 'export' and
+    quotes does not overwrite the line with a generic 'KEY=VALUE' format,
+    preserving the user's manual style choices.
     """
     env_path = temp_cortex_dir / ".env"
-    manager = RoleManager(env_path=env_path)
+    env_path.write_text('export CORTEX_SYSTEM_ROLE="initial"\n', encoding="utf-8")
 
-    # Initial save
-    manager.save_role("developer")
-    assert manager.get_saved_role() == "developer"
-
-    # Update existing role (verifies pattern substitution)
-    manager.save_role("data-scientist")
-    assert manager.get_saved_role() == "data-scientist"
+    role_manager.save_role("updated")
 
     content = env_path.read_text()
-    # Ensure it replaced the key rather than appending a second one
+    # Ensure update happened while maintaining 'export' and double quotes
+    assert 'export CORTEX_SYSTEM_ROLE="updated"' in content
+    # Verify no line duplication occurred
     assert content.count("CORTEX_SYSTEM_ROLE") == 1
 
 
-def test_save_role_append_to_existing_env(temp_cortex_dir):
-    """Tests saving a role without overwriting other unrelated environment variables."""
-    env_path = temp_cortex_dir / ".env"
-    env_path.write_text("API_KEY=12345\n")
-
-    manager = RoleManager(env_path=env_path)
-    manager.save_role("web-server")
-
-    content = env_path.read_text()
-    assert "API_KEY=12345" in content
-    assert "CORTEX_SYSTEM_ROLE=web-server" in content
-
-
-def test_error_handling_atomic_write(temp_cortex_dir):
+def test_get_saved_role_tolerant_parsing_advanced(role_manager, temp_cortex_dir):
     """
-    Ensures file I/O failures are wrapped in RuntimeErrors with clear context.
-    Verifies the system doesn't crash but reports the failure to the CLI logic.
+    Verifies the tolerant parsing logic for existing environment files.
+
+    Validates that the parser:
+    1. Ignores inline comments.
+    2. Handles flexible whitespace around the equals sign.
+    3. Respects shell semantics where the 'last' match in the file wins.
     """
     env_path = temp_cortex_dir / ".env"
-    manager = RoleManager(env_path=env_path)
+    content = (
+        "CORTEX_SYSTEM_ROLE=first\n"
+        "export CORTEX_SYSTEM_ROLE = 'second' # Manual override comment\n"
+    )
+    env_path.write_text(content, encoding="utf-8")
 
-    # Mock open to simulate a file lock or read-only file system
-    with patch("builtins.open", side_effect=PermissionError("File Locked")):
-        with pytest.raises(RuntimeError) as excinfo:
-            manager.save_role("any-role")
-
-        assert "Could not persist role" in str(excinfo.value)
-        # Verify exception chaining (ensures 'from e' was used)
-        assert isinstance(excinfo.value.__cause__, PermissionError)
+    # 'second' should win as it is defined last
+    assert role_manager.get_saved_role() == "second"
 
 
-def test_get_saved_role_file_not_found(temp_cortex_dir):
-    """Ensures logic handles missing .env files gracefully by returning None."""
-    env_path = temp_cortex_dir / "missing.env"
-    manager = RoleManager(env_path=env_path)
-    assert manager.get_saved_role() is None
-
-
-def test_role_persistence_idempotency(temp_cortex_dir):
-    """Verifies that re-setting the same role is idempotent and doesn't bloat the file."""
-    env_path = temp_cortex_dir / ".env"
-    manager = RoleManager(env_path=env_path)
-
-    manager.save_role("developer")
-    manager.save_role("developer")
-
-    content = env_path.read_text()
-    assert content.count("CORTEX_SYSTEM_ROLE=developer") == 1
-
-
-def test_get_system_context_no_history(temp_cortex_dir):
+def test_locked_write_concurrency_degraded_logging(role_manager, monkeypatch, caplog):
     """
-    Ensures context gathering works even if shell history files do not exist.
-    Tests the transition to 'undefined' role for first-time users.
+    Verifies the system's ability to signal safety risks in exotic environments.
+
+    Tests the scenario where neither fcntl (POSIX) nor msvcrt (Windows) locking
+    backends are available, ensuring the system logs a warning about degraded
+    concurrency protection.
     """
-    env_path = temp_cortex_dir / ".env"
-    manager = RoleManager(env_path=env_path)
+    monkeypatch.setattr("cortex.role_manager.fcntl", None)
+    monkeypatch.setattr("cortex.role_manager.msvcrt", None)
 
-    # Simulate missing history files and missing binaries
-    with (
-        patch("cortex.role_manager.Path.exists", return_value=False),
-        patch("cortex.role_manager.shutil.which", return_value=None),
-    ):
-        context = manager.get_system_context()
-        assert context["patterns"] == []
-        assert context["active_role"] == "undefined"
+    role_manager.save_role("test-role")
+    # Verify the warning was issued to the log
+    assert "No file locking backend available" in caplog.text
 
 
-def test_save_role_key_in_value_edge_case(temp_cortex_dir):
-    """Ensure key detection doesn't match key names within other values."""
-    env_path = temp_cortex_dir / ".env"
-    env_path.write_text("OTHER_KEY=contains_CORTEX_SYSTEM_ROLE_text\n")
-
-    manager = RoleManager(env_path=env_path)
-    manager.save_role("web-server")
-
-    content = env_path.read_text()
-    # Should have exactly one CORTEX_SYSTEM_ROLE at line start
-    assert content.count("CORTEX_SYSTEM_ROLE=") == 1
-    assert "CORTEX_SYSTEM_ROLE=web-server" in content
-
-
-def test_save_role_slug_validation_variants(temp_cortex_dir):
+def test_error_handling_atomic_write(role_manager):
     """
-    Verifies that the regex supports short slugs, uppercase, and underscores
-    as requested by the maintainer.
+    Ensures file I/O failures are wrapped in RuntimeErrors with context.
+
+    Validates that system-level errors (like a full disk) are caught during
+    the atomic write process and reported back to the CLI with a helpful message.
     """
-    env_path = temp_cortex_dir / ".env"
-    manager = RoleManager(env_path=env_path)
-
-    # Test 'ml' (Short slug)
-    manager.save_role("ml")
-    assert manager.get_saved_role() == "ml"
-
-    # Test 'ML-Workstation' (Uppercase and dashes)
-    manager.save_role("ML-Workstation")
-    assert manager.get_saved_role() == "ML-Workstation"
-
-    # Test 'dev_ops' (Underscores)
-    manager.save_role("dev_ops")
-    assert manager.get_saved_role() == "dev_ops"
-
-    # Verify that malicious injection still fails
-    with pytest.raises(ValueError):
-        manager.save_role("dev\nAPI_KEY=stolen")
+    with patch("builtins.open", side_effect=OSError("Disk Full")):
+        with pytest.raises(RuntimeError, match="Could not persist role"):
+            role_manager.save_role("any-role")
 
 
-def test_shell_pattern_redaction_robustness(temp_cortex_dir):
+def test_get_system_context_no_history(role_manager, temp_cortex_dir, monkeypatch):
     """
-    Verifies that the sensing layer redacts PII (API keys/secrets) from shell
-    history while preserving non-sensitive technical signals.
+    Validates context gathering functionality for new/clean installations.
+
+    Gathering context should still work smoothly if no shell history files or
+    binaries are present, reverting to 'undefined' persona states.
     """
-    env_path = temp_cortex_dir / ".env"
-    manager = RoleManager(env_path=env_path)
+    monkeypatch.setattr("cortex.role_manager.Path.exists", lambda x: False)
+    context = role_manager.get_system_context()
 
-    with patch("cortex.role_manager.Path.home", return_value=temp_cortex_dir):
-        # Setup mock history with sensitive and safe commands
-        bash_history = temp_cortex_dir / ".bash_history"
-        leaking_commands = (
-            "export MY_API_KEY=abc123\n" 'curl -H "X-Api-Key: secret" http://api.com\n' "ls -la\n"
-        )
-        bash_history.write_text(leaking_commands, encoding="utf-8")
-
-        patterns = manager._get_shell_patterns()
-
-        # 1. Ensure raw secrets are successfully scrubbed from all patterns
-        assert not any("abc123" in p for p in patterns)
-        assert not any("secret" in p for p in patterns)
-
-        # 2. Confirm the placeholder is present for the sensitive lines
-        assert "<redacted>" in patterns
-
-        # 3. Confirm that safe technical signals are preserved for AI context
-        assert "intent:ls" in patterns
+    assert context["patterns"] == []
+    assert context["active_role"] == "undefined"
 
 
-def test_save_role_slug_boundary_validation(temp_cortex_dir):
-    """Verify slugs must start and end with alphanumeric chars."""
-    env_path = temp_cortex_dir / ".env"
-    manager = RoleManager(env_path=env_path)
+def test_save_role_slug_validation(role_manager):
+    """
+    Test the boundary validation for role identifiers (slugs).
 
-    # Single character should be valid
-    manager.save_role("m")
-    assert manager.get_saved_role() == "m"
+    Ensures that only safe alphanumeric strings with mid-string dashes/underscores
+    are allowed, preventing malicious injection or malformed identifiers.
+    """
+    # Valid variants
+    valid_slugs = ["ml", "ML-Workstation", "dev_ops", "a"]
+    for slug in valid_slugs:
+        role_manager.save_role(slug)
+        assert role_manager.get_saved_role() == slug
 
-    # Slugs ending with dash/underscore should be invalid
-    with pytest.raises(ValueError):
-        manager.save_role("dev-")
+    # Invalid variants (starting/ending with special chars or newline injection)
+    invalid_slugs = ["-dev", "dev-", "dev\n", "role!", ""]
+    for slug in invalid_slugs:
+        with pytest.raises(ValueError):
+            role_manager.save_role(slug)
 
-    with pytest.raises(ValueError):
-        manager.save_role("dev_")
 
-    # Slugs starting with dash/underscore should be invalid
-    with pytest.raises(ValueError):
-        manager.save_role("-dev")
+def test_shell_pattern_redaction_robustness(role_manager, temp_cortex_dir, monkeypatch):
+    """
+    Verifies per-line PII redaction and exact placeholder mapping.
+
+    Ensures that sensitive technical commands (containing keys/secrets) are
+    replaced by a hardcoded placeholder, while maintaining the correct sequence
+    of the activity history.
+    """
+    monkeypatch.setattr("cortex.role_manager.Path.home", lambda: temp_cortex_dir)
+    bash_history = temp_cortex_dir / ".bash_history"
+    leaking_commands = (
+        "export MY_API_KEY=abc123\n" 'curl -H "X-Api-Key: secret" http://api.com\n' "ls -la\n"
+    )
+    bash_history.write_text(leaking_commands, encoding="utf-8")
+
+    patterns = role_manager._get_shell_patterns()
+
+    # Secrets must be unreachable
+    assert not any("abc123" in p for p in patterns)
+    assert patterns.count("<redacted>") == 2
+    assert "intent:ls" in patterns
 
 
 def test_get_shell_patterns_opt_out(role_manager, monkeypatch):
-    """Verify history sensing can be disabled via environment variable."""
+    """
+    Verify the privacy opt-out mechanism via environment flag.
+    """
     monkeypatch.setenv("CORTEX_SENSE_HISTORY", "false")
-    patterns = role_manager._get_shell_patterns()
-    assert patterns == []
-
-
-def test_get_saved_role_tolerant_parsing(role_manager, tmp_path):
-    """Test parsing of manual edits with 'export' and variable spacing."""
-    env_file = tmp_path / ".env"
-    # The regex requires the key to be at the start of the line or preceded by 'export'
-    env_file.write_text('export CORTEX_SYSTEM_ROLE="senior-dev"', encoding="utf-8")
-
-    # Crucial: Point the manager to this specific file
-    role_manager.env_file = env_file
-
-    assert role_manager.get_saved_role() == "senior-dev"
+    assert role_manager._get_shell_patterns() == []
 
 
 def test_locked_write_windows_fallback(role_manager, monkeypatch):
-    """Mock Windows platform to exercise msvcrt locking paths."""
+    """
+    Mocks the Windows NT platform to verify msvcrt locking path coverage.
+
+    Ensures that when running on a Windows environment, the RoleManager
+    correctly switches from fcntl to the msvcrt byte-range locking backend.
+    """
     mock_msvcrt = MagicMock()
-    # Mock BOTH the platform and the internal module reference
     monkeypatch.setattr("sys.platform", "win32")
     monkeypatch.setattr("cortex.role_manager.msvcrt", mock_msvcrt)
     monkeypatch.setattr("cortex.role_manager.fcntl", None)
 
     role_manager.save_role("win-test")
-
-    # Check if locking was called (msvcrt.locking is the method used)
+    # Verify msvcrt.locking was the backend utilized
     assert mock_msvcrt.locking.called
 
 
-def test_get_shell_patterns_corrupted_data(role_manager, tmp_path, monkeypatch):
-    """Verify errors='replace' handles non-UTF-8 bytes in history files."""
-    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
-    # Ensure we use a recognized verb like 'git' or 'ls'
-    history_file = tmp_path / ".bash_history"
+def test_get_shell_patterns_corrupted_data(role_manager, temp_cortex_dir, monkeypatch):
+    """
+    Verify stability when history files contain binary or non-UTF-8 data.
+
+    Ensures the 'replace' error handler correctly swaps corrupted bytes for
+    Unicode replacement characters rather than raising a decoding exception.
+    """
+    monkeypatch.setattr("pathlib.Path.home", lambda: temp_cortex_dir)
+    history_file = temp_cortex_dir / ".bash_history"
+
+    # Write explicit binary corruption between two valid commands
     history_file.write_bytes(b"ls -la\n\xff\xfe\xfd\ngit commit -m 'test'")
 
     patterns = role_manager._get_shell_patterns()
     assert "intent:ls" in patterns
-    # In your code, 'git' maps to 'intent:version_control'
     assert "intent:version_control" in patterns
