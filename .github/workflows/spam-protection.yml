@@ -62,19 +62,18 @@ jobs:
                 labels: ['needs-triage']
               });
               
+              const commentBody = '🔍 **Auto-Review Notice**\n\n' +
+                'This PR was flagged for: ' + flags.join(', ') + '\n\n' +
+                'Please ensure:\n' +
+                '- [ ] PR description explains the changes\n' +
+                '- [ ] CLA is signed\n' +
+                '- [ ] Changes are tested\n\n' +
+                'A maintainer will review shortly.';
+              
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: pr.number,
-                body: '🔍 **Auto-Review Notice**
-
-This PR was flagged for: ' + flags.join(', ') + '
-
-Please ensure:
-- [ ] PR description explains the changes
-- [ ] CLA is signed
-- [ ] Changes are tested
-
-A maintainer will review shortly.'
+                body: commentBody
               });
             }

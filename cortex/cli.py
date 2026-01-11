@@ -7,6 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+logger = logging.getLogger(__name__)
+
 from cortex.api_key_detector import auto_detect_api_key, setup_api_key
 from cortex.ask import AskHandler
 from cortex.branding import VERSION, console, cx_header, cx_print, show_banner
@@ -224,8 +226,9 @@ class CortexCLI:
 
         elif args.notify_action == "enable":
             mgr.config["enabled"] = True
-            # Addressing CodeRabbit feedback: Ideally should use a public method instead of private _save_config,
-            # but keeping as is for a simple fix (or adding a save method to NotificationManager would be best).
+            # Addressing CodeRabbit feedback: Ideally should use a public method
+            # instead of private _save_config, but keeping as is for a simple fix
+            # (or adding a save method to NotificationManager would be best).
             mgr._save_config()
             self._print_success("Notifications enabled")
             return 0
@@ -638,6 +641,9 @@ class CortexCLI:
         execute: bool = False,
         dry_run: bool = False,
         parallel: bool = False,
+        from_source: bool = False,
+        source_url: str | None = None,
+        version: str | None = None,
     ):
         # Validate input first
         is_valid, error = validate_install_request(software)
@@ -672,6 +678,10 @@ class CortexCLI:
         start_time = datetime.now()
 
         try:
+            # Handle --from-source flag
+            if from_source:
+                return self._install_from_source(software, execute, dry_run, source_url, version)
+
             self._print_status("🧠", "Understanding request...")
 
             interpreter = CommandInterpreter(api_key=api_key, provider=provider)
@@ -960,7 +970,8 @@ class CortexCLI:
                         packages += f" +{len(r.packages) - 2}"
 
                     print(
-                        f"{r.id:<18} {date:<20} {r.operation_type.value:<12} {packages:<30} {r.status.value:<15}"
+                        f"{r.id:<18} {date:<20} {r.operation_type.value:<12} "
+                        f"{packages:<30} {r.status.value:<15}"
                     )
 
                 return 0
@@ -1281,7 +1292,8 @@ class CortexCLI:
             return self._env_template_apply(env_mgr, args)
         else:
             self._print_error(
-                "Please specify: template list, template show <name>, or template apply <name> <app>"
+                "Please specify: template list, template show <name>, "
+                "or template apply <name> <app>"
             )
             return 1
 
@@ -2001,6 +2013,200 @@ class CortexCLI:
                 console.print(f"Error: {result.error_message}", style="red")
             return 1
 
+    def _install_from_source(
+        self,
+        package_name: str,
+        execute: bool,
+        dry_run: bool,
+        source_url: str | None,
+        version: str | None,
+    ) -> int:
+        """Install a package from a source URL by building and optionally installing it.
+
+        This method handles the complete workflow for installing packages from source code:
+        parsing version information, building the package, and optionally executing
+        installation commands. It supports dry-run mode for previewing operations and
+        records all activities in the installation history for audit purposes.
+
+        Args:
+            package_name: Name of the package to install. If version is specified
+                using "@" syntax (e.g., "python@3.12"), it will be parsed automatically
+                if version parameter is None.
+            execute: If True, executes the installation commands after building.
+                If False, only builds the package and displays commands without executing.
+            dry_run: If True, performs a dry run showing what commands would be executed
+                without actually building or installing. Takes precedence over execute.
+            source_url: Optional URL to the source code repository or tarball.
+                If None, the SourceBuilder will attempt to locate the source automatically.
+            version: Optional version string to build. If None and package_name contains
+                "@", the version will be extracted from package_name.
+
+        Returns:
+            int: Exit status code. Returns 0 on success (build/install completed or
+                dry-run completed), 1 on failure (build failed or installation failed).
+
+        Side Effects:
+            - Invokes SourceBuilder.build_from_source() to build the package
+            - May execute installation commands via InstallationCoordinator if execute=True
+            - Records installation start, progress, and completion in InstallationHistory
+            - Prints status messages and progress to console
+            - May use cached builds if available
+
+        Raises:
+            No exceptions are raised directly, but underlying operations may fail:
+            - SourceBuilder.build_from_source() failures are caught and returned as status 1
+            - InstallationCoordinator.execute() failures are caught and returned as status 1
+            - InstallationHistory exceptions are caught and logged as warnings
+
+        Special Behavior:
+            - dry_run=True: Shows build/install commands without executing any operations.
+              Returns 0 after displaying commands. Installation history is still recorded.
+            - execute=False, dry_run=False: Builds the package and displays install commands
+              but does not execute them. Returns 0. User is prompted to run with --execute.
+            - execute=True, dry_run=False: Builds the package and executes all installation
+              commands. Returns 0 on success, 1 on failure.
+            - Version parsing: If package_name contains "@" (e.g., "python@3.12") and version
+              is None, the version is automatically extracted and package_name is updated.
+            - Caching: Uses cached builds when available, printing a notification if cache
+              is used.
+        """
+        from cortex.source_builder import SourceBuilder
+
+        # Initialize history for audit logging (same as install() method)
+        history = InstallationHistory()
+        install_id = None
+        start_time = datetime.now()
+
+        builder = SourceBuilder()
+
+        # Parse version from package name if specified (e.g., python@3.12)
+        if "@" in package_name and not version:
+            parts = package_name.split("@")
+            package_name = parts[0]
+            version = parts[1] if len(parts) > 1 and parts[1] else None
+
+        cx_print(f"Building {package_name} from source...", "info")
+        if version:
+            cx_print(f"Version: {version}", "info")
+
+        # Prepare commands list for history recording
+        # Include source URL in the commands list to track it
+        commands = []
+        if source_url:
+            commands.append(f"Source URL: {source_url}")
+        commands.append(f"Build from source: {package_name}")
+        if version:
+            commands.append(f"Version: {version}")
+
+        # Record installation start
+        if execute or dry_run:
+            try:
+                install_id = history.record_installation(
+                    InstallationType.INSTALL,
+                    [package_name],
+                    commands,
+                    start_time,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to record installation start: {e}")
+
+        result = builder.build_from_source(
+            package_name=package_name,
+            version=version,
+            source_url=source_url,
+            use_cache=True,
+        )
+
+        if not result.success:
+            self._print_error(f"Build failed: {result.error_message}")
+            # Record failed installation
+            if install_id:
+                try:
+                    history.update_installation(
+                        install_id,
+                        InstallationStatus.FAILED,
+                        error_message=result.error_message or "Build failed",
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to update installation record: {e}")
+            return 1
+
+        if result.cached:
+            cx_print(f"Using cached build for {package_name}", "info")
+
+        # Add install commands to the commands list for history
+        commands.extend(result.install_commands)
+
+        if dry_run:
+            cx_print("\nBuild commands (dry run):", "info")
+            for cmd in result.install_commands:
+                console.print(f"  • {cmd}")
+            # Record successful dry run
+            if install_id:
+                try:
+                    history.update_installation(install_id, InstallationStatus.SUCCESS)
+                except Exception as e:
+                    logger.warning(f"Failed to update installation record: {e}")
+            return 0
+
+        if not execute:
+            cx_print("\nBuild completed. Install commands:", "info")
+            for cmd in result.install_commands:
+                console.print(f"  • {cmd}")
+            cx_print("Run with --execute to install", "info")
+            # Record successful build (but not installed)
+            if install_id:
+                try:
+                    history.update_installation(install_id, InstallationStatus.SUCCESS)
+                except Exception as e:
+                    logger.warning(f"Failed to update installation record: {e}")
+            return 0
+
+        # Execute install commands
+        def progress_callback(current: int, total: int, step: InstallationStep) -> None:
+            status_emoji = "⏳"
+            if step.status == StepStatus.SUCCESS:
+                status_emoji = "✅"
+            elif step.status == StepStatus.FAILED:
+                status_emoji = "❌"
+            console.print(f"[{current}/{total}] {status_emoji} {step.description}")
+
+        coordinator = InstallationCoordinator(
+            commands=result.install_commands,
+            descriptions=[f"Install {package_name}" for _ in result.install_commands],
+            timeout=600,
+            stop_on_error=True,
+            progress_callback=progress_callback,
+        )
+
+        install_result = coordinator.execute()
+
+        if install_result.success:
+            self._print_success(f"{package_name} built and installed successfully!")
+            # Record successful installation
+            if install_id:
+                try:
+                    history.update_installation(install_id, InstallationStatus.SUCCESS)
+                    console.print(f"\n📝 Installation recorded (ID: {install_id})")
+                    console.print(f"   To rollback: cortex rollback {install_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to update installation record: {e}")
+            return 0
+        else:
+            self._print_error("Installation failed")
+            error_msg = install_result.error_message or "Installation failed"
+            if install_result.error_message:
+                console.print(f"Error: {error_msg}", style="red")
+            # Record failed installation
+            if install_id:
+                try:
+                    history.update_installation(
+                        install_id, InstallationStatus.FAILED, error_message=error_msg
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to update installation record: {e}")
+            return 1
+
     # --------------------------
 
 
@@ -2143,6 +2349,21 @@ def main():
         "--parallel",
         action="store_true",
         help="Enable parallel execution for multi-step installs",
+    )
+    install_parser.add_argument(
+        "--from-source",
+        action="store_true",
+        help=("Build and install from source code when binaries unavailable"),
+    )
+    install_parser.add_argument(
+        "--source-url",
+        type=str,
+        help="URL to source code (for --from-source)",
+    )
+    install_parser.add_argument(
+        "--pkg-version",
+        type=str,
+        help="Version to build (for --from-source)",
     )
 
     # Import command - import dependencies from package manager files
@@ -2510,6 +2731,9 @@ def main():
                 execute=args.execute,
                 dry_run=args.dry_run,
                 parallel=args.parallel,
+                from_source=getattr(args, "from_source", False),
+                source_url=getattr(args, "source_url", None),
+                version=getattr(args, "pkg_version", None),
             )
         elif args.command == "import":
             return cli.import_deps(args)
