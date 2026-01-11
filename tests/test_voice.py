@@ -7,6 +7,14 @@ import pytest
 # Skip all tests if voice dependencies are not installed
 np = pytest.importorskip("numpy", reason="numpy not installed (voice dependencies required)")
 
+from cortex.voice import (
+    MicrophoneNotFoundError,
+    ModelNotFoundError,
+    VoiceInputError,
+    VoiceInputHandler,
+    get_voice_handler,
+)
+
 
 class TestVoiceInputHandler:
     """Test suite for VoiceInputHandler class."""
@@ -28,8 +36,6 @@ class TestVoiceInputHandler:
     @pytest.fixture
     def handler(self, mock_dependencies):
         """Create a VoiceInputHandler instance with mocked dependencies."""
-        from cortex.voice import VoiceInputHandler
-
         return VoiceInputHandler(
             model_name="base.en",
             sample_rate=16000,
@@ -38,8 +44,6 @@ class TestVoiceInputHandler:
 
     def test_init_defaults(self, mock_dependencies):
         """Test VoiceInputHandler initialization with defaults."""
-        from cortex.voice import VoiceInputHandler
-
         handler = VoiceInputHandler()
         assert handler.model_name == "base.en"
         assert handler.sample_rate == 16000
@@ -49,8 +53,6 @@ class TestVoiceInputHandler:
 
     def test_init_custom_params(self, mock_dependencies):
         """Test VoiceInputHandler initialization with custom parameters."""
-        from cortex.voice import VoiceInputHandler
-
         handler = VoiceInputHandler(
             model_name="base.en",
             sample_rate=44100,
@@ -64,11 +66,23 @@ class TestVoiceInputHandler:
 
     def test_init_with_env_var(self, mock_dependencies, monkeypatch):
         """Test model name from environment variable."""
-        from cortex.voice import VoiceInputHandler
-
         monkeypatch.setenv("CORTEX_WHISPER_MODEL", "small.en")
         handler = VoiceInputHandler()
         assert handler.model_name == "small.en"
+
+    def test_init_hotkey_from_env_var(self, mock_dependencies, monkeypatch):
+        """Test hotkey configuration from environment variable."""
+        # Test default hotkey
+        handler = VoiceInputHandler()
+        assert handler.hotkey == "f9"
+
+        # Test custom hotkey from constructor
+        handler = VoiceInputHandler(hotkey="f10")
+        assert handler.hotkey == "f10"
+
+        # Test lowercase normalization
+        handler = VoiceInputHandler(hotkey="F11")
+        assert handler.hotkey == "f11"
 
     def test_ensure_dependencies_all_present(self, handler):
         """Test _ensure_dependencies when all deps are installed."""
@@ -219,22 +233,16 @@ class TestVoiceInputExceptions:
 
     def test_voice_input_error(self):
         """Test VoiceInputError exception."""
-        from cortex.voice import VoiceInputError
-
         with pytest.raises(VoiceInputError):
             raise VoiceInputError("Test error")
 
     def test_microphone_not_found_error(self):
         """Test MicrophoneNotFoundError exception."""
-        from cortex.voice import MicrophoneNotFoundError, VoiceInputError
-
         error = MicrophoneNotFoundError("No mic")
         assert isinstance(error, VoiceInputError)
 
     def test_model_not_found_error(self):
         """Test ModelNotFoundError exception."""
-        from cortex.voice import ModelNotFoundError, VoiceInputError
-
         error = ModelNotFoundError("Model missing")
         assert isinstance(error, VoiceInputError)
 
