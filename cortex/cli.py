@@ -1,7 +1,7 @@
 import argparse
 import logging
 import os
-import random
+import secrets
 import string
 import sys
 import time
@@ -302,7 +302,7 @@ class CortexCLI:
             )
 
             # Generate a unique session nonce and timestamp for cache-busting.
-            nonce = "".join(random.choices(string.ascii_letters + string.digits, k=12))
+            nonce = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
             timestamp = datetime.now().strftime("%H:%M:%S.%f")
 
             # Construct the architectural analysis prompt for the LLM.
