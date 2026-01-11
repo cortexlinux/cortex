@@ -74,8 +74,9 @@ class ConfigManager:
         Raises:
             PermissionError: If ownership or permissions cannot be secured
         """
-        # Cortex targets Linux. On non-POSIX systems (e.g., Windows), uid/gid ownership
-        # APIs like os.getuid/os.chown are unavailable, so skip strict enforcement.
+        # Cortex targets Linux. Ownership APIs are only available on POSIX.
+        # On Windows (and some restricted runtimes), os.getuid/os.getgid/os.chown aren't present,
+        # so we skip strict enforcement.
         if os.name != "posix" or not hasattr(os, "getuid") or not hasattr(os, "getgid"):
             return
 
@@ -328,7 +329,7 @@ class ConfigManager:
             package_sources = self.DEFAULT_SOURCES
 
         # Build configuration dictionary
-        config = {
+        config: dict[str, Any] = {
             "cortex_version": self.CORTEX_VERSION,
             "exported_at": datetime.now().isoformat(),
             "os": self._detect_os_version(),
@@ -459,6 +460,10 @@ class ConfigManager:
         current_version = current_pkg_map[key]
         if current_version == version:
             return "already_installed", pkg
+
+        # If the config doesn't specify a version, treat it as an upgrade/install request.
+        if not isinstance(version, str) or not version:
+            return "upgrade", {**pkg, "current_version": current_version}
 
         # Compare versions
         try:
@@ -807,6 +812,9 @@ class ConfigManager:
             True if successful, False otherwise
         """
         try:
+            if self.sandbox_executor is None:
+                return self._install_direct(name=name, version=version, source=source)
+
             if source == self.SOURCE_APT:
                 command = (
                     f"sudo apt-get install -y {name}={version}"
