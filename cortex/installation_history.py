@@ -23,6 +23,9 @@ from cortex.utils.db_pool import SQLiteConnectionPool, get_connection_pool
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Characters to strip from package names to avoid injection or parsing issues
+PACKAGE_NAME_STRIP_CHARS = "!@#$%^&*(){}[]|\\:;\"'<>,?/~`"
+
 
 class InstallationType(Enum):
     """Type of installation operation"""
@@ -130,6 +133,39 @@ class InstallationHistory:
                 """
                 )
 
+                # Create conflict resolutions table for learning
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS conflict_resolutions (
+                        id TEXT PRIMARY KEY,
+                        timestamp TEXT NOT NULL,
+                        package1 TEXT NOT NULL,
+                        package2 TEXT NOT NULL,
+                        conflict_type TEXT NOT NULL,
+                        strategy_type TEXT NOT NULL,
+                        success INTEGER NOT NULL,
+                        user_feedback TEXT,
+                        conflict_data TEXT,
+                        strategy_data TEXT
+                    )
+                """
+                )
+
+                # Create indices on conflict resolution table
+                cursor.execute(
+                    """
+                    CREATE INDEX IF NOT EXISTS idx_conflict_pkg
+                    ON conflict_resolutions(package1, package2)
+                """
+                )
+
+                cursor.execute(
+                    """
+                    CREATE INDEX IF NOT EXISTS idx_conflict_success
+                    ON conflict_resolutions(success)
+                """
+                )
+
                 conn.commit()
 
             logger.info(f"Database initialized at {self.db_path}")
@@ -215,15 +251,19 @@ class InstallationHistory:
 
         return snapshots
 
-    def _extract_packages_from_commands(self, commands: list[str]) -> list[str]:
-        """Extract package names from installation commands"""
-        packages = set()
+    def _iterate_package_tokens(self, commands: list[str]):
+        """Yield raw package tokens from commands (may include version specs).
 
+        This is a helper method that contains the common parsing logic shared
+        between _extract_packages_from_commands and _extract_packages_with_versions.
+        """
         # Patterns to match package names in commands
         patterns = [
             r"apt-get\s+(?:install|remove|purge)\s+(?:-y\s+)?(.+?)(?:\s*[|&<>]|$)",
             r"apt\s+(?:install|remove|purge)\s+(?:-y\s+)?(.+?)(?:\s*[|&<>]|$)",
             r"dpkg\s+-i\s+(.+?)(?:\s*[|&<>]|$)",
+            # pip/pip3 install commands
+            r"pip3?\s+install\s+(?:-[^\s]+\s+)*(.+?)(?:\s*[|&<>]|$)",
         ]
 
         for cmd in commands:
@@ -240,14 +280,56 @@ class InstallationHistory:
                         pkg = pkg.strip()
                         # Filter out flags and invalid package names
                         if pkg and not pkg.startswith("-") and len(pkg) > 1:
-                            # Remove version constraints (e.g., package=1.0.0)
-                            pkg = re.sub(r"[=:].*$", "", pkg)
-                            # Remove any trailing special characters
-                            pkg = re.sub(r"[^\w\.\-\+]+$", "", pkg)
-                            if pkg:
-                                packages.add(pkg)
+                            yield pkg
+
+    def _extract_packages_from_commands(self, commands: list[str]) -> list[str]:
+        """Extract package names from installation commands"""
+        packages = set()
+
+        for pkg in self._iterate_package_tokens(commands):
+            # Remove version constraints (e.g., package=1.0.0 or package==1.0.0)
+            # Note: Only match '=' for pip/apt constraints, not ':'
+            pkg = re.sub(r"=.*$", "", pkg)
+            # Remove any trailing special characters
+            # Use rstrip for efficiency instead of regex to avoid ReDoS
+            pkg = pkg.rstrip(PACKAGE_NAME_STRIP_CHARS)
+            if pkg:
+                packages.add(pkg)
 
         return sorted(packages)
+
+    def _extract_packages_with_versions(self, commands: list[str]) -> list[tuple[str, str | None]]:
+        """Extract package names with versions from installation commands.
+
+        Returns:
+            List of (package_name, version) tuples. Version may be None.
+        """
+        packages = []
+        seen = set()
+
+        for pkg in self._iterate_package_tokens(commands):
+            # Extract version if present (e.g., package=1.0.0, package==1.0.0, package===1.0.0)
+            # Use string split instead of regex to avoid ReDoS
+            # Note: lstrip("=") handles any number of leading '=' characters correctly
+            if "=" in pkg:
+                # Split on first '=' to get name, rest is version (may have leading '=')
+                name, version = pkg.split("=", 1)
+                # Strip any leading '=' characters from version (handles ==, ===, etc.)
+                version = version.lstrip("=").strip()
+                name = name.strip()
+            else:
+                name = pkg
+                version = None
+
+            # Remove any trailing special characters from name
+            # Use rstrip for efficiency instead of regex to avoid ReDoS
+            name = name.rstrip(PACKAGE_NAME_STRIP_CHARS)
+
+            if name and name not in seen:
+                seen.add(name)
+                packages.append((name, version))
+
+        return packages
 
     def _generate_id(self, packages: list[str]) -> str:
         """Generate unique ID for installation"""
@@ -630,6 +712,94 @@ class InstallationHistory:
         except Exception as e:
             logger.error(f"Failed to cleanup records: {e}")
             return 0
+
+    def record_conflict_resolution(
+        self,
+        package1: str,
+        package2: str,
+        conflict_type: str,
+        strategy_type: str,
+        success: bool,
+        user_feedback: str | None = None,
+        conflict_data: str | None = None,
+        strategy_data: str | None = None,
+    ) -> str:
+        """
+        Record a conflict resolution for learning.
+
+        Returns:
+            Resolution record ID
+        """
+        import uuid
+
+        record_id = str(uuid.uuid4())[:16]
+        timestamp = datetime.datetime.now().isoformat()
+
+        try:
+            with self._pool.get_connection() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute(
+                    """
+                    INSERT INTO conflict_resolutions
+                    (id, timestamp, package1, package2, conflict_type, strategy_type,
+                     success, user_feedback, conflict_data, strategy_data)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        record_id,
+                        timestamp,
+                        package1,
+                        package2,
+                        conflict_type,
+                        strategy_type,
+                        1 if success else 0,
+                        user_feedback or "",
+                        conflict_data or "",
+                        strategy_data or "",
+                    ),
+                )
+                conn.commit()
+                logger.info(f"Recorded conflict resolution: {record_id}")
+
+        except Exception as e:
+            logger.error(f"Failed to record conflict resolution: {e}")
+
+        return record_id
+
+    def get_conflict_resolution_success_rate(
+        self,
+        conflict_type: str,
+        strategy_type: str,
+    ) -> float:
+        """
+        Get historical success rate for a strategy on a conflict type.
+
+        Returns:
+            Success rate (0.0 to 1.0)
+        """
+        try:
+            with self._pool.get_connection() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) as total, SUM(success) as successful
+                    FROM conflict_resolutions
+                    WHERE conflict_type = ? AND strategy_type = ?
+                    """,
+                    (conflict_type, strategy_type),
+                )
+
+                result = cursor.fetchone()
+                if result and result[0] > 0:
+                    return result[1] / result[0]
+
+                return 0.5  # Default to neutral if no history
+
+        except Exception as e:
+            logger.warning(f"Failed to get success rate: {e}")
+            return 0.5
 
 
 # CLI Interface

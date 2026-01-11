@@ -93,8 +93,9 @@ class TestCortexCLI(unittest.TestCase):
         self.assertEqual(result, 0)
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-openai-key-123"}, clear=True)
+    @patch("cortex.cli.LLMRouter")
     @patch("cortex.cli.CommandInterpreter")
-    def test_install_dry_run(self, mock_interpreter_class):
+    def test_install_dry_run(self, mock_interpreter_class, _mock_llm_router):
         mock_interpreter = Mock()
         mock_interpreter.parse.return_value = ["apt update", "apt install docker"]
         mock_interpreter_class.return_value = mock_interpreter
@@ -105,8 +106,9 @@ class TestCortexCLI(unittest.TestCase):
         mock_interpreter.parse.assert_called_once_with("install docker")
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-openai-key-123"}, clear=True)
+    @patch("cortex.cli.LLMRouter")
     @patch("cortex.cli.CommandInterpreter")
-    def test_install_no_execute(self, mock_interpreter_class):
+    def test_install_no_execute(self, mock_interpreter_class, _mock_llm_router):
         mock_interpreter = Mock()
         mock_interpreter.parse.return_value = ["apt update", "apt install docker"]
         mock_interpreter_class.return_value = mock_interpreter
@@ -117,9 +119,12 @@ class TestCortexCLI(unittest.TestCase):
         mock_interpreter.parse.assert_called_once()
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-openai-key-123"}, clear=True)
+    @patch("cortex.cli.LLMRouter")
     @patch("cortex.cli.CommandInterpreter")
     @patch("cortex.cli.InstallationCoordinator")
-    def test_install_with_execute_success(self, mock_coordinator_class, mock_interpreter_class):
+    def test_install_with_execute_success(
+        self, mock_coordinator_class, mock_interpreter_class, _mock_llm_router
+    ):
         mock_interpreter = Mock()
         mock_interpreter.parse.return_value = ["echo test"]
         mock_interpreter_class.return_value = mock_interpreter
@@ -137,9 +142,12 @@ class TestCortexCLI(unittest.TestCase):
         mock_coordinator.execute.assert_called_once()
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-openai-key-123"}, clear=True)
+    @patch("cortex.cli.LLMRouter")
     @patch("cortex.cli.CommandInterpreter")
     @patch("cortex.cli.InstallationCoordinator")
-    def test_install_with_execute_failure(self, mock_coordinator_class, mock_interpreter_class):
+    def test_install_with_execute_failure(
+        self, mock_coordinator_class, mock_interpreter_class, _mock_llm_router
+    ):
         mock_interpreter = Mock()
         mock_interpreter.parse.return_value = ["invalid command"]
         mock_interpreter_class.return_value = mock_interpreter
@@ -157,8 +165,9 @@ class TestCortexCLI(unittest.TestCase):
         self.assertEqual(result, 1)
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-openai-key-123"}, clear=True)
+    @patch("cortex.cli.LLMRouter")
     @patch("cortex.cli.CommandInterpreter")
-    def test_install_no_commands_generated(self, mock_interpreter_class):
+    def test_install_no_commands_generated(self, mock_interpreter_class, _mock_llm_router):
         mock_interpreter = Mock()
         mock_interpreter.parse.return_value = []
         mock_interpreter_class.return_value = mock_interpreter
@@ -168,8 +177,9 @@ class TestCortexCLI(unittest.TestCase):
         self.assertEqual(result, 1)
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-openai-key-123"}, clear=True)
+    @patch("cortex.cli.LLMRouter")
     @patch("cortex.cli.CommandInterpreter")
-    def test_install_value_error(self, mock_interpreter_class):
+    def test_install_value_error(self, mock_interpreter_class, _mock_llm_router):
         mock_interpreter = Mock()
         mock_interpreter.parse.side_effect = ValueError("Invalid input")
         mock_interpreter_class.return_value = mock_interpreter
@@ -179,8 +189,9 @@ class TestCortexCLI(unittest.TestCase):
         self.assertEqual(result, 1)
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-openai-key-123"}, clear=True)
+    @patch("cortex.cli.LLMRouter")
     @patch("cortex.cli.CommandInterpreter")
-    def test_install_runtime_error(self, mock_interpreter_class):
+    def test_install_runtime_error(self, mock_interpreter_class, _mock_llm_router):
         mock_interpreter = Mock()
         mock_interpreter.parse.side_effect = RuntimeError("API failed")
         mock_interpreter_class.return_value = mock_interpreter
@@ -190,8 +201,9 @@ class TestCortexCLI(unittest.TestCase):
         self.assertEqual(result, 1)
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-openai-key-123"}, clear=True)
+    @patch("cortex.cli.LLMRouter")
     @patch("cortex.cli.CommandInterpreter")
-    def test_install_unexpected_error(self, mock_interpreter_class):
+    def test_install_unexpected_error(self, mock_interpreter_class, _mock_llm_router):
         mock_interpreter = Mock()
         mock_interpreter.parse.side_effect = Exception("Unexpected")
         mock_interpreter_class.return_value = mock_interpreter

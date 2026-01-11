@@ -10,6 +10,13 @@ from typing import TYPE_CHECKING, Any
 from cortex.api_key_detector import auto_detect_api_key, setup_api_key
 from cortex.ask import AskHandler
 from cortex.branding import VERSION, console, cx_header, cx_print, show_banner
+from cortex.conflict_predictor import (
+    ConflictPrediction,
+    ConflictPredictor,
+    ResolutionStrategy,
+    format_conflict_summary,
+    prompt_resolution_choice,
+)
 from cortex.coordinator import InstallationCoordinator, InstallationStep, StepStatus
 from cortex.demo import run_demo
 from cortex.dependency_importer import (
@@ -21,6 +28,7 @@ from cortex.dependency_importer import (
 from cortex.env_manager import EnvironmentManager, get_env_manager
 from cortex.installation_history import InstallationHistory, InstallationStatus, InstallationType
 from cortex.llm.interpreter import CommandInterpreter
+from cortex.llm_router import LLMRouter
 from cortex.network_config import NetworkConfig
 from cortex.notification_manager import NotificationManager
 from cortex.stack_manager import StackManager
@@ -693,6 +701,124 @@ class CortexCLI:
             # Extract packages from commands for tracking
             packages = history._extract_packages_from_commands(commands)
 
+            # Extract packages with versions for conflict prediction
+            packages_with_versions = history._extract_packages_with_versions(commands)
+
+            # ==================== CONFLICT PREDICTION ====================
+            # Predict conflicts before installation
+            # Store these for later use in recording resolution outcomes
+            predictor: ConflictPredictor | None = None
+            all_conflicts: list[ConflictPrediction] = []
+            chosen_strategy: ResolutionStrategy | None = None
+
+            if execute or dry_run:
+                try:
+                    self._print_status("🔍", "Checking for dependency conflicts...")
+
+                    # Suppress verbose logging during conflict prediction
+                    # Use WARNING level to still catch genuine errors while reducing noise
+                    logging.getLogger("cortex.conflict_predictor").setLevel(logging.WARNING)
+                    logging.getLogger("cortex.dependency_resolver").setLevel(logging.WARNING)
+                    logging.getLogger("cortex.llm_router").setLevel(logging.WARNING)
+
+                    # Initialize LLMRouter with appropriate API key based on provider
+                    # Note: LLMRouter supports Claude and Kimi K2 as backends
+                    if provider == "claude":
+                        llm_router = LLMRouter(claude_api_key=api_key)
+                    elif provider == "openai":
+                        # WARNING: "openai" provider currently maps to Kimi K2, NOT OpenAI.
+                        # Kimi K2 uses an OpenAI-compatible API format, so the user's API key
+                        # is passed to Kimi K2's endpoint (api.moonshot.ai).
+                        # Users expecting OpenAI models will get Kimi K2 instead.
+                        # Future: Add native openai_api_key support in LLMRouter for true OpenAI.
+                        llm_router = LLMRouter(kimi_api_key=api_key)
+                    else:
+                        # Ollama or other providers
+                        llm_router = LLMRouter()
+
+                    predictor = ConflictPredictor(llm_router=llm_router, history=history)
+
+                    # Predict conflicts AND get resolutions in single LLM call
+                    all_strategies: list[ResolutionStrategy] = []
+                    for package_name, version in packages_with_versions:
+                        conflicts, strategies = predictor.predict_conflicts_with_resolutions(
+                            package_name, version
+                        )
+                        all_conflicts.extend(conflicts)
+                        all_strategies.extend(strategies)
+
+                    # Display conflicts if found
+                    if all_conflicts:
+                        # Use strategies from combined call (already generated)
+                        strategies = all_strategies
+
+                        # Display formatted conflict summary (matches example UX)
+                        conflict_summary = format_conflict_summary(all_conflicts, strategies)
+                        print(conflict_summary)
+
+                        if strategies:
+                            # Prompt user for resolution choice
+                            chosen_strategy, choice_idx = prompt_resolution_choice(strategies)
+
+                            if chosen_strategy:
+                                # Modify commands based on chosen strategy
+                                if chosen_strategy.strategy_type.value == "venv":
+                                    # Venv strategy: run in bash subshell so activation persists
+                                    # Note: 'source' is bash-specific, so we use 'bash -c'
+                                    # The venv will be created and package installed in it
+                                    # Use 'set -e' to ensure failures are properly reported
+                                    import shlex
+
+                                    escaped_cmds = " && ".join(
+                                        (
+                                            shlex.quote(cmd)
+                                            if " " not in cmd
+                                            else cmd.replace("'", "'\\''")
+                                        )
+                                        for cmd in chosen_strategy.commands
+                                    )
+                                    venv_cmd = f"bash -c 'set -e && {escaped_cmds}'"
+                                    # Don't prepend to main commands - venv is isolated
+                                    # Just run the venv setup separately
+                                    commands = [venv_cmd]
+                                    cx_print(
+                                        "⚠️  Package will be installed in virtual environment. "
+                                        "Activate it manually with: source <pkg>_env/bin/activate",
+                                        "warning",
+                                    )
+                                else:
+                                    commands = chosen_strategy.commands + commands
+                                self._print_status(
+                                    "✅", f"Using strategy: {chosen_strategy.description}"
+                                )
+                            else:
+                                self._print_error("Installation cancelled by user")
+                                return 1
+                        else:
+                            self._print_status(
+                                "⚠️", "Conflicts detected but no automatic resolutions available"
+                            )
+                            if not dry_run:
+                                response = input("Proceed anyway? [y/N]: ").lower()
+                                if response != "y":
+                                    return 1
+                    else:
+                        self._print_status("✅", "No conflicts detected")
+
+                except Exception as e:
+                    self._debug(f"Conflict prediction failed (non-fatal): {e}")
+                    if self.verbose:
+                        import traceback
+
+                        traceback.print_exc()
+                    # Continue with installation even if conflict prediction fails
+                finally:
+                    # Re-enable logging
+                    logging.getLogger("cortex.conflict_predictor").setLevel(logging.INFO)
+                    logging.getLogger("cortex.dependency_resolver").setLevel(logging.INFO)
+                    logging.getLogger("cortex.llm_router").setLevel(logging.INFO)
+            # ==================== END CONFLICT PREDICTION ====================
+
             # Record installation start
             if execute or dry_run:
                 install_id = history.record_installation(
@@ -769,6 +895,20 @@ class CortexCLI:
                                 print(f"\n📝 Installation recorded (ID: {install_id})")
                                 print(f"   To rollback: cortex rollback {install_id}")
 
+                            # Record conflict resolution outcome for learning
+                            # Note: The user selects a single strategy that resolves all detected
+                            # conflicts (e.g., venv isolates all conflicts). Recording each
+                            # conflict-strategy pair helps learn which strategies work best
+                            # for specific conflict types.
+                            if predictor and chosen_strategy and all_conflicts:
+                                for conflict in all_conflicts:
+                                    predictor.record_resolution(
+                                        conflict=conflict,
+                                        chosen_strategy=chosen_strategy,
+                                        success=True,
+                                    )
+                                self._debug("Recorded successful conflict resolution for learning")
+
                             return 0
 
                         failed_tasks = [
@@ -782,6 +922,17 @@ class CortexCLI:
                                 InstallationStatus.FAILED,
                                 error_msg,
                             )
+
+                        # Record conflict resolution failure for learning
+                        if predictor and chosen_strategy and all_conflicts:
+                            for conflict in all_conflicts:
+                                predictor.record_resolution(
+                                    conflict=conflict,
+                                    chosen_strategy=chosen_strategy,
+                                    success=False,
+                                    user_feedback=error_msg,
+                                )
+                            self._debug("Recorded failed conflict resolution for learning")
 
                         self._print_error("Installation failed")
                         if error_msg:
@@ -830,6 +981,16 @@ class CortexCLI:
                         print(f"\n📝 Installation recorded (ID: {install_id})")
                         print(f"   To rollback: cortex rollback {install_id}")
 
+                    # Record conflict resolution outcome for learning
+                    if predictor and chosen_strategy and all_conflicts:
+                        for conflict in all_conflicts:
+                            predictor.record_resolution(
+                                conflict=conflict,
+                                chosen_strategy=chosen_strategy,
+                                success=True,
+                            )
+                        self._debug("Recorded successful conflict resolution for learning")
+
                     return 0
                 else:
                     # Record failed installation
@@ -838,6 +999,17 @@ class CortexCLI:
                         history.update_installation(
                             install_id, InstallationStatus.FAILED, error_msg
                         )
+
+                    # Record conflict resolution failure for learning
+                    if predictor and chosen_strategy and all_conflicts:
+                        for conflict in all_conflicts:
+                            predictor.record_resolution(
+                                conflict=conflict,
+                                chosen_strategy=chosen_strategy,
+                                success=False,
+                                user_feedback=result.error_message,
+                            )
+                        self._debug("Recorded failed conflict resolution for learning")
 
                     if result.failed_step is not None:
                         self._print_error(f"Installation failed at step {result.failed_step + 1}")
