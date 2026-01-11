@@ -222,3 +222,24 @@ def test_shell_pattern_redaction_robustness(temp_cortex_dir):
 
         # 3. Confirm that safe technical signals are preserved for AI context
         assert "ls -la" in patterns
+
+
+def test_save_role_slug_boundary_validation(temp_cortex_dir):
+    """Verify slugs must start and end with alphanumeric chars."""
+    env_path = temp_cortex_dir / ".env"
+    manager = RoleManager(env_path=env_path)
+
+    # Single character should be valid
+    manager.save_role("m")
+    assert manager.get_saved_role() == "m"
+
+    # Slugs ending with dash/underscore should be invalid
+    with pytest.raises(ValueError):
+        manager.save_role("dev-")
+
+    with pytest.raises(ValueError):
+        manager.save_role("dev_")
+
+    # Slugs starting with dash/underscore should be invalid
+    with pytest.raises(ValueError):
+        manager.save_role("-dev")

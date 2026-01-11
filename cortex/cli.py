@@ -280,11 +280,16 @@ class CortexCLI:
         manager = RoleManager()
         action = getattr(args, "role_action", None)
 
+        # Ensure a subcommand is provided to maintain a valid integer return state.
+        if not action:
+            self._print_error("Please specify a subcommand (detect/set)")
+            return 1
+
         if action == "detect":
-            # 1. SENSING LAYER (Includes Active Role & Installation History)
+            # Retrieve environmental facts including active persona and installation history.
             context = manager.get_system_context()
 
-            # Addressing 'Messy Formatting' by bulleting history (10 command limit)
+            # Format shell patterns into a bulleted list, limited to the 10 most recent entries.
             patterns = context.get("patterns", [])
             limited_patterns = patterns[-10:] if len(patterns) > 10 else patterns
             patterns_str = (
@@ -296,11 +301,11 @@ class CortexCLI:
                 "GPU Acceleration available" if context.get("has_gpu") else "Standard CPU only"
             )
 
-            # CACHE BUSTING
+            # Generate a unique session nonce and timestamp for cache-busting.
             nonce = "".join(random.choices(string.ascii_letters + string.digits, k=12))
             timestamp = datetime.now().strftime("%H:%M:%S.%f")
 
-            # NEW LOGIC PROMPT: Forces inference and cleans formatting
+            # Construct the architectural analysis prompt for the LLM.
             question = (
                 f"### SYSTEM ARCHITECT ANALYSIS [ID: {nonce}] [TIME: {timestamp}] ###\n"
                 f"ENVIRONMENTAL CONTEXT:\n"
@@ -321,7 +326,7 @@ class CortexCLI:
             cx_print("🧠 AI is sensing system context and activity patterns...", "thinking")
             exit_code = self.ask(question)
 
-            # OLD UI FOOTER
+            # Display standard installation instructions.
             console.print(
                 "\n[dim italic]💡 To install any recommended packages, simply run:[/dim italic]"
             )
@@ -334,18 +339,23 @@ class CortexCLI:
                 return 1
 
             role_slug = args.role_slug
-            manager.save_role(role_slug)
 
-            # OLD UI SUCCESS MESSAGE
+            # Persist the role slug to the environment config, catching validation errors.
+            try:
+                manager.save_role(role_slug)
+            except ValueError as e:
+                self._print_error(f"Invalid role slug: {str(e)}")
+                return 1
+
             cx_print(f"✓ Role set to: [bold cyan]{role_slug}[/bold cyan]", "success")
 
-            # 2. SYNC & CACHE BUSTING
+            # Refresh system context and generate a unique request ID for the advisory prompt.
             context = manager.get_system_context()
             req_id = f"{datetime.now().strftime('%H:%M:%S.%f')}-{uuid.uuid4().hex[:4]}"
 
             cx_print(f"🔍 Fetching tailored AI recommendations for {role_slug}...", "info")
 
-            # NEW LOGIC PROMPT: Strict Anchoring to Role Slug
+            # Construct the advisory prompt for role-specific package recommendations.
             rec_question = (
                 f"### ARCHITECTURAL ADVISORY [ID: {req_id}] ###\n"
                 f"NEW_TARGET_PERSONA: {role_slug}\n"
@@ -358,12 +368,15 @@ class CortexCLI:
 
             exit_code = self.ask(rec_question)
 
-            # OLD UI FOOTER
+            # Display upgrade instructions.
             console.print(
                 "\n[dim italic]💡 Ready to upgrade? Install any of these using:[/dim italic]"
             )
             console.print("[bold cyan]    cortex install <package_name>[/bold cyan]\n")
             return exit_code
+
+        # Safety fallback to ensure an integer return status.
+        return 1
 
     def demo(self):
         """

@@ -47,15 +47,16 @@ class RoleManager:
         """
         # Advanced regex patterns to detect sensitive data (API keys, exports, and curl headers)
         sensitive_patterns = [
-            r"(?i)api[-_]?key\s*[:=]\s*[^\s]+",  # Catch API_KEY=xxx or API-Key: xxx
-            r"(?i)token\s*[:=]\s*[^\s]+",  # Catch token=xxx or Token: xxx
-            r"(?i)password\s*[:=]\s*[^\s]+",  # Catch password=xxx
-            r"(?i)passwd\s*[:=]\s*[^\s]+",  # Catch passwd=xxx
-            r"(?i)Authorization:\s*[^\s]+",  # Catch HTTP Authorization headers
-            r"(?i)Bearer\s+[^\s]+",  # Catch Bearer authentication tokens
-            r"(?i)export\s+[^\s]+=[^\s]+",  # Catch environment variable exports
-            r"(?i)-H\s+['\"][^'\"]*auth[^'\"]*['\"]",  # Catch sensitive curl auth headers
-            r"(?i)X-Api-Key:\s*[^\s]+",  # Catch specific X-Api-Key headers (FastAPI)
+            r"(?i)api[-_]?key\s*[:=]\s*[^\s]+",
+            r"(?i)token\s*[:=]\s*[^\s]+",
+            r"(?i)password\s*[:=]\s*[^\s]+",
+            r"(?i)passwd\s*[:=]\s*[^\s]+",
+            r"(?i)Authorization:\s*[^\s]+",
+            r"(?i)Bearer\s+[^\s]+",
+            # Refined export pattern:
+            r"(?i)export\s+(?:[^\s]*(?:key|token|secret|password|passwd|credential|auth)[^\s]*)=[^\s]+",
+            r"(?i)-H\s+['\"][^'\"]*auth[^'\"]*['\"]",
+            r"(?i)X-Api-Key:\s*[^\s]+",
         ]
 
         try:
@@ -79,7 +80,7 @@ class RoleManager:
                 if not cmd.startswith("cortex role set")
             ]
 
-        except (OSError, PermissionError) as e:
+        except OSError as e:
             logger.warning("Access denied to sensing layer history: %s", e)
             return []
         except Exception as e:
