@@ -11,7 +11,6 @@ from pathlib import Path
 
 from rich import box
 from rich.panel import Panel
-from rich.status import Status
 from rich.table import Table
 
 from cortex.branding import console, cx_header
@@ -72,6 +71,19 @@ class SystemDoctor:
 
         # Run checks with spinner
         with console.status("[bold cyan][CX] Scanning system...[/bold cyan]", spinner="dots"):
+            # Python & Dependencies
+            self._print_section("Python & Dependencies")
+            self._check_python()
+            self._check_dependencies()
+
+            self._print_section("GPU & Acceleration")
+            self._check_gpu_driver()
+            self._check_cuda()
+
+            self._print_section("AI & Services")
+            self._check_ollama()
+            self._check_api_keys()
+
             # System Info (includes API provider and security features)
             self._print_section("System Configuration")
             self._check_api_keys()

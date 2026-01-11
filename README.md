@@ -64,6 +64,7 @@ cortex install "tools for video compression"
 | Feature | Description |
 |---------|-------------|
 | **Natural Language** | Describe what you need in plain English |
+| **Smart Uninstall** | Analyze impact before removal - see dependencies, services, and orphaned packages |
 | **Dry-Run Default** | Preview all commands before execution |
 | **Sandboxed Execution** | Commands run in Firejail isolation |
 | **Full Rollback** | Undo any installation with `cortex rollback` |
@@ -133,6 +134,10 @@ cortex install nginx --execute
 # Install with natural language
 cortex install "web server for static sites" --dry-run
 cortex install "image editing software like photoshop" --execute
+
+# Safely uninstall with impact analysis
+cortex remove nginx --dry-run
+cortex remove nginx --execute
 
 # View installation history
 cortex history
@@ -218,18 +223,19 @@ Cortex stores configuration in `~/.cortex/`:
 
 ```
 cortex/
-├── cortex/                 # Main package
-│   ├── cli.py              # Command-line interface
-│   ├── coordinator.py      # Installation orchestration
-│   ├── llm_router.py       # Multi-LLM routing
-│   ├── packages.py         # Package manager wrapper
-│   ├── hardware_detection.py
-│   ├── installation_history.py
-│   └── utils/              # Utility modules
-├── tests/                  # Test suite
-├── docs/                   # Documentation
-├── examples/               # Example scripts
-└── scripts/                # Utility scripts
+├── cortex/                        # Main package
+│   ├── cli.py                     # Command-line interface
+│   ├── coordinator.py             # Installation orchestration
+│   ├── llm_router.py              # Multi-LLM routing
+│   ├── packages.py                # Package manager wrapper
+│   ├── uninstall_impact.py        # Smart uninstall impact analysis
+│   ├── hardware_detection.py      # Hardware detection
+│   ├── installation_history.py    # Installation history tracking
+│   └── utils/                     # Utility modules
+├── tests/                         # Test suite (36+ tests)
+├── docs/                          # Documentation
+├── examples/                      # Example scripts
+└── scripts/                        # Utility scripts
 ```
 
 ---

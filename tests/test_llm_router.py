@@ -35,6 +35,29 @@ class TestRoutingLogic(unittest.TestCase):
         """Set up test router with mock API keys."""
         self.router = LLMRouter(claude_api_key="test-claude-key", kimi_api_key="test-kimi-key")
 
+    def test_default_claude_model_is_haiku(self):
+        """Test that default Claude model is Haiku (cost-effective)."""
+        router = LLMRouter(claude_api_key="test-claude-key", kimi_api_key="test-kimi-key")
+        self.assertEqual(router.claude_model, "claude-3-5-haiku-20241022")
+
+    def test_explicit_sonnet_model_selection(self):
+        """Test explicit Sonnet model selection."""
+        router = LLMRouter(
+            claude_api_key="test-claude-key",
+            kimi_api_key="test-kimi-key",
+            claude_model="sonnet",
+        )
+        self.assertEqual(router.claude_model, "claude-sonnet-4-20250514")
+
+    def test_explicit_haiku_model_selection(self):
+        """Test explicit Haiku model selection."""
+        router = LLMRouter(
+            claude_api_key="test-claude-key",
+            kimi_api_key="test-kimi-key",
+            claude_model="haiku",
+        )
+        self.assertEqual(router.claude_model, "claude-3-5-haiku-20241022")
+
     def test_user_chat_routes_to_claude(self):
         """User chat tasks should route to Claude."""
         decision = self.router.route_task(TaskType.USER_CHAT)

@@ -22,10 +22,23 @@ class TestCommandInterpreter(unittest.TestCase):
 
     @patch("anthropic.Anthropic")
     def test_initialization_claude(self, mock_anthropic):
+        # Default without CORTEX_USE_HAIKU (uses Sonnet)
+        os.environ.pop("CORTEX_USE_HAIKU", None)
         interpreter = CommandInterpreter(api_key=self.api_key, provider="claude")
         self.assertEqual(interpreter.provider, APIProvider.CLAUDE)
         self.assertEqual(interpreter.model, "claude-sonnet-4-20250514")
         mock_anthropic.assert_called_once_with(api_key=self.api_key)
+
+    @patch("anthropic.Anthropic")
+    def test_initialization_claude_haiku(self, mock_anthropic):
+        # Test with CORTEX_USE_HAIKU set to enable Haiku
+        os.environ["CORTEX_USE_HAIKU"] = "true"
+        interpreter = CommandInterpreter(api_key=self.api_key, provider="claude")
+        self.assertEqual(interpreter.provider, APIProvider.CLAUDE)
+        self.assertEqual(interpreter.model, "claude-3-5-haiku-20241022")
+        mock_anthropic.assert_called_once_with(api_key=self.api_key)
+        # Clean up
+        os.environ.pop("CORTEX_USE_HAIKU", None)
 
     @patch("openai.OpenAI")
     def test_initialization_custom_model(self, mock_openai):
