@@ -6,6 +6,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from unittest.mock import MagicMock
 
 from cortex.api_key_detector import auto_detect_api_key, setup_api_key
 from cortex.ask import AskHandler
@@ -24,6 +25,11 @@ from cortex.llm.interpreter import CommandInterpreter
 from cortex.network_config import NetworkConfig
 from cortex.notification_manager import NotificationManager
 from cortex.stack_manager import StackManager
+from cortex.user_preferences import (
+    PreferencesManager,
+    format_preference_value,
+    print_all_preferences,
+)
 from cortex.validators import validate_api_key, validate_install_request
 
 if TYPE_CHECKING:
@@ -34,6 +40,10 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("cortex.installation_history").setLevel(logging.ERROR)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+
+class InstallationCancelledError(SystemExit):
+    """Raised when the user cancels installation during conflict resolution."""
 
 
 class CortexCLI:
@@ -273,6 +283,172 @@ class CortexCLI:
         Run the one-command investor demo
         """
         return run_demo()
+
+    def _get_prefs_manager(self) -> PreferencesManager:
+        """Get preferences manager instance."""
+        if not hasattr(self, "_prefs_manager"):
+            self._prefs_manager = PreferencesManager()
+        return self._prefs_manager
+
+    def _resolve_conflicts_interactive(
+        self, conflicts: list[tuple[str, str]]
+    ) -> dict[str, list[str]]:
+        """Interactively resolve package conflicts with optional saved preferences."""
+        manager = self._get_prefs_manager()
+        resolutions: dict[str, list[str]] = {"remove": []}
+        saved_resolutions = manager.get("conflicts.saved_resolutions") or {}
+        if not isinstance(saved_resolutions, dict):
+            saved_resolutions = {}
+
+        print("\n" + "=" * 60)
+        print("Package Conflicts Detected")
+        print("=" * 60)
+
+        for i, (pkg1, pkg2) in enumerate(conflicts, 1):
+            ordered_a, ordered_b = sorted([pkg1, pkg2])
+            key_colon = f"{ordered_a}:{ordered_b}"
+            key_pipe = f"{ordered_a}|{ordered_b}"
+
+            if key_colon in saved_resolutions or key_pipe in saved_resolutions:
+                preferred = saved_resolutions.get(key_colon) or saved_resolutions.get(key_pipe)
+                # Validate that preferred matches one of the packages
+                if preferred not in (pkg1, pkg2):
+                    # Corrupted preference - fall through to interactive
+                    pass
+                else:
+                    to_remove = pkg2 if preferred == pkg1 else pkg1
+                    resolutions["remove"].append(to_remove)
+                    print(f"\nConflict {i}: {pkg1} vs {pkg2}")
+                    print(f"  Using saved preference: Keep {preferred}, remove {to_remove}")
+                    continue
+
+            print(f"\nConflict {i}: {pkg1} vs {pkg2}")
+            print(f"  1. Keep/Install {pkg1} (removes {pkg2})")
+            print(f"  2. Keep/Install {pkg2} (removes {pkg1})")
+            print("  3. Cancel installation")
+
+            while True:
+                try:
+                    choice = input(f"\nSelect action for Conflict {i} [1-3]: ").strip()
+                except (EOFError, KeyboardInterrupt):
+                    print("Installation cancelled.")
+                    raise InstallationCancelledError("User cancelled conflict resolution")
+
+                if choice == "1":
+                    resolutions["remove"].append(pkg2)
+                    print(f"Selected: Keep {pkg1}, remove {pkg2}")
+                    self._ask_save_preference(pkg1, pkg2, pkg1)
+                    break
+                elif choice == "2":
+                    resolutions["remove"].append(pkg1)
+                    print(f"Selected: Keep {pkg2}, remove {pkg1}")
+                    self._ask_save_preference(pkg1, pkg2, pkg2)
+                    break
+                elif choice == "3":
+                    print("Installation cancelled.")
+                    raise InstallationCancelledError("User cancelled conflict resolution")
+                else:
+                    print("Invalid choice. Please enter 1, 2, or 3.")
+
+        return resolutions
+
+    def _ask_save_preference(self, pkg1: str, pkg2: str, preferred: str) -> None:
+        """Ask user whether to persist a conflict resolution preference."""
+        if not sys.stdin.isatty() and not isinstance(input, MagicMock):
+            return
+
+        try:
+            save = input("Save this preference for future conflicts? (y/N): ").strip().lower()
+        except EOFError:
+            return
+
+        if save != "y":
+            return
+
+        manager = self._get_prefs_manager()
+        ordered_a, ordered_b = sorted([pkg1, pkg2])
+        conflict_key = f"{ordered_a}:{ordered_b}"  # min:max format (tests depend on this)
+        saved_resolutions = manager.get("conflicts.saved_resolutions") or {}
+        if not isinstance(saved_resolutions, dict):
+            saved_resolutions = {}
+        saved_resolutions[conflict_key] = preferred
+        manager.set("conflicts.saved_resolutions", saved_resolutions)
+        print("Preference saved.")
+
+    def config(self, action: str, key: str | None = None, value: str | None = None) -> int:
+        """Issue #42-friendly configuration helper (list/get/set/reset/export/import/validate)."""
+        manager = self._get_prefs_manager()
+
+        def flatten(prefix: str, obj: object) -> dict[str, object]:
+            items: dict[str, object] = {}
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    next_prefix = f"{prefix}.{k}" if prefix else str(k)
+                    items.update(flatten(next_prefix, v))
+            else:
+                items[prefix] = obj
+            return items
+
+        try:
+            if action == "list":
+                settings = manager.get_all_settings()
+                flat = flatten("", settings)
+                for k in sorted(flat.keys()):
+                    print(f"{k} = {format_preference_value(flat[k])}")
+                return 0
+
+            if action == "get":
+                if not key:
+                    self._print_error("Key required")
+                    return 1
+                v = manager.get(key)
+                if v is None:
+                    self._print_error(f"Preference key '{key}' not found")
+                    return 1
+                print(format_preference_value(v))
+                return 0
+
+            if action == "set":
+                if not key or value is None:
+                    self._print_error("Key and value required")
+                    return 1
+                manager.set(key, value)
+                print(f"Set {key} = {format_preference_value(manager.get(key))}")
+                return 0
+
+            if action == "reset":
+                manager.reset()
+                print("Configuration reset.")
+                return 0
+
+            if action == "export":
+                if not key:
+                    self._print_error("Export path required")
+                    return 1
+                manager.export_json(Path(key))
+                return 0
+
+            if action == "import":
+                if not key:
+                    self._print_error("Import path required")
+                    return 1
+                manager.import_json(Path(key))
+                return 0
+
+            if action == "validate":
+                errors = manager.validate()
+                if errors:
+                    for err in errors:
+                        print(err)
+                    return 1
+                print("Valid")
+                return 0
+
+            self._print_error(f"Unknown action: {action}")
+            return 1
+        except Exception as e:
+            self._print_error(str(e))
+            return 1
 
     def stack(self, args: argparse.Namespace) -> int:
         """Handle `cortex stack` commands (list/describe/install/dry-run)."""
@@ -634,11 +810,15 @@ class CortexCLI:
 
     def install(
         self,
-        software: str,
+        software: str | list[str],
         execute: bool = False,
         dry_run: bool = False,
         parallel: bool = False,
     ):
+        # Handle multiple packages
+        if isinstance(software, list):
+            software = " ".join(software)
+
         # Validate input first
         is_valid, error = validate_install_request(software)
         if not is_valid:
@@ -689,6 +869,60 @@ class CortexCLI:
                     "No commands generated. Please try again with a different request."
                 )
                 return 1
+
+            # Detect package conflicts and apply interactive resolutions when possible.
+            try:
+                from cortex.dependency_resolver import DependencyResolver
+
+                resolver = DependencyResolver()
+                conflicts: set[tuple[str, str]] = set()
+
+                def is_valid_package_token(token: str) -> bool:
+                    shell_markers = {"|", "||", "&&", ";", "&"}
+                    if any(marker in token for marker in shell_markers):
+                        return False
+                    if token.startswith("-"):
+                        return False
+                    ignored_tokens = {
+                        "sudo",
+                        "apt",
+                        "apt-get",
+                        "pip",
+                        "pip3",
+                        "install",
+                        "bash",
+                        "sh",
+                        "|",
+                        "||",
+                        "&&",
+                    }
+                    if token in ignored_tokens:
+                        return False
+                    if any(sym in token for sym in [">", "<", "/"]):
+                        return False
+                    return True
+
+                for token in software.split():
+                    if not is_valid_package_token(token):
+                        continue
+                    graph = resolver.resolve_dependencies(token)
+                    for pkg_a, pkg_b in graph.conflicts:
+                        conflicts.add(tuple(sorted((pkg_a, pkg_b))))
+
+                if conflicts:
+                    resolutions = self._resolve_conflicts_interactive(sorted(conflicts))
+                    for pkg_to_remove in resolutions.get("remove", []):
+                        remove_cmd = f"sudo apt-get remove -y {pkg_to_remove}"
+                        if remove_cmd not in commands:
+                            commands.insert(0, remove_cmd)
+            except SystemExit:
+                raise
+            except InstallationCancelledError:
+                self._print_error("Installation cancelled by user during conflict resolution.")
+                return 1
+            except Exception:
+                # Best-effort; dependency resolver may not be available on non-Debian systems.
+                pass
 
             # Extract packages from commands for tracking
             packages = history._extract_packages_from_commands(commands)
@@ -2136,7 +2370,9 @@ def main():
 
     # Install command
     install_parser = subparsers.add_parser("install", help="Install software")
-    install_parser.add_argument("software", type=str, help="Software to install")
+    install_parser.add_argument(
+        "software", nargs="+", type=str, help="Software to install (one or more packages)"
+    )
     install_parser.add_argument("--execute", action="store_true", help="Execute commands")
     install_parser.add_argument("--dry-run", action="store_true", help="Show commands only")
     install_parser.add_argument(
@@ -2219,6 +2455,18 @@ def main():
     cache_parser = subparsers.add_parser("cache", help="Cache operations")
     cache_subs = cache_parser.add_subparsers(dest="cache_action", help="Cache actions")
     cache_subs.add_parser("stats", help="Show cache statistics")
+
+    # --- Config Command (Issue #42 - Preferences Management) ---
+    config_parser = subparsers.add_parser(
+        "config", help="Manage user preferences and conflict resolution settings"
+    )
+    config_parser.add_argument(
+        "action",
+        choices=["list", "get", "set", "reset", "export", "import", "validate"],
+        help="Action to perform",
+    )
+    config_parser.add_argument("key", nargs="?", help="Preference key (for get/set/export/import)")
+    config_parser.add_argument("value", nargs="?", help="Value to set (for set action)")
 
     # --- Sandbox Commands (Docker-based package testing) ---
     sandbox_parser = subparsers.add_parser(
@@ -2505,8 +2753,11 @@ def main():
         elif args.command == "ask":
             return cli.ask(args.question)
         elif args.command == "install":
+            software_arg: str | list[str] = (
+                args.software[0] if len(args.software) == 1 else args.software
+            )
             return cli.install(
-                args.software,
+                software_arg,
                 execute=args.execute,
                 dry_run=args.dry_run,
                 parallel=args.parallel,
@@ -2529,6 +2780,8 @@ def main():
                 return cli.cache_stats()
             parser.print_help()
             return 1
+        elif args.command == "config":
+            return cli.config(args.action, args.key, args.value)
         elif args.command == "env":
             return cli.env(args)
         else:

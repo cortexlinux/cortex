@@ -91,8 +91,7 @@ pytestmark = [
 def check_ollama_installed():
     """Check if Ollama is installed."""
     print("1. Checking Ollama installation...")
-    result = subprocess.run(["which", "ollama"], capture_output=True)
-    if result.returncode == 0:
+    if is_ollama_installed():
         print("   ✓ Ollama is installed")
         return True
     else:

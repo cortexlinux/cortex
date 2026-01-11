@@ -397,13 +397,30 @@ class APIKeyDetector:
         Returns:
             List of (source, env_vars) tuples
         """
-        return [
+        home = Path.home()
+        locations: list[tuple[str | Path, list[str]]] = [
             ("environment", ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]),
-            (Path.home() / CORTEX_DIR / CORTEX_ENV_FILE, ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]),
-            (Path.home() / ".config" / "anthropic" / "credentials.json", ["ANTHROPIC_API_KEY"]),
-            (Path.home() / ".config" / "openai" / "credentials.json", ["OPENAI_API_KEY"]),
-            (Path.cwd() / ".env", ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]),
+            (home / CORTEX_DIR / CORTEX_ENV_FILE, ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]),
+            (home / ".config" / "anthropic" / "credentials.json", ["ANTHROPIC_API_KEY"]),
+            (home / ".config" / "openai" / "credentials.json", ["OPENAI_API_KEY"]),
         ]
+
+        # Only consult the working-directory .env when a valid home directory exists; this
+        # prevents accidental pickup of repository .env files when HOME is mocked or missing.
+        allow_cwd_env = os.environ.get("CORTEX_DISABLE_CWD_DOTENV", "").lower() not in (
+            "1",
+            "true",
+        )
+
+        try:
+            cwd_under_home = Path.cwd().is_relative_to(home)
+        except ValueError:
+            cwd_under_home = False
+
+        if home.exists() and allow_cwd_env and cwd_under_home:
+            locations.append((Path.cwd() / ".env", ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]))
+
+        return locations
 
     def _extract_key_from_file(self, file_path: Path, env_var: str) -> str | None:
         """
