@@ -7,7 +7,6 @@ Provides a unified interface for managing packages across multiple formats:
 - Snap (Canonical's universal packages)
 - Flatpak (cross-distribution application packages)
 
-Addresses issue #450: Snap/Flatpak confusion and transparency.
 """
 
 import json
