@@ -21,7 +21,6 @@ from cortex.tutor.tools.deterministic.lesson_loader import LessonLoaderTool
 from cortex.tutor.tools.deterministic.progress_tracker import ProgressTrackerTool
 from cortex.tutor.tools.agentic.lesson_generator import LessonGeneratorTool
 from cortex.tutor.tools.agentic.qa_handler import QAHandlerTool
-from cortex.tutor.tools.agentic.examples_provider import ExamplesProviderTool
 
 
 # ==================== Node Functions ====================

@@ -41,7 +41,7 @@ class Config(BaseModel):
         default=Path.home() / ".cortex", description="Directory for storing tutor data"
     )
     debug: bool = Field(default=False, description="Enable debug mode for verbose logging")
-    db_path: Path = Field(default=None, description="Path to SQLite database")
+    db_path: Optional[Path] = Field(default=None, description="Path to SQLite database")
 
     def model_post_init(self, __context) -> None:
         """Initialize computed fields after model creation."""

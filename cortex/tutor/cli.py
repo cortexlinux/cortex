@@ -29,6 +29,9 @@ from cortex.tutor.tools.deterministic.validators import validate_package_name
 from cortex.tutor.config import Config
 from cortex.tutor.memory.sqlite_store import SQLiteStore
 
+# Default number of topics per package for progress tracking
+DEFAULT_TUTOR_TOPICS = 5
+
 
 def create_parser() -> argparse.ArgumentParser:
     """
@@ -130,7 +133,7 @@ def cmd_teach(package: str, verbose: bool = False, fresh: bool = False) -> int:
         from cortex.tutor.agents.tutor_agent import InteractiveTutor
 
         # Start interactive tutor
-        interactive = InteractiveTutor(package)
+        interactive = InteractiveTutor(package, force_fresh=fresh)
         interactive.start()
         return 0
 
@@ -259,7 +262,7 @@ def cmd_progress(package: Optional[str] = None, verbose: bool = False) -> int:
             if stats:
                 print_progress_summary(
                     stats.get("completed", 0),
-                    stats.get("total", 0) or 5,
+                    stats.get("total", 0) or DEFAULT_TUTOR_TOPICS,
                     package,
                 )
                 console.print(f"[dim]Average score: {stats.get('avg_score', 0):.0%}[/dim]")

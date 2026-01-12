@@ -3,7 +3,7 @@
 > **Interactive package education system powered by Claude AI**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Test Coverage](https://img.shields.io/badge/coverage-87%25-brightgreen.svg)](https://github.com/cortexlinux/cortex)
+[![Test Coverage](https://img.shields.io/badge/coverage-85.6%25-brightgreen.svg)](https://github.com/cortexlinux/cortex)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)](https://opensource.org/licenses/Apache-2.0)
 
 ---
@@ -750,7 +750,7 @@ pytest cortex/tutor/tests/test_tutor_agent.py -v
 
 ### Test Coverage
 
-Current coverage: **87%** (266 tests)
+Current coverage: **85.6%** (266 tests)
 
 | Module | Coverage |
 |--------|----------|

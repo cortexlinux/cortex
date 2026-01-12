@@ -292,13 +292,53 @@ class TestConvenienceFunctions:
 
     def test_get_learning_progress(self, temp_db):
         """Test get_learning_progress function."""
-        # Note: Uses global config, may need adjustment for isolated testing
-        pass
+        from unittest.mock import patch, Mock
+
+        # Mock the global config to use temp_db
+        mock_config = Mock()
+        mock_config.get_db_path.return_value = temp_db
+
+        with patch("cortex.tutor.tools.deterministic.progress_tracker.get_config", return_value=mock_config):
+            # First mark a topic completed
+            result = mark_topic_completed("docker", "basics", 0.85)
+            assert result is True
+
+            # Now get the progress
+            progress = get_learning_progress("docker", "basics")
+            assert progress is not None
+            assert progress["completed"] is True
+            assert progress["score"] == 0.85
 
     def test_mark_topic_completed(self, temp_db):
         """Test mark_topic_completed function."""
-        pass
+        from unittest.mock import patch, Mock
+
+        mock_config = Mock()
+        mock_config.get_db_path.return_value = temp_db
+
+        with patch("cortex.tutor.tools.deterministic.progress_tracker.get_config", return_value=mock_config):
+            result = mark_topic_completed("git", "branching", 0.9)
+            assert result is True
+
+            # Verify it was actually saved
+            progress = get_learning_progress("git", "branching")
+            assert progress is not None
+            assert progress["completed"] is True
 
     def test_get_package_stats(self, temp_db):
         """Test get_package_stats function."""
-        pass
+        from unittest.mock import patch, Mock
+
+        mock_config = Mock()
+        mock_config.get_db_path.return_value = temp_db
+
+        with patch("cortex.tutor.tools.deterministic.progress_tracker.get_config", return_value=mock_config):
+            # Mark some topics
+            mark_topic_completed("nginx", "basics", 0.9)
+            mark_topic_completed("nginx", "config", 0.7)
+
+            # Get stats
+            stats = get_package_stats("nginx")
+            assert stats["total"] == 2
+            assert stats["completed"] == 2
+            assert stats["avg_score"] == 0.8  # (0.9 + 0.7) / 2

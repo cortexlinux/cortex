@@ -16,6 +16,9 @@ from cortex.tutor.tools.deterministic.validators import (
 from cortex.tutor.contracts.lesson_context import LessonContext
 from cortex.tutor.branding import tutor_print, console
 
+# Default number of topics per package for progress tracking
+DEFAULT_TUTOR_TOPICS = 5
+
 
 class TutorAgent:
     """
@@ -245,14 +248,16 @@ class InteractiveTutor:
     Provides a menu-driven interface for learning packages.
     """
 
-    def __init__(self, package_name: str) -> None:
+    def __init__(self, package_name: str, force_fresh: bool = False) -> None:
         """
         Initialize interactive tutor for a package.
 
         Args:
             package_name: Package to learn.
+            force_fresh: Skip cache and generate fresh content.
         """
         self.package_name = package_name
+        self.force_fresh = force_fresh
         self.agent = TutorAgent(verbose=False)
         self.lesson: Optional[Dict[str, Any]] = None
         self.current_step = 0
@@ -271,7 +276,7 @@ class InteractiveTutor:
 
         # Load lesson
         tutor_print(f"Loading lesson for {self.package_name}...", "tutor")
-        result = self.agent.teach(self.package_name)
+        result = self.agent.teach(self.package_name, force_fresh=self.force_fresh)
 
         if not result.get("validation_passed"):
             tutor_print("Failed to load lesson. Please try again.", "error")
@@ -440,7 +445,7 @@ class InteractiveTutor:
             stats = result.get("stats", {})
             print_progress_summary(
                 stats.get("completed", 0),
-                stats.get("total", 0) or 5,  # Default topics
+                stats.get("total", 0) or DEFAULT_TUTOR_TOPICS,
                 self.package_name,
             )
         else:

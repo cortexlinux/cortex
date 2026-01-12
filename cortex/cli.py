@@ -1063,7 +1063,7 @@ class CortexCLI:
         if package:
             print_banner()
             fresh = getattr(args, "fresh", False)
-            return cmd_teach(package, verbose=self.verbose, force_fresh=fresh)
+            return cmd_teach(package, verbose=self.verbose, fresh=fresh)
 
         # No arguments - show help
         cx_print("Usage: cortex tutor <package> [options]", "info")

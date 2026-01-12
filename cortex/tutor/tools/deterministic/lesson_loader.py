@@ -133,13 +133,21 @@ class LessonLoaderTool(BaseTool):
         Clear cached lessons.
 
         Args:
-            package_name: Specific package to clear, or None for all.
+            package_name: Specific package to mark as expired (makes it
+                unretrievable via get_cached_lesson). If None, removes
+                only already-expired entries from the database.
 
         Returns:
-            Number of entries cleared.
+            int: For specific package - 1 if marked as expired, 0 on error.
+                 For None - number of expired entries actually deleted.
+
+        Note:
+            When package_name is provided, this marks the entry as expired
+            by calling cache_lesson with ttl_hours=0, rather than deleting it.
+            The entry persists until clear_expired_cache() runs.
         """
         if package_name:
-            # Clear specific package by caching empty with 0 TTL
+            # Mark specific package as expired by caching empty with 0 TTL
             try:
                 self.store.cache_lesson(package_name, {}, ttl_hours=0)
                 return 1

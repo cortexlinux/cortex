@@ -359,12 +359,13 @@ class SQLiteStore:
             return self._create_default_profile()
 
     def _create_default_profile(self) -> StudentProfile:
-        """Create and return a default student profile."""
+        """Create and return a default student profile (thread-safe)."""
         profile = StudentProfile()
         with self._get_connection() as conn:
+            # Use INSERT OR IGNORE to handle race conditions
             conn.execute(
                 """
-                INSERT INTO student_profile (mastered_concepts, weak_concepts, learning_style)
+                INSERT OR IGNORE INTO student_profile (mastered_concepts, weak_concepts, learning_style)
                 VALUES (?, ?, ?)
                 """,
                 (
@@ -374,6 +375,17 @@ class SQLiteStore:
                 ),
             )
             conn.commit()
+            # Re-fetch to return actual profile (in case another thread created it)
+            cursor = conn.execute("SELECT * FROM student_profile LIMIT 1")
+            row = cursor.fetchone()
+            if row:
+                return StudentProfile(
+                    id=row["id"],
+                    mastered_concepts=json.loads(row["mastered_concepts"]),
+                    weak_concepts=json.loads(row["weak_concepts"]),
+                    learning_style=row["learning_style"],
+                    last_session=row["last_session"],
+                )
         return profile
 
     def update_student_profile(self, profile: StudentProfile) -> None:
