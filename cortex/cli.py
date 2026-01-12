@@ -20,7 +20,6 @@ from cortex.dependency_importer import (
     DependencyImporter,
     PackageEcosystem,
     ParseResult,
-    format_package_list,
 )
 from cortex.env_manager import EnvironmentManager, get_env_manager
 from cortex.i18n import (
@@ -575,7 +574,6 @@ class CortexCLI:
             DockerSandbox,
             SandboxAlreadyExistsError,
             SandboxNotFoundError,
-            SandboxTestStatus,
         )
 
         action = getattr(args, "sandbox_action", None)
@@ -925,6 +923,167 @@ class CortexCLI:
                     # Log cleanup errors but don't raise
                     logging.debug("Error during voice handler cleanup: %s", e)
 
+    def _normalize_software_name(self, software: str) -> str:
+        """Normalize software name and handle special cases."""
+        normalized = " ".join(software.split()).lower()
+        if normalized == "pytorch-cpu jupyter numpy pandas":
+            return (
+                "pip3 install torch torchvision torchaudio "
+                "--index-url https://download.pytorch.org/whl/cpu && "
+                "pip3 install jupyter numpy pandas"
+            )
+        return software
+
+    def _record_history_error(
+        self,
+        history: InstallationHistory,
+        install_id: str | None,
+        error: str,
+    ) -> None:
+        """Record installation error to history."""
+        if install_id:
+            history.update_installation(install_id, InstallationStatus.FAILED, error)
+
+    def _handle_parallel_execution(
+        self,
+        commands: list[str],
+        software: str,
+        install_id: str | None,
+        history: InstallationHistory,
+    ) -> int:
+        """Handle parallel installation execution."""
+        import asyncio
+
+        from cortex.install_parallel import run_parallel_install
+
+        def parallel_log_callback(message: str, level: str = "info"):
+            if level == "success":
+                cx_print(f"  ✅ {message}", "success")
+            elif level == "error":
+                cx_print(f"  ❌ {message}", "error")
+            else:
+                cx_print(f"  ℹ {message}", "info")
+
+        try:
+            success, parallel_tasks = asyncio.run(
+                run_parallel_install(
+                    commands=commands,
+                    descriptions=[f"Step {i + 1}" for i in range(len(commands))],
+                    timeout=300,
+                    stop_on_error=True,
+                    log_callback=parallel_log_callback,
+                )
+            )
+
+            if success:
+                total_duration = self._calculate_duration(parallel_tasks)
+                self._print_success(f"{software} installed successfully!")
+                print(f"\nCompleted in {total_duration:.2f} seconds (parallel mode)")
+                if install_id:
+                    history.update_installation(install_id, InstallationStatus.SUCCESS)
+                    print(f"\n📝 Installation recorded (ID: {install_id})")
+                    print(f"   To rollback: cortex rollback {install_id}")
+                return 0
+
+            error_msg = self._get_parallel_error_msg(parallel_tasks)
+            self._record_history_error(history, install_id, error_msg)
+            self._print_error("Installation failed")
+            if error_msg:
+                print(f"  Error: {error_msg}", file=sys.stderr)
+            if install_id:
+                print(f"\n📝 Installation recorded (ID: {install_id})")
+                print(f"   View details: cortex history {install_id}")
+            return 1
+
+        except (ValueError, OSError) as e:
+            self._record_history_error(history, install_id, str(e))
+            self._print_error(f"Parallel execution failed: {str(e)}")
+            return 1
+        except Exception as e:
+            self._record_history_error(history, install_id, str(e))
+            self._print_error(f"Unexpected parallel execution error: {str(e)}")
+            if self.verbose:
+                import traceback
+
+                traceback.print_exc()
+            return 1
+
+    def _calculate_duration(self, parallel_tasks: list) -> float:
+        """Calculate total duration from parallel tasks."""
+        if not parallel_tasks:
+            return 0.0
+
+        max_end = max(
+            (t.end_time for t in parallel_tasks if t.end_time is not None),
+            default=None,
+        )
+        min_start = min(
+            (t.start_time for t in parallel_tasks if t.start_time is not None),
+            default=None,
+        )
+        if max_end is not None and min_start is not None:
+            return max_end - min_start
+        return 0.0
+
+    def _get_parallel_error_msg(self, parallel_tasks: list) -> str:
+        """Extract error message from failed parallel tasks."""
+        failed_tasks = [
+            t for t in parallel_tasks if getattr(t.status, "value", "") == "failed"
+        ]
+        return failed_tasks[0].error if failed_tasks else "Installation failed"
+
+    def _handle_sequential_execution(
+        self,
+        commands: list[str],
+        software: str,
+        install_id: str | None,
+        history: InstallationHistory,
+    ) -> int:
+        """Handle sequential installation execution."""
+
+        def progress_callback(current, total, step):
+            status_emoji = "⏳"
+            if step.status == StepStatus.SUCCESS:
+                status_emoji = "✅"
+            elif step.status == StepStatus.FAILED:
+                status_emoji = "❌"
+            print(f"\n[{current}/{total}] {status_emoji} {step.description}")
+            print(f"  Command: {step.command}")
+
+        coordinator = InstallationCoordinator(
+            commands=commands,
+            descriptions=[f"Step {i + 1}" for i in range(len(commands))],
+            timeout=300,
+            stop_on_error=True,
+            progress_callback=progress_callback,
+        )
+
+        result = coordinator.execute()
+
+        if result.success:
+            self._print_success(f"{software} installed successfully!")
+            print(f"\nCompleted in {result.total_duration:.2f} seconds")
+            if install_id:
+                history.update_installation(install_id, InstallationStatus.SUCCESS)
+                print(f"\n📝 Installation recorded (ID: {install_id})")
+                print(f"   To rollback: cortex rollback {install_id}")
+            return 0
+
+        # Handle failure
+        self._record_history_error(
+            history, install_id, result.error_message or "Installation failed"
+        )
+        if result.failed_step is not None:
+            self._print_error(f"Installation failed at step {result.failed_step + 1}")
+        else:
+            self._print_error("Installation failed")
+        if result.error_message:
+            print(f"  Error: {result.error_message}", file=sys.stderr)
+        if install_id:
+            print(f"\n📝 Installation recorded (ID: {install_id})")
+            print(f"   View details: cortex history {install_id}")
+        return 1
+
     def install(
         self,
         software: str,
@@ -932,12 +1091,12 @@ class CortexCLI:
         dry_run: bool = False,
         parallel: bool = False,
         json_output: bool = False,
-    ):
+    ) -> int:
+        """Install software using the LLM-powered package manager."""
         # Initialize installation history
         history = InstallationHistory()
         install_id = None
         start_time = datetime.now()
-
         # Validate input first
         is_valid, error = validate_install_request(software)
         if not is_valid:
@@ -947,18 +1106,7 @@ class CortexCLI:
                 self._print_error(error)
             return 1
 
-        # Special-case the ml-cpu stack:
-        # The LLM sometimes generates outdated torch==1.8.1+cpu installs
-        # which fail on modern Python. For the "pytorch-cpu jupyter numpy pandas"
-        # combo, force a supported CPU-only PyTorch recipe instead.
-        normalized = " ".join(software.split()).lower()
-
-        if normalized == "pytorch-cpu jupyter numpy pandas":
-            software = (
-                "pip3 install torch torchvision torchaudio "
-                "--index-url https://download.pytorch.org/whl/cpu && "
-                "pip3 install jupyter numpy pandas"
-            )
+        software = self._normalize_software_name(software)
 
         api_key = self._get_api_key()
         if not api_key:
@@ -995,7 +1143,6 @@ class CortexCLI:
 
             if not json_output:
                 self._print_status("📦", "Planning installation...")
-
                 for _ in range(10):
                     self._animate_spinner("Analyzing system requirements...")
                 self._clear_line()
@@ -1182,8 +1329,17 @@ class CortexCLI:
             else:
                 print("\nTo execute these commands, run with --execute flag")
                 print("Example: cortex install docker --execute")
+                return 0
 
-            return 0
+            print("\nExecuting commands...")
+            if parallel:
+                return self._handle_parallel_execution(
+                    commands, software, install_id, history
+                )
+
+            return self._handle_sequential_execution(
+                commands, software, install_id, history
+            )
 
         except ValueError as e:
             if install_id:
@@ -1213,8 +1369,7 @@ class CortexCLI:
                 self._print_error(f"System error: {str(e)}")
             return 1
         except Exception as e:
-            if install_id:
-                history.update_installation(install_id, InstallationStatus.FAILED, str(e))
+            self._record_history_error(history, install_id, str(e))
             self._print_error(f"Unexpected error: {str(e)}")
             if self.verbose:
                 import traceback
@@ -3032,7 +3187,6 @@ class CortexCLI:
         }
 
         ecosystem_name = ecosystem_names.get(result.ecosystem, "Unknown")
-        filename = os.path.basename(result.file_path)
 
         cx_print(f"\n📋 Found {result.prod_count} {ecosystem_name} packages", "info")
 
@@ -3461,7 +3615,7 @@ def main():
     )
 
     # Demo command
-    demo_parser = subparsers.add_parser("demo", help="See Cortex in action")
+    subparsers.add_parser("demo", help="See Cortex in action")
 
     # Dashboard command
     dashboard_parser = subparsers.add_parser(
@@ -3469,7 +3623,7 @@ def main():
     )
 
     # Wizard command
-    wizard_parser = subparsers.add_parser("wizard", help="Configure API key interactively")
+    subparsers.add_parser("wizard", help="Configure API key interactively")
 
     # Status command (includes comprehensive health checks)
     subparsers.add_parser("status", help="Show comprehensive system status and health checks")
