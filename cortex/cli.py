@@ -415,7 +415,7 @@ class CortexCLI:
         return 0
 
     def _handle_stack_real_install(self, stack: dict[str, Any], packages: list[str]) -> int:
-        """Install all packages in the stack."""
+        """Install all packages in the stack"""
         cx_print(f"\n🚀 Installing stack: {stack['name']}\n", "success")
 
         # Batch into a single LLM request
@@ -426,10 +426,7 @@ class CortexCLI:
             self._print_error(f"Failed to install stack '{stack['name']}'")
             return 1
 
-        self._print_success(
-            f"\n✅ Stack '{
-                stack['name']}' installed successfully!"
-        )
+        self._print_success(f"\n✅ Stack '{stack['name']}' installed successfully!")
         console.print(f"Installed {len(packages)} packages")
         return 0
 
@@ -819,10 +816,7 @@ class CortexCLI:
 
                         if success:
                             self._print_success(f"{software} installed successfully!")
-                            print(
-                                f"\nCompleted in {
-                                    total_duration:.2f} seconds (parallel mode)"
-                            )
+                            print(f"\nCompleted in {total_duration:.2f} seconds (parallel mode)")
 
                             if install_id:
                                 history.update_installation(install_id, InstallationStatus.SUCCESS)
@@ -893,10 +887,7 @@ class CortexCLI:
 
                 if result.success:
                     self._print_success(f"{software} installed successfully!")
-                    print(
-                        f"\nCompleted in {
-                            result.total_duration:.2f} seconds"
-                    )
+                    print(f"\nCompleted in {result.total_duration:.2f} seconds")
 
                     # Record successful installation
                     if install_id:
@@ -1035,12 +1026,7 @@ class CortexCLI:
                     return 0
 
                 print(
-                    f"\n{
-                        'ID':<18} {
-                        'Date':<20} {
-                        'Operation':<12} {
-                        'Packages':<30} {
-                        'Status':<15}"
+                    f"\n{'ID':<18} {'Date':<20} {'Operation':<12} {'Packages':<30} {'Status':<15}"
                 )
                 print("=" * 100)
 
@@ -1524,7 +1510,7 @@ class CortexCLI:
             # Sort by number of sources (most definitions first)
             sorted_vars = sorted(audit.variables.items(), key=lambda x: len(x[1]), reverse=True)
             for var_name, sources in sorted_vars[:20]:  # Limit to top 20
-                console.print(f"\n  [cyan]{var_name}[/cyan] ({len(sources)} definition(s))")
+                console.print(f"\n [cyan]{var_name}[/cyan] ({len(sources)} definition(s))")
                 for src in sources:
                     console.print(f"    [dim]{src.file}:{src.line_number}[/dim]")
                     # Show truncated value
@@ -2002,11 +1988,7 @@ class CortexCLI:
         ecosystem_name = ecosystem_names.get(result.ecosystem, "Unknown")
         filename = os.path.basename(result.file_path)
 
-        cx_print(
-            f"\n📋 Found {
-                result.prod_count} {ecosystem_name} packages",
-            "info",
-        )
+        cx_print(f"\n📋 Found {result.prod_count} {ecosystem_name} packages", "info")
 
         if result.packages:
             console.print("\n[bold]Packages:[/bold]")
@@ -2101,10 +2083,7 @@ class CortexCLI:
             return 0
         else:
             if result.failed_step is not None:
-                self._print_error(
-                    f"\nInstallation failed at step {
-                        result.failed_step + 1}"
-                )
+                self._print_error(f"\nInstallation failed at step {result.failed_step + 1}")
             else:
                 self._print_error("\nInstallation failed")
             if result.error_message:
