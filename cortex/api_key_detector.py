@@ -123,7 +123,23 @@ class APIKeyDetector:
         return result or (False, None, None, None)
 
     def _check_environment_api_keys(self) -> tuple[bool, str, str, str] | None:
-        """Check for API keys in environment variables."""
+        """Check for API keys in environment variables.
+
+        If CORTEX_PROVIDER is explicitly set, prefer that provider's key first.
+        """
+        explicit_provider = os.environ.get("CORTEX_PROVIDER", "").lower()
+
+        # If user explicitly set CORTEX_PROVIDER to a specific provider, check that key first
+        if explicit_provider in ["openai", "claude"]:
+            target_env_var = (
+                "OPENAI_API_KEY" if explicit_provider == "openai" else "ANTHROPIC_API_KEY"
+            )
+            target_provider = "openai" if explicit_provider == "openai" else "anthropic"
+            value = os.environ.get(target_env_var)
+            if value:
+                return (True, value, target_provider, "environment")
+
+        # Otherwise check all providers in default order
         for env_var, provider in ENV_VAR_PROVIDERS.items():
             value = os.environ.get(env_var)
             if value:
@@ -141,7 +157,25 @@ class APIKeyDetector:
 
             env_mgr = get_env_manager()
 
-            # Check for API keys in encrypted storage
+            # If CORTEX_PROVIDER is explicitly set, check that provider's key first
+            explicit_provider = os.environ.get("CORTEX_PROVIDER", "").lower()
+            if explicit_provider in ["openai", "claude"]:
+                target_env_var = (
+                    "OPENAI_API_KEY" if explicit_provider == "openai" else "ANTHROPIC_API_KEY"
+                )
+                target_provider = "openai" if explicit_provider == "openai" else "anthropic"
+                value = env_mgr.get_variable(app="cortex", key=target_env_var, decrypt=True)
+                if value:
+                    os.environ[target_env_var] = value
+                    logger.debug(f"Loaded {target_env_var} from encrypted storage")
+                    return (
+                        True,
+                        value,
+                        target_provider,
+                        "encrypted storage (~/.cortex/environments/)",
+                    )
+
+            # Check for API keys in encrypted storage (default order)
             for env_var, provider in ENV_VAR_PROVIDERS.items():
                 value = env_mgr.get_variable(app="cortex", key=env_var, decrypt=True)
                 if value:
