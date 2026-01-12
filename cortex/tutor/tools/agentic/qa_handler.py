@@ -412,10 +412,12 @@ class ConversationHandler:
 
         # Update history
         if result.get("success"):
+            answer_obj = result.get("answer")
+            answer_text = answer_obj.get("answer", "") if isinstance(answer_obj, dict) else ""
             self.history.append(
                 {
                     "question": question,
-                    "answer": result["answer"].get("answer", ""),
+                    "answer": answer_text,
                 }
             )
             # Bound history to prevent unbounded growth
