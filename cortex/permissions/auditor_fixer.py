@@ -82,74 +82,97 @@ class PermissionAuditor:
         path = Path(directory_path).resolve()
         result = {"world_writable": [], "dangerous": [], "suggestions": [], "docker_context": False}
 
+        if not self._validate_path(path):
+            return result
+
+        self._check_docker_context(path, result)
+        self._scan_files_for_permissions(path, result)
+
+        return result
+
+    def _validate_path(self, path: Path) -> bool:
+        """Validate that path exists and is a directory."""
         if not path.exists():
             logger.warning(f"Directory does not exist: {path}")
-            return result
+            return False
 
         if not path.is_dir():
             logger.warning(f"Path is not a directory: {path}")
-            return result
+            return False
 
-        # Check for Docker context
+        return True
+
+    def _check_docker_context(self, path: Path, result: dict) -> None:
+        """Check for Docker context in current and parent directories."""
         docker_files = ["docker-compose.yml", "docker-compose.yaml", "Dockerfile", ".dockerignore"]
+
+        # Check current directory
+        if self._has_docker_files(path, docker_files, result):
+            return
+
+        # Check parent directories
+        for parent in path.parents:
+            if self._has_docker_files(parent, docker_files, result):
+                return
+
+    def _has_docker_files(self, directory: Path, docker_files: list, result: dict) -> bool:
+        """Check if directory contains any Docker files."""
         for docker_file in docker_files:
-            docker_path = path / docker_file
+            docker_path = directory / docker_file
             if docker_path.exists():
                 result["docker_context"] = True
                 if self.verbose:
                     logger.debug(f"Docker context detected: {docker_file}")
-                break
+                return True
+        return False
 
-        # Also check parent directories for Docker files
-        if not result["docker_context"]:
-            for parent in path.parents:
-                for docker_file in docker_files:
-                    if (parent / docker_file).exists():
-                        result["docker_context"] = True
-                        if self.verbose:
-                            logger.debug(
-                                f"Docker context detected in parent: {parent}/{docker_file}"
-                            )
-                        break
-                if result["docker_context"]:
-                    break
-
+    def _scan_files_for_permissions(self, path: Path, result: dict) -> None:
+        """Scan all files in directory for dangerous permissions."""
         try:
             for item in path.rglob("*"):
                 if item.is_file():
-                    try:
-                        mode = item.stat().st_mode
-                        file_path = str(item)
-
-                        # Check for world-writable (others have write permission)
-                        if mode & stat.S_IWOTH:  # Others write (0o002)
-                            result["world_writable"].append(file_path)
-                            suggestion = self.suggest_fix(
-                                file_path, current_perms=oct(mode & 0o777)
-                            )
-                            result["suggestions"].append(suggestion)
-
-                        # Check for 777 permissions
-                        if (mode & 0o777) == 0o777:
-                            if file_path not in result["dangerous"]:
-                                result["dangerous"].append(file_path)
-                                if file_path not in [
-                                    s.split()[2].strip("'")
-                                    for s in result["suggestions"]
-                                    if len(s.split()) > 2
-                                ]:
-                                    suggestion = self.suggest_fix(file_path, current_perms="777")
-                                    result["suggestions"].append(suggestion)
-
-                    except (OSError, PermissionError) as e:
-                        if self.verbose:
-                            logger.debug(f"Cannot access {item}: {e}")
-                        continue
-
-        except (OSError, PermissionError) as e:
+                    self._check_file_permissions(item, result)
+        except OSError as e:
             logger.error(f"Error scanning directory {path}: {e}")
 
-        return result
+    def _check_file_permissions(self, file_path: Path, result: dict) -> None:
+        """Check permissions for a single file."""
+        try:
+            mode = file_path.stat().st_mode
+            str_path = str(file_path)
+
+            self._check_world_writable(mode, str_path, result)
+            self._check_dangerous_777(mode, str_path, result)
+
+        except OSError as e:
+            if self.verbose:
+                logger.debug(f"Cannot access {file_path}: {e}")
+
+    def _check_world_writable(self, mode: int, file_path: str, result: dict) -> None:
+        """Check if file is world-writable."""
+        if mode & stat.S_IWOTH:
+            result["world_writable"].append(file_path)
+            suggestion = self.suggest_fix(file_path, current_perms=oct(mode & 0o777))
+            result["suggestions"].append(suggestion)
+
+    def _check_dangerous_777(self, mode: int, file_path: str, result: dict) -> None:
+        """Check if file has 777 permissions."""
+        if (mode & 0o777) == 0o777 and file_path not in result["dangerous"]:
+            result["dangerous"].append(file_path)
+
+            # Check if suggestion already exists
+            if not self._has_suggestion_for_file(file_path, result["suggestions"]):
+                suggestion = self.suggest_fix(file_path, current_perms="777")
+                result["suggestions"].append(suggestion)
+
+    def _has_suggestion_for_file(self, file_path: str, suggestions: list) -> bool:
+        """Check if suggestion already exists for the file."""
+        for suggestion in suggestions:
+            if len(suggestion.split()) > 2:
+                suggested_file = suggestion.split()[2].strip("'")
+                if suggested_file == file_path:
+                    return True
+        return False
 
     def suggest_fix(self, filepath: str | Path, current_perms: str | None = None) -> str:
         """
@@ -186,7 +209,7 @@ class PermissionAuditor:
 
             return f"chmod {suggested} '{filepath}'  # Fix: {current} → {suggested} ({reason})"
 
-        except (OSError, PermissionError) as e:
+        except OSError as e:
             return f"# Cannot access {filepath}: {e}"
 
     def fix_permissions(
@@ -223,7 +246,7 @@ class PermissionAuditor:
                 verified = oct(path.stat().st_mode & 0o777)[-3:]
                 return f"Changed {filepath}: {current_perms} → {verified}"
 
-        except (OSError, PermissionError) as e:
+        except OSError as e:
             return f"Error changing permissions on {filepath}: {e}"
 
     def scan_and_fix(self, path=".", apply_fixes=False, dry_run=None):
@@ -236,114 +259,151 @@ class PermissionAuditor:
             apply_fixes: If True, apply fixes
             dry_run: If None, use self.dry_run; if True/False, override
         """
-        # Use instance dry_run if not specified
-        if dry_run is None:
-            dry_run = self.dry_run
-
-        # Scan for issues
+        dry_run = self.dry_run if dry_run is None else dry_run
         scan_result = self.scan_directory(path)
 
-        issues_found = len(scan_result["world_writable"]) + len(scan_result["dangerous"])
+        report_lines = self._generate_report_header(path, scan_result)
+        self._add_docker_context(report_lines, scan_result)
+        self._add_issue_sections(report_lines, scan_result)
+        self._add_fix_suggestions(report_lines, scan_result)
 
-        # Generate report
-        report_lines = []
-        report_lines.append("🔒 PERMISSION AUDIT REPORT")
-        report_lines.append("=" * 50)
-        report_lines.append(f"Scanned: {path}")
-        report_lines.append(f"Total issues found: {issues_found}")
-        report_lines.append("")
-
-        if self.docker_handler and scan_result.get("docker_context"):
-            report_lines.append("🐳 DOCKER/CONTAINER CONTEXT:")
-            report_lines.append(
-                f"   Running in: {self.docker_handler.container_info['container_runtime'] or 'Native'}"
-            )
-            report_lines.append(
-                f"   Host UID/GID: {self.docker_handler.container_info['host_uid']}/{self.docker_handler.container_info['host_gid']}"
-            )
-            report_lines.append("")
-
-        # World-writable files
-        if scan_result["world_writable"]:
-            report_lines.append("🚨 WORLD-WRITABLE FILES (others can write):")
-            for file in scan_result["world_writable"][:10]:  # Show first 10
-                report_lines.append(f"  • {file}")
-            if len(scan_result["world_writable"]) > 10:
-                report_lines.append(f"  ... and {len(scan_result['world_writable']) - 10} more")
-            report_lines.append("")
-
-        # Dangerous permissions (777)
-        if scan_result["dangerous"]:
-            report_lines.append("⚠️ DANGEROUS PERMISSIONS (777):")
-            for file in scan_result["dangerous"][:10]:
-                report_lines.append(f"  • {file}")
-            if len(scan_result["dangerous"]) > 10:
-                report_lines.append(f"  ... and {len(scan_result['dangerous']) - 10} more")
-            report_lines.append("")
-
-        # Suggestions
-        if scan_result["suggestions"]:
-            report_lines.append("💡 SUGGESTED FIXES:")
-            for suggestion in scan_result["suggestions"][:5]:
-                report_lines.append(f"  {suggestion}")
-            if len(scan_result["suggestions"]) > 5:
-                report_lines.append(f"  ... and {len(scan_result['suggestions']) - 5} more")
-
-        # ONE COMMAND TO FIX ALL - добавлено с правильным отступом
-        if scan_result["suggestions"]:
-            report_lines.append("💡 ONE COMMAND TO FIX ALL ISSUES:")
-            fix_commands = []
-            for file_path in scan_result["world_writable"][:10]:  # Limit to 10 files
-                suggestion = self.suggest_fix(file_path)
-                if "chmod" in suggestion:
-                    parts = suggestion.split()
-                    if len(parts) >= 3:
-                        fix_commands.append(f"{parts[0]} {parts[1]} '{parts[2]}'")
-
-            if fix_commands:
-                report_lines.append("   Run this command:")
-                report_lines.append("   " + " && ".join(fix_commands[:3]))  # Max 3 commands
-                if len(fix_commands) > 3:
-                    report_lines.append(f"   ... and {len(fix_commands) - 3} more commands")
-            report_lines.append("")
-
-        # Apply fixes if requested
+        fixed_count = 0
         if apply_fixes:
-            report_lines.append("")
-            report_lines.append("🛠️ APPLYING FIXES:")
-            fixed_count = 0
+            fixed_count = self._apply_fixes(report_lines, scan_result, dry_run)
 
-            for file_path in scan_result["world_writable"]:
-                try:
-                    # Get suggested fix
-                    suggestion = self.suggest_fix(file_path)
-                    if "chmod" in suggestion:
-                        # Extract permissions from suggestion
-                        parts = suggestion.split()
-                        if len(parts) >= 2:
-                            cmd = parts[0]
-                            perms = parts[1]
-                            if cmd == "chmod" and perms.isdigit():
-                                if not dry_run:
-                                    # Actually fix the file
-                                    fix_result = self.fix_permissions(
-                                        file_path, permissions=perms, dry_run=False
-                                    )
-                                    report_lines.append(f"  ✓ Fixed: {file_path}")
-                                    fixed_count += 1
-                                else:
-                                    report_lines.append(f"  [DRY RUN] Would fix: {file_path}")
-                except Exception as e:
-                    report_lines.append(f"  ✗ Error fixing {file_path}: {e}")
-
-            report_lines.append(f"Fixed {fixed_count} files")
-
-        report_lines.append("")
-        report_lines.append("✅ Scan complete")
+        self._finalize_report(report_lines, fixed_count)
 
         return {
             "report": "\n".join(report_lines),
-            "issues_found": issues_found,
+            "issues_found": len(scan_result["world_writable"]) + len(scan_result["dangerous"]),
             "scan_result": scan_result,
             "fixed": apply_fixes and not dry_run,
         }
+
+    def _generate_report_header(self, path: str, scan_result: dict) -> list:
+        """Generate the header section of the report."""
+        issues_found = len(scan_result["world_writable"]) + len(scan_result["dangerous"])
+
+        return [
+            "🔒 PERMISSION AUDIT REPORT",
+            "=" * 50,
+            f"Scanned: {path}",
+            f"Total issues found: {issues_found}",
+            "",
+        ]
+
+    def _add_docker_context(self, report_lines: list, scan_result: dict) -> None:
+        """Add Docker context information to report if applicable."""
+        if self.docker_handler and scan_result.get("docker_context"):
+            report_lines.extend(
+                [
+                    "🐳 DOCKER/CONTAINER CONTEXT:",
+                    f"   Running in: {self.docker_handler.container_info['container_runtime'] or 'Native'}",
+                    f"   Host UID/GID: {self.docker_handler.container_info['host_uid']}/{self.docker_handler.container_info['host_gid']}",
+                    "",
+                ]
+            )
+
+    def _add_issue_sections(self, report_lines: list, scan_result: dict) -> None:
+        """Add world-writable and dangerous files sections to report."""
+        self._add_issue_section(
+            report_lines,
+            scan_result["world_writable"],
+            "🚨 WORLD-WRITABLE FILES (others can write):",
+            "world_writable",
+        )
+
+        self._add_issue_section(
+            report_lines, scan_result["dangerous"], "⚠️ DANGEROUS PERMISSIONS (777):", "dangerous"
+        )
+
+    def _add_issue_section(self, report_lines: list, files: list, title: str, key: str) -> None:
+        """Add a single issue section to the report."""
+        if files:
+            report_lines.append(title)
+            for file in files[:10]:
+                report_lines.append(f"  • {file}")
+
+            if len(files) > 10:
+                report_lines.append(f"  ... and {len(files) - 10} more")
+
+            report_lines.append("")
+
+    def _add_fix_suggestions(self, report_lines: list, scan_result: dict) -> None:
+        """Add suggestions and fix commands to report."""
+        if scan_result["suggestions"]:
+            self._add_suggestions_list(report_lines, scan_result["suggestions"])
+            self._add_one_command_fix(report_lines, scan_result["world_writable"])
+
+    def _add_suggestions_list(self, report_lines: list, suggestions: list) -> None:
+        """Add the list of suggested fixes."""
+        report_lines.append("💡 SUGGESTED FIXES:")
+        for suggestion in suggestions[:5]:
+            report_lines.append(f"  {suggestion}")
+
+        if len(suggestions) > 5:
+            report_lines.append(f"  ... and {len(suggestions) - 5} more")
+
+    def _add_one_command_fix(self, report_lines: list, world_writable_files: list) -> None:
+        """Add the 'one command to fix all' section."""
+        report_lines.append("💡 ONE COMMAND TO FIX ALL ISSUES:")
+        fix_commands = []
+
+        for file_path in world_writable_files[:10]:
+            suggestion = self.suggest_fix(file_path)
+            if "chmod" in suggestion:
+                parts = suggestion.split()
+                if len(parts) >= 3:
+                    fix_commands.append(f"{parts[0]} {parts[1]} '{parts[2]}'")
+
+        if fix_commands:
+            report_lines.append("   Run this command:")
+            report_lines.append("   " + " && ".join(fix_commands[:3]))
+
+            if len(fix_commands) > 3:
+                report_lines.append(f"   ... and {len(fix_commands) - 3} more commands")
+
+        report_lines.append("")
+
+    def _apply_fixes(self, report_lines: list, scan_result: dict, dry_run: bool) -> int:
+        """Apply fixes to files and update report."""
+        report_lines.extend(["", "🛠️ APPLYING FIXES:"])
+        fixed_count = 0
+
+        for file_path in scan_result["world_writable"]:
+            try:
+                fixed = self._apply_single_fix(report_lines, file_path, dry_run)
+                if fixed:
+                    fixed_count += 1
+            except Exception as e:
+                report_lines.append(f"  ✗ Error fixing {file_path}: {e}")
+
+        report_lines.append(f"Fixed {fixed_count} files")
+        return fixed_count
+
+    def _apply_single_fix(self, report_lines: list, file_path: str, dry_run: bool) -> bool:
+        """Apply fix to a single file."""
+        suggestion = self.suggest_fix(file_path)
+
+        if "chmod" not in suggestion:
+            return False
+
+        parts = suggestion.split()
+        if len(parts) < 2:
+            return False
+
+        cmd, perms = parts[0], parts[1]
+        if cmd != "chmod" or not perms.isdigit():
+            return False
+
+        if not dry_run:
+            self.fix_permissions(file_path, permissions=perms, dry_run=False)
+            report_lines.append(f"  ✓ Fixed: {file_path}")
+        else:
+            report_lines.append(f"  [DRY RUN] Would fix: {file_path}")
+
+        return True
+
+    def _finalize_report(self, report_lines: list, fixed_count: int) -> None:
+        """Add final lines to the report."""
+        report_lines.extend(["", "✅ Scan complete"])

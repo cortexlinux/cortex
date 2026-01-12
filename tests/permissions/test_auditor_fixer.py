@@ -18,7 +18,6 @@ class TestPermissionAuditorBasic:
     def test_auditor_creation(self):
         """Test that PermissionAuditor can be instantiated"""
         auditor = PermissionAuditor()
-        assert auditor is not None
         assert hasattr(auditor, "scan_directory")
         assert hasattr(auditor, "suggest_fix")
 
@@ -81,7 +80,6 @@ class TestDockerHandler:
         from cortex.permissions.docker_handler import DockerPermissionHandler
 
         handler = DockerPermissionHandler()
-        assert handler is not None
         assert hasattr(handler, "container_info")
 
     def test_detect_container_environment(self):
@@ -227,7 +225,6 @@ def test_fix_permissions_actual(tmp_path):
     assert "644" in result
 
     # Verify permissions actually changed
-
     mode = test_file.stat().st_mode & 0o777
     assert oct(mode) != "0o777"
 
@@ -308,9 +305,7 @@ def test_docker_handler_module():
 
 def test_cli_integration():
     """Test that CLI can import and use PermissionManager"""
-
     manager = PermissionManager(verbose=False)
-    assert manager is not None
 
     # Basic functionality check
     assert hasattr(manager, "scan_directory")
@@ -323,7 +318,6 @@ def test_permission_fixer_alias():
     from cortex.permissions import PermissionFixer
 
     fixer = PermissionFixer()
-    assert fixer is not None
     assert hasattr(fixer, "scan_directory")
 
 

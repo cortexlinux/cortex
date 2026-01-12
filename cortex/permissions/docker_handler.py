@@ -55,7 +55,7 @@ class DockerPermissionHandler:
                 info["is_container"] = True
                 info["container_runtime"] = "podman"
 
-        except (OSError, PermissionError) as e:
+        except OSError as e:
             if self.verbose:
                 print(f"Container detection warning: {e}")
 
@@ -264,58 +264,106 @@ class DockerPermissionHandler:
             }
 
             # Plan actions
-            actions_needed = []
-
-            if current_uid != target_uid or current_gid != target_gid:
-                actions_needed.append(
-                    {
-                        "type": "chown",
-                        "command": f"chown {target_uid}:{target_gid} '{path_obj}'",
-                        "description": f"Change ownership from {current_uid}:{current_gid} to {target_uid}:{target_gid}",
-                    }
-                )
-
-            # Check permissions
-            current_mode = stat_info.st_mode & 0o777
-            if current_mode == 0o777 or current_mode == 0o666:
-                recommended = 0o755 if path_obj.is_dir() else 0o644
-                actions_needed.append(
-                    {
-                        "type": "chmod",
-                        "command": f"chmod {oct(recommended)[2:]} '{path_obj}'",
-                        "description": f"Fix dangerous permissions {oct(current_mode)} -> {oct(recommended)}",
-                    }
-                )
+            actions_needed = self._plan_actions(
+                current_uid, current_gid, target_uid, target_gid, stat_info.st_mode, path_obj
+            )
 
             result["actions"] = actions_needed
 
             # Execute if not dry-run
-            if not dry_run and actions_needed:
-                all_succeeded = True
-                for action in actions_needed:
-                    try:
-                        if action["type"] == "chown":
-                            os.chown(path_obj, target_uid, target_gid)
-                        elif action["type"] == "chmod":
-                            recommended = int(action["command"].split()[1], 8)
-                            os.chmod(path_obj, recommended)
-
-                    except (PermissionError, OSError) as e:
-                        result["warnings"].append(f"Failed {action['type']}: {e}")
-                        all_succeeded = False
-
-                result["success"] = all_succeeded
-
-            elif dry_run and actions_needed:
-                result["success"] = True  # Dry-run considered successful
-
-            else:
-                result["success"] = True  # No actions needed
+            result["success"] = self._execute_actions(
+                actions_needed, path_obj, target_uid, target_gid, dry_run, result
+            )
 
         except Exception as e:
             result["warnings"].append(f"Unexpected error: {e}")
 
         return result
+
+    def _plan_actions(
+        self,
+        current_uid: int,
+        current_gid: int,
+        target_uid: int,
+        target_gid: int,
+        current_mode: int,
+        path_obj: Path,
+    ) -> list:
+        """Plan actions needed to fix permissions."""
+        actions_needed = []
+
+        # Check if ownership needs to be changed
+        if current_uid != target_uid or current_gid != target_gid:
+            actions_needed.append(
+                self._create_chown_action(
+                    current_uid, current_gid, target_uid, target_gid, path_obj
+                )
+            )
+
+        # Check if permissions need to be fixed
+        current_mode_octal = current_mode & 0o777
+        if current_mode_octal == 0o777 or current_mode_octal == 0o666:
+            actions_needed.append(self._create_chmod_action(current_mode_octal, path_obj))
+
+        return actions_needed
+
+    def _create_chown_action(
+        self, current_uid: int, current_gid: int, target_uid: int, target_gid: int, path_obj: Path
+    ) -> dict:
+        """Create chown action dictionary."""
+        return {
+            "type": "chown",
+            "command": f"chown {target_uid}:{target_gid} '{path_obj}'",
+            "description": f"Change ownership from {current_uid}:{current_gid} to {target_uid}:{target_gid}",
+        }
+
+    def _create_chmod_action(self, current_mode: int, path_obj: Path) -> dict:
+        """Create chmod action dictionary."""
+        recommended = 0o755 if path_obj.is_dir() else 0o644
+        return {
+            "type": "chmod",
+            "command": f"chmod {oct(recommended)[2:]} '{path_obj}'",
+            "description": f"Fix dangerous permissions {oct(current_mode)} -> {oct(recommended)}",
+        }
+
+    def _execute_actions(
+        self,
+        actions_needed: list,
+        path_obj: Path,
+        target_uid: int,
+        target_gid: int,
+        dry_run: bool,
+        result: dict,
+    ) -> bool:
+        """Execute planned actions."""
+        if not dry_run and actions_needed:
+            return self._execute_real_actions(
+                actions_needed, path_obj, target_uid, target_gid, result
+            )
+        elif dry_run and actions_needed:
+            return True  # Dry-run considered successful
+        else:
+            return True  # No actions needed
+
+    def _execute_real_actions(
+        self, actions_needed: list, path_obj: Path, target_uid: int, target_gid: int, result: dict
+    ) -> bool:
+        """Execute actions in non-dry-run mode."""
+        all_succeeded = True
+
+        for action in actions_needed:
+            try:
+                if action["type"] == "chown":
+                    os.chown(path_obj, target_uid, target_gid)
+                elif action["type"] == "chmod":
+                    recommended = int(action["command"].split()[1], 8)
+                    os.chmod(path_obj, recommended)
+
+            except OSError as e:
+                result["warnings"].append(f"Failed {action['type']}: {e}")
+                all_succeeded = False
+
+        return all_succeeded
 
     def _uid_to_name(self, uid: int) -> str:
         """Convert UID to username."""
@@ -331,8 +379,12 @@ class DockerPermissionHandler:
         except (KeyError, AttributeError):
             return f"GID{gid}"
 
-    def generate_docker_permission_report(self, path: str = ".") -> str:
-        """Generate detailed Docker permission report."""
+    def generate_docker_permission_report(self) -> str:
+        """
+        Generate detailed Docker permission report.
+        Returns:
+            Formatted report string
+        """
         report_lines = ["🐳 DOCKER PERMISSION AUDIT REPORT", "=" * 50]
 
         # Container info
@@ -373,7 +425,3 @@ def detect_docker_uid_mapping() -> dict:
     """Detect Docker UID mapping for current environment."""
     handler = DockerPermissionHandler()
     return handler.container_info
-
-
-# Update auditor_fixer.py to use Docker handler
-# Add this import and integration

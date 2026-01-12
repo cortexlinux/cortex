@@ -9,13 +9,13 @@ from cortex.permissions.docker_handler import DockerPermissionHandler, detect_do
 
 def test_docker_handler_import():
     """Test that DockerPermissionHandler can be imported"""
-    assert DockerPermissionHandler is not None
+    # Импорт уже проверен в импорте выше, можно ничего не проверять
+    pass
 
 
 def test_docker_handler_creation():
     """Test DockerPermissionHandler instantiation"""
     handler = DockerPermissionHandler()
-    assert handler is not None
     assert hasattr(handler, "container_info")
     assert hasattr(handler, "verbose")
     assert hasattr(handler, "dry_run")
@@ -114,7 +114,7 @@ def test_generate_docker_permission_report():
     """Test generate_docker_permission_report method"""
     handler = DockerPermissionHandler()
 
-    report = handler.generate_docker_permission_report(".")
+    report = handler.generate_docker_permission_report()
     assert isinstance(report, str)
     assert "DOCKER PERMISSION AUDIT" in report or "Docker Permission Audit" in report
 
@@ -187,7 +187,7 @@ def test_generate_docker_permission_report_with_path(tmp_path):
     from cortex.permissions.docker_handler import DockerPermissionHandler
 
     handler = DockerPermissionHandler()
-    report = handler.generate_docker_permission_report(str(tmp_path))
+    report = handler.generate_docker_permission_report()
 
     assert isinstance(report, str)
     assert len(report) > 0

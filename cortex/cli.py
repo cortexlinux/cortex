@@ -79,8 +79,7 @@ class CortexCLI:
                 mismatches = manager.diagnose()
                 if mismatches:
                     cx_print(
-                        f"⚠️ Found {
-                            len(mismatches)} paths requiring ownership reclamation.",
+                        f"⚠️ Found {len(mismatches)} paths requiring ownership reclamation.",
                         "warning",
                     )
                     try:
@@ -2094,10 +2093,13 @@ def main():
     audit_parser.add_argument(
         "path", nargs="?", default=".", help="Path to scan (default: current directory)"
     )
-    audit_parser.add_argument("--fix", action="store_true", help="Apply safe fixes")
-    audit_parser.add_argument(
+
+    fix_group = audit_parser.add_mutually_exclusive_group()
+    fix_group.add_argument("--fix", action="store_true", help="Apply safe fixes")
+    fix_group.add_argument(
         "--dry-run", action="store_true", help="Show what would be fixed without changes"
     )
+
     audit_parser.add_argument(
         "--docker", action="store_true", help="Consider Docker container UID mappings"
     )
