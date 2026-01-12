@@ -8,6 +8,7 @@ This document provides a comprehensive reference for all commands available in t
 |---------|-------------|
 | `cortex` | Show help and available commands |
 | `cortex install <pkg>` | Install software |
+| `cortex voice` | Voice input mode (hands-free with F9) |
 | `cortex demo` | See Cortex in action |
 | `cortex wizard` | Configure API key |
 | `cortex status` | Show comprehensive system status and health checks |

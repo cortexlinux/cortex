@@ -819,12 +819,14 @@ class CortexCLI:
             self._print_error(str(e))
             return 1
 
-    def voice(self, continuous: bool = False) -> int:
+    def voice(self, continuous: bool = False, model: str | None = None) -> int:
         """Handle voice input mode.
 
         Args:
             continuous: If True, stay in voice mode until Ctrl+C.
                        If False, record single input and exit.
+            model: Whisper model name (e.g., 'base.en', 'small.en').
+                  If None, uses CORTEX_WHISPER_MODEL env var or 'base.en'.
         """
         try:
             from cortex.voice import VoiceInputError, VoiceInputHandler
@@ -836,6 +838,21 @@ class CortexCLI:
         api_key = self._get_api_key()
         if not api_key:
             return 1
+
+        # Display model information if specified
+        if model:
+            model_info = {
+                "tiny.en": "(39 MB, fastest, good for clear speech)",
+                "base.en": "(140 MB, balanced speed/accuracy)",
+                "small.en": "(466 MB, better accuracy)",
+                "medium.en": "(1.5 GB, high accuracy)",
+                "tiny": "(39 MB, multilingual)",
+                "base": "(290 MB, multilingual)",
+                "small": "(968 MB, multilingual)",
+                "medium": "(3 GB, multilingual)",
+                "large": "(6 GB, best accuracy, multilingual)",
+            }
+            cx_print(f"Using Whisper model: {model} {model_info.get(model, '')}", "info")
 
         def process_voice_command(text: str) -> None:
             """Process transcribed voice command."""
@@ -896,7 +913,7 @@ class CortexCLI:
 
         handler = None
         try:
-            handler = VoiceInputHandler()
+            handler = VoiceInputHandler(model_name=model)
 
             if continuous:
                 # Continuous voice mode
@@ -3685,6 +3702,23 @@ def main():
         action="store_true",
         help="Record single input and exit (default: continuous mode)",
     )
+    voice_parser.add_argument(
+        "--model",
+        "-m",
+        type=str,
+        choices=[
+            "tiny.en",
+            "base.en",
+            "small.en",
+            "medium.en",
+            "tiny",
+            "base",
+            "small",
+            "medium",
+            "large",
+        ],
+        help="Whisper model (default: base.en). Higher models = better accuracy but more storage.",
+    )
 
     # Install command
     install_parser = subparsers.add_parser("install", help="Install software")
@@ -4311,7 +4345,8 @@ def main():
                 action=getattr(args, "action", "status"), verbose=getattr(args, "verbose", False)
             )
         elif args.command == "voice":
-            return cli.voice(continuous=not getattr(args, "single", False))
+            model = getattr(args, "model", None)
+            return cli.voice(continuous=not getattr(args, "single", False), model=model)
         elif args.command == "ask":
             # Handle --mic flag for voice input
             if getattr(args, "mic", False):

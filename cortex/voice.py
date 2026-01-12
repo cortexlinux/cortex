@@ -130,22 +130,25 @@ class VoiceInputHandler:
         """
         from faster_whisper import WhisperModel
 
-        # Model sizes in MB (int8 quantized)
-        model_sizes = {
-            "tiny.en": 39,
-            "base.en": 140,
-            "small.en": 466,
-            "medium.en": 1534,
-            "base": 290,
-            "small": 968,
-            "medium": 3090,
+        # Model sizes in MB (int8 quantized) with accuracy descriptions
+        model_info = {
+            "tiny.en": {"size": 39, "desc": "fastest, good for clear speech"},
+            "base.en": {"size": 140, "desc": "balanced speed/accuracy"},
+            "small.en": {"size": 466, "desc": "better accuracy"},
+            "medium.en": {"size": 1534, "desc": "high accuracy"},
+            "tiny": {"size": 39, "desc": "fastest, multilingual"},
+            "base": {"size": 290, "desc": "balanced, multilingual"},
+            "small": {"size": 968, "desc": "better accuracy, multilingual"},
+            "medium": {"size": 3090, "desc": "high accuracy, multilingual"},
+            "large": {"size": 6000, "desc": "best accuracy, multilingual"},
         }
 
-        model_size_mb = model_sizes.get(self.model_name, "unknown")
-        size_str = f"{model_size_mb} MB" if isinstance(model_size_mb, int) else model_size_mb
+        info = model_info.get(self.model_name, {"size": "unknown", "desc": ""})
+        size_str = f"{info['size']} MB" if isinstance(info["size"], int) else info["size"]
+        desc_str = f" - {info['desc']}" if info["desc"] else ""
 
         cx_print(
-            f"Loading whisper model '{self.model_name}' ({size_str})...",
+            f"Loading whisper model '{self.model_name}' ({size_str}{desc_str})...",
             "info",
         )
 
@@ -171,9 +174,14 @@ class VoiceInputHandler:
                 progress.update(task, completed=True)
 
             cx_print(
-                f"✓ Model '{self.model_name}' ({size_str}) loaded successfully.",
+                f"✓ Model '{self.model_name}' loaded successfully.",
                 "success",
             )
+            if info["desc"]:
+                cx_print(
+                    f"  {info['desc'].capitalize()} | Size: {size_str} | Tip: Use --model flag to try different models",
+                    "dim",
+                )
         except Exception as e:
             raise ModelNotFoundError(
                 f"Failed to load whisper model '{self.model_name}': {e}"
