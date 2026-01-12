@@ -805,7 +805,7 @@ class CortexCLI:
 
             error_msg = self._get_parallel_error_msg(parallel_tasks)
             self._record_history_error(history, install_id, error_msg)
-            self._print_error("Installation failed")
+            self._print_error(self.INSTALL_FAIL_MSG)
             if error_msg:
                 print(f"  Error: {error_msg}", file=sys.stderr)
             if install_id:
@@ -2655,6 +2655,7 @@ def main():
         elif args.command == "install":
             # Handle --mic flag for voice input
             if getattr(args, "mic", False):
+                handler = None
                 try:
                     from cortex.voice import VoiceInputError, VoiceInputHandler
 
@@ -2672,6 +2673,14 @@ def main():
                 except VoiceInputError as e:
                     cli._print_error(f"Voice input error: {e}")
                     return 1
+                finally:
+                    # Always clean up resources
+                    if handler is not None:
+                        try:
+                            handler.stop()
+                        except Exception as e:
+                            # Log cleanup errors but don't raise
+                            logging.debug("Error during voice handler cleanup: %s", e)
             else:
                 software = args.software
                 if not software:
