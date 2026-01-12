@@ -45,6 +45,14 @@ setup(
     ],
     python_requires=">=3.10",
     install_requires=requirements,
+    extras_require={
+        "voice": [
+            "faster-whisper>=0.10.0",
+            "sounddevice>=0.4.6",
+            "pynput>=1.7.6",
+            "numpy>=1.24.0",
+        ],
+    },
     entry_points={
         "console_scripts": [
             "cortex=cortex.cli:main",

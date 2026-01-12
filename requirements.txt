@@ -20,8 +20,18 @@ rich>=13.0.0
 # Type hints for older Python versions
 typing-extensions>=4.0.0
 
-# Voice Input Dependencies
-faster-whisper>=0.10.0
-sounddevice>=0.4.6
-pynput>=1.7.6
-numpy>=1.24.0
+# =============================================================================
+# OPTIONAL: Voice Input Feature
+# =============================================================================
+# Install with: pip install cortex-linux[voice]
+# Or in development: pip install -e ".[voice]"
+#
+# Voice feature includes:
+#   - faster-whisper>=0.10.0  (speech-to-text)
+#   - sounddevice>=0.4.6      (audio recording)
+#   - pynput>=1.7.6           (hotkey support)
+#   - numpy>=1.24.0           (audio processing)
+#
+# System dependencies (Ubuntu/Debian):
+#   sudo apt update && sudo apt install -y libportaudio2 portaudio19-dev libasound2-dev
+# =============================================================================
