@@ -20,6 +20,9 @@ rich>=13.0.0
 # Type hints for older Python versions
 typing-extensions>=4.0.0
 
+# Configuration
+PyYAML>=6.0.0
+
 # =============================================================================
 # OPTIONAL: Voice Input Feature
 # =============================================================================
