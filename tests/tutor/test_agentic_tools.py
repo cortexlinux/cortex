@@ -149,7 +149,7 @@ class TestQAHandlerStructure:
         tool = QAHandlerTool()
 
         # Test with non-dict response
-        result = tool._structure_response(None, "docker", "What is Docker?")  # type: ignore
+        result = tool._structure_response(None, "docker", "What is Docker?")
 
         assert result["answer"] == "I couldn't generate an answer."
         assert result["package_name"] == "docker"

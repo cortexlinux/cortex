@@ -38,7 +38,9 @@ class QAHandlerTool(BaseTool):
         "Provides contextual answers based on student profile."
     )
 
-    llm: "ChatAnthropic | None" = Field(default=None, exclude=True)
+    # Use Any type for llm field to avoid Pydantic forward reference issues
+    # The actual type is ChatAnthropic, but it's lazily initialized
+    llm: Any = Field(default=None, exclude=True)
     model_name: str = Field(default="claude-sonnet-4-20250514")
 
     # Constants for default values
@@ -257,9 +259,18 @@ If you don't know the answer, be honest and suggest where they might find it.
 If the question is unclear, ask for clarification in the answer field."""
 
     def _structure_response(
-        self, response: dict[str, Any], package_name: str, question: str
+        self, response: dict[str, Any] | Any, package_name: str, question: str
     ) -> dict[str, Any]:
-        """Structure and validate the LLM response."""
+        """Structure and validate the LLM response.
+
+        Args:
+            response: The LLM response, expected to be a dict but handles any type gracefully.
+            package_name: The package being queried.
+            question: The original user question.
+
+        Returns:
+            Structured response dictionary.
+        """
         # Ensure response is a dict
         if not isinstance(response, dict):
             response = {}
