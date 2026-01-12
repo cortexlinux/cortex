@@ -9,7 +9,6 @@ import shlex
 import subprocess
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
@@ -55,11 +54,11 @@ class ServiceStatus:
     load_state: str = ""
     active_state: str = ""
     sub_state: str = ""
-    pid: Optional[int] = None
+    pid: int | None = None
     memory: str = ""
     cpu: str = ""
     started_at: str = ""
-    exit_code: Optional[int] = None
+    exit_code: int | None = None
     main_pid_code: str = ""
 
 
@@ -415,12 +414,12 @@ class SystemdHelper:
         self,
         description: str,
         exec_start: str,
-        service_name: Optional[str] = None,
-        user: Optional[str] = None,
-        working_dir: Optional[str] = None,
+        service_name: str | None = None,
+        user: str | None = None,
+        working_dir: str | None = None,
         restart: bool = True,
-        after: Optional[list[str]] = None,
-        environment: Optional[dict[str, str]] = None,
+        after: list[str] | None = None,
+        environment: dict[str, str] | None = None,
     ) -> str:
         """Generate a systemd unit file from simple parameters.
 
