@@ -49,9 +49,6 @@ except ImportError:
     GPU_LIBRARY_AVAILABLE = False
     pynvml = None
 
-# Import CortexCLI after dependency validation
-from cortex.cli import CortexCLI
-
 # HTTP requests for Ollama API
 try:
     import requests
@@ -513,8 +510,9 @@ class ModelLister:
 
         # Respect user consent before making any network calls
         with self.lock:
-            if not self._enabled:
-                return []
+            enabled = self._enabled
+        if not enabled:
+            return []
 
         try:
             response = requests.get(f"{OLLAMA_API_BASE}/api/tags", timeout=OLLAMA_API_TIMEOUT)
@@ -1279,25 +1277,25 @@ class UIRenderer:
 
     def _submit_installation_input(self) -> None:
         """Submit installation input"""
-        if self.input_text.strip():
+        with self.state_lock:
             package = self.input_text.strip()
+            if not package:
+                return
 
-            # Protect state mutations with lock
-            with self.state_lock:
-                self.installation_progress.package = package
-                self.installation_progress.state = InstallationState.PROCESSING
-                self.input_active = False
+            self.installation_progress.package = package
+            self.installation_progress.state = InstallationState.PROCESSING
+            self.input_active = False
 
-            if SIMULATION_MODE:
-                # TODO: Replace with actual CLI integration
-                # This simulation will be replaced with:
-                # from cortex.cli import CortexCLI
-                # cli = CortexCLI()
-                # cli.install(package, dry_run=False)
-                self._simulate_installation()
-            else:
-                # Run dry-run first to get commands, then show confirmation
-                self._run_dry_run_and_confirm()
+        if SIMULATION_MODE:
+            # TODO: Replace with actual CLI integration
+            # This simulation will be replaced with:
+            # from cortex.cli import CortexCLI
+            # cli = CortexCLI()
+            # cli.install(package, dry_run=False)
+            self._simulate_installation()
+        else:
+            # Run dry-run first to get commands, then show confirmation
+            self._run_dry_run_and_confirm()
 
     def _run_dry_run_and_confirm(self) -> None:
         """
@@ -1311,6 +1309,7 @@ class UIRenderer:
         """Execute dry-run to get commands, then show confirmation"""
         import contextlib
         import io
+        from cortex.cli import CortexCLI
 
         progress = self.installation_progress
         package_name = progress.package
@@ -1348,21 +1347,19 @@ class UIRenderer:
             cli = CortexCLI()
 
             # Capture CLI output for dry-run
-            stdout_capture = io.StringIO()
-            stderr_capture = io.StringIO()
+            with io.StringIO() as stdout_capture, io.StringIO() as stderr_capture:
+                try:
+                    with (
+                        contextlib.redirect_stdout(stdout_capture),
+                        contextlib.redirect_stderr(stderr_capture),
+                    ):
+                        result = cli.install(package_name, dry_run=True, execute=False)
+                except Exception as e:
+                    result = 1
+                    stderr_capture.write(str(e))
 
-            try:
-                with (
-                    contextlib.redirect_stdout(stdout_capture),
-                    contextlib.redirect_stderr(stderr_capture),
-                ):
-                    result = cli.install(package_name, dry_run=True, execute=False)
-            except Exception as e:
-                result = 1
-                stderr_capture.write(str(e))
-
-            stdout_output = stdout_capture.getvalue()
-            stderr_output = stderr_capture.getvalue()
+                stdout_output = stdout_capture.getvalue()
+                stderr_output = stderr_capture.getvalue()
 
             if self.stop_event.is_set() or progress.state == InstallationState.FAILED:
                 return
@@ -1393,7 +1390,7 @@ class UIRenderer:
             commands = []
             in_commands_section = False
             for line in stdout_output.split("\n"):
-                if "Generated commands:" in line:
+                if line.strip().startswith("Generated commands:"):
                     in_commands_section = True
                     continue
                 if in_commands_section and line.strip():
@@ -1435,6 +1432,7 @@ class UIRenderer:
         """Execute the confirmed installation with execute=True"""
         import contextlib
         import io
+        from cortex.cli import CortexCLI
 
         # Get package name with lock
         with self.state_lock:
@@ -1462,21 +1460,19 @@ class UIRenderer:
             cli = CortexCLI()
 
             # Capture CLI output
-            stdout_capture = io.StringIO()
-            stderr_capture = io.StringIO()
+            with io.StringIO() as stdout_capture, io.StringIO() as stderr_capture:
+                try:
+                    with (
+                        contextlib.redirect_stdout(stdout_capture),
+                        contextlib.redirect_stderr(stderr_capture),
+                    ):
+                        result = cli.install(package_name, dry_run=False, execute=True)
+                except Exception as e:
+                    result = 1
+                    stderr_capture.write(str(e))
 
-            try:
-                with (
-                    contextlib.redirect_stdout(stdout_capture),
-                    contextlib.redirect_stderr(stderr_capture),
-                ):
-                    result = cli.install(package_name, dry_run=False, execute=True)
-            except Exception as e:
-                result = 1
-                stderr_capture.write(str(e))
-
-            stdout_output = stdout_capture.getvalue()
-            stderr_output = stderr_capture.getvalue()
+                stdout_output = stdout_capture.getvalue()
+                stderr_output = stderr_capture.getvalue()
 
             if self.stop_event.is_set():
                 return
@@ -1535,6 +1531,7 @@ class UIRenderer:
         """Execute actual CLI installation in background thread"""
         import contextlib
         import io
+        from cortex.cli import CortexCLI
 
         progress = self.installation_progress
         package_name = progress.package
@@ -1581,21 +1578,19 @@ class UIRenderer:
             progress.update_elapsed()
 
             # Capture CLI output
-            stdout_capture = io.StringIO()
-            stderr_capture = io.StringIO()
+            with io.StringIO() as stdout_capture, io.StringIO() as stderr_capture:
+                try:
+                    with (
+                        contextlib.redirect_stdout(stdout_capture),
+                        contextlib.redirect_stderr(stderr_capture),
+                    ):
+                        result = cli.install(package_name, dry_run=True, execute=False)
+                except Exception as e:
+                    result = 1
+                    stderr_capture.write(str(e))
 
-            try:
-                with (
-                    contextlib.redirect_stdout(stdout_capture),
-                    contextlib.redirect_stderr(stderr_capture),
-                ):
-                    result = cli.install(package_name, dry_run=True, execute=False)
-            except Exception as e:
-                result = 1
-                stderr_capture.write(str(e))
-
-            stdout_output = stdout_capture.getvalue()
-            stderr_output = stderr_capture.getvalue()
+                stdout_output = stdout_capture.getvalue()
+                stderr_output = stderr_capture.getvalue()
 
             if self.stop_event.is_set() or progress.state == InstallationState.FAILED:
                 return
@@ -1608,7 +1603,11 @@ class UIRenderer:
             if result == 0:
                 progress.state = InstallationState.COMPLETED
                 # Extract generated commands if available
-                if "Generated commands:" in stdout_output:
+                commands_header = "Generated commands:"
+                has_commands_header = any(
+                    line.strip().startswith(commands_header) for line in stdout_output.splitlines()
+                )
+                if has_commands_header:
                     progress.success_message = (
                         f"✓ Plan ready for '{package_name}'!\n"
                         "Run in terminal: cortex install " + package_name + " --execute"
@@ -1716,12 +1715,8 @@ class UIRenderer:
         try:
             if sys.platform == "win32":
                 if msvcrt.kbhit():
-                    try:
-                        key = msvcrt.getch().decode("utf-8", errors="ignore")
-                        return key
-                    except UnicodeDecodeError:
-                        logger.debug("Failed to decode keyboard input")
-                        return None
+                    key = msvcrt.getch().decode("utf-8", errors="ignore")
+                    return key
             else:
                 if select.select([sys.stdin], [], [], 0)[0]:
                     key = sys.stdin.read(1)
