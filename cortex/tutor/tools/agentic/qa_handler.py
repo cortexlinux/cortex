@@ -5,12 +5,12 @@ This tool uses LLM (Claude via LangChain) to answer questions about packages.
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from langchain.tools import BaseTool
 from langchain_anthropic import ChatAnthropic
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 from pydantic import Field
 
 from cortex.tutor.config import get_config
@@ -33,13 +33,13 @@ class QAHandlerTool(BaseTool):
         "Provides contextual answers based on student profile."
     )
 
-    llm: Optional[ChatAnthropic] = Field(default=None, exclude=True)
+    llm: ChatAnthropic | None = Field(default=None, exclude=True)
     model_name: str = Field(default="claude-sonnet-4-20250514")
 
     class Config:
         arbitrary_types_allowed = True
 
-    def __init__(self, model_name: Optional[str] = None) -> None:
+    def __init__(self, model_name: str | None = None) -> None:
         """
         Initialize the Q&A handler tool.
 
@@ -61,10 +61,10 @@ class QAHandlerTool(BaseTool):
         package_name: str,
         question: str,
         learning_style: str = "reading",
-        mastered_concepts: Optional[List[str]] = None,
-        weak_concepts: Optional[List[str]] = None,
-        lesson_context: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        mastered_concepts: list[str] | None = None,
+        weak_concepts: list[str] | None = None,
+        lesson_context: str | None = None,
+    ) -> dict[str, Any]:
         """
         Answer a user question about a package.
 
@@ -120,10 +120,10 @@ class QAHandlerTool(BaseTool):
         package_name: str,
         question: str,
         learning_style: str = "reading",
-        mastered_concepts: Optional[List[str]] = None,
-        weak_concepts: Optional[List[str]] = None,
-        lesson_context: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        mastered_concepts: list[str] | None = None,
+        weak_concepts: list[str] | None = None,
+        lesson_context: str | None = None,
+    ) -> dict[str, Any]:
         """Async version of Q&A handling."""
         try:
             prompt = ChatPromptTemplate.from_messages(
@@ -213,8 +213,8 @@ If you don't know the answer, be honest and suggest where they might find it.
 If the question is unclear, ask for clarification in the answer field."""
 
     def _structure_response(
-        self, response: Dict[str, Any], package_name: str, question: str
-    ) -> Dict[str, Any]:
+        self, response: dict[str, Any], package_name: str, question: str
+    ) -> dict[str, Any]:
         """Structure and validate the LLM response."""
         structured = {
             "package_name": package_name,
@@ -245,7 +245,7 @@ def answer_question(
     package_name: str,
     question: str,
     learning_style: str = "reading",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Convenience function to answer a question.
 
@@ -280,16 +280,16 @@ class ConversationHandler:
             package_name: Package being discussed.
         """
         self.package_name = package_name
-        self.history: List[Dict[str, str]] = []
+        self.history: list[dict[str, str]] = []
         self.qa_tool = QAHandlerTool()
 
     def ask(
         self,
         question: str,
         learning_style: str = "reading",
-        mastered_concepts: Optional[List[str]] = None,
-        weak_concepts: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
+        mastered_concepts: list[str] | None = None,
+        weak_concepts: list[str] | None = None,
+    ) -> dict[str, Any]:
         """
         Ask a question with conversation history.
 

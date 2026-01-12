@@ -5,12 +5,12 @@ This tool uses LLM (Claude via LangChain) to generate contextual code examples.
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from langchain.tools import BaseTool
 from langchain_anthropic import ChatAnthropic
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 from pydantic import Field
 
 from cortex.tutor.config import get_config
@@ -33,13 +33,13 @@ class ExamplesProviderTool(BaseTool):
         "Returns examples with progressive complexity."
     )
 
-    llm: Optional[ChatAnthropic] = Field(default=None, exclude=True)
+    llm: ChatAnthropic | None = Field(default=None, exclude=True)
     model_name: str = Field(default="claude-sonnet-4-20250514")
 
     class Config:
         arbitrary_types_allowed = True
 
-    def __init__(self, model_name: Optional[str] = None) -> None:
+    def __init__(self, model_name: str | None = None) -> None:
         """
         Initialize the examples provider tool.
 
@@ -62,8 +62,8 @@ class ExamplesProviderTool(BaseTool):
         topic: str,
         difficulty: str = "beginner",
         learning_style: str = "hands-on",
-        existing_knowledge: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
+        existing_knowledge: list[str] | None = None,
+    ) -> dict[str, Any]:
         """
         Generate code examples for a package topic.
 
@@ -118,8 +118,8 @@ class ExamplesProviderTool(BaseTool):
         topic: str,
         difficulty: str = "beginner",
         learning_style: str = "hands-on",
-        existing_knowledge: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
+        existing_knowledge: list[str] | None = None,
+    ) -> dict[str, Any]:
         """Async version of example generation."""
         try:
             prompt = ChatPromptTemplate.from_messages(
@@ -206,8 +206,8 @@ Generate 2-4 examples with progressive complexity.
 Ensure all examples are safe and educational."""
 
     def _structure_response(
-        self, response: Dict[str, Any], package_name: str, topic: str
-    ) -> Dict[str, Any]:
+        self, response: dict[str, Any], package_name: str, topic: str
+    ) -> dict[str, Any]:
         """Structure and validate the LLM response."""
         structured = {
             "package_name": response.get("package_name", package_name),
@@ -240,7 +240,7 @@ def generate_examples(
     package_name: str,
     topic: str,
     difficulty: str = "beginner",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Convenience function to generate code examples.
 

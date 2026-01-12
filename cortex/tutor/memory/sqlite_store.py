@@ -6,11 +6,12 @@ Provides persistence for learning progress, quiz results, and student profiles.
 
 import json
 import sqlite3
+from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import RLock
-from typing import Any, Dict, Generator, List, Optional
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -18,34 +19,34 @@ from pydantic import BaseModel
 class LearningProgress(BaseModel):
     """Model for learning progress records."""
 
-    id: Optional[int] = None
+    id: int | None = None
     package_name: str
     topic: str
     completed: bool = False
     score: float = 0.0
-    last_accessed: Optional[str] = None
+    last_accessed: str | None = None
     total_time_seconds: int = 0
 
 
 class QuizResult(BaseModel):
     """Model for quiz result records."""
 
-    id: Optional[int] = None
+    id: int | None = None
     package_name: str
     question: str
-    user_answer: Optional[str] = None
+    user_answer: str | None = None
     correct: bool = False
-    timestamp: Optional[str] = None
+    timestamp: str | None = None
 
 
 class StudentProfile(BaseModel):
     """Model for student profile."""
 
-    id: Optional[int] = None
-    mastered_concepts: List[str] = []
-    weak_concepts: List[str] = []
+    id: int | None = None
+    mastered_concepts: list[str] = []
+    weak_concepts: list[str] = []
     learning_style: str = "reading"  # visual, reading, hands-on
-    last_session: Optional[str] = None
+    last_session: str | None = None
 
 
 class SQLiteStore:
@@ -139,7 +140,7 @@ class SQLiteStore:
 
     # ==================== Learning Progress Methods ====================
 
-    def get_progress(self, package_name: str, topic: str) -> Optional[LearningProgress]:
+    def get_progress(self, package_name: str, topic: str) -> LearningProgress | None:
         """
         Get learning progress for a specific package and topic.
 
@@ -168,7 +169,7 @@ class SQLiteStore:
                 )
             return None
 
-    def get_all_progress(self, package_name: Optional[str] = None) -> List[LearningProgress]:
+    def get_all_progress(self, package_name: str | None = None) -> list[LearningProgress]:
         """
         Get all learning progress records.
 
@@ -254,7 +255,7 @@ class SQLiteStore:
         )
         self.upsert_progress(progress)
 
-    def get_completion_stats(self, package_name: str) -> Dict[str, Any]:
+    def get_completion_stats(self, package_name: str) -> dict[str, Any]:
         """
         Get completion statistics for a package.
 
@@ -308,7 +309,7 @@ class SQLiteStore:
             conn.commit()
             return cursor.lastrowid
 
-    def get_quiz_results(self, package_name: str) -> List[QuizResult]:
+    def get_quiz_results(self, package_name: str) -> list[QuizResult]:
         """
         Get quiz results for a package.
 
@@ -444,7 +445,7 @@ class SQLiteStore:
 
     # ==================== Lesson Cache Methods ====================
 
-    def cache_lesson(self, package_name: str, content: Dict[str, Any], ttl_hours: int = 24) -> None:
+    def cache_lesson(self, package_name: str, content: dict[str, Any], ttl_hours: int = 24) -> None:
         """
         Cache lesson content.
 
@@ -470,7 +471,7 @@ class SQLiteStore:
             )
             conn.commit()
 
-    def get_cached_lesson(self, package_name: str) -> Optional[Dict[str, Any]]:
+    def get_cached_lesson(self, package_name: str) -> dict[str, Any] | None:
         """
         Get cached lesson content if not expired.
 
@@ -509,7 +510,7 @@ class SQLiteStore:
 
     # ==================== Utility Methods ====================
 
-    def reset_progress(self, package_name: Optional[str] = None) -> int:
+    def reset_progress(self, package_name: str | None = None) -> int:
         """
         Reset learning progress.
 
@@ -529,7 +530,7 @@ class SQLiteStore:
             conn.commit()
             return cursor.rowcount
 
-    def get_packages_studied(self) -> List[str]:
+    def get_packages_studied(self) -> list[str]:
         """
         Get list of all packages that have been studied.
 

@@ -4,8 +4,9 @@ Tests for InteractiveTutor class.
 Tests the interactive menu-driven tutoring interface.
 """
 
+from unittest.mock import MagicMock, Mock, call, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock, call
 
 
 class TestInteractiveTutorInit:

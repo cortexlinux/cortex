@@ -11,7 +11,6 @@ from typing import Optional
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, field_validator
 
-
 # Load environment variables from .env file
 load_dotenv()
 
@@ -28,10 +27,10 @@ class Config(BaseModel):
         debug: Enable debug mode for verbose logging.
     """
 
-    anthropic_api_key: Optional[str] = Field(
+    anthropic_api_key: str | None = Field(
         default=None, description="Anthropic API key for Claude access"
     )
-    openai_api_key: Optional[str] = Field(
+    openai_api_key: str | None = Field(
         default=None, description="Optional OpenAI API key for fallback"
     )
     model: str = Field(
@@ -41,7 +40,7 @@ class Config(BaseModel):
         default=Path.home() / ".cortex", description="Directory for storing tutor data"
     )
     debug: bool = Field(default=False, description="Enable debug mode for verbose logging")
-    db_path: Optional[Path] = Field(default=None, description="Path to SQLite database")
+    db_path: Path | None = Field(default=None, description="Path to SQLite database")
 
     def model_post_init(self, __context) -> None:
         """Initialize computed fields after model creation."""
@@ -122,7 +121,7 @@ class Config(BaseModel):
 
 
 # Global configuration instance (lazy loaded)
-_config: Optional[Config] = None
+_config: Config | None = None
 
 
 def get_config() -> Config:

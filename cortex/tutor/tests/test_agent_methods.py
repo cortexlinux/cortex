@@ -4,32 +4,33 @@ Tests for TutorAgent methods and graph nodes.
 Comprehensive tests for agent functionality.
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
 
-from cortex.tutor.agents.tutor_agent.state import (
-    TutorAgentState,
-    create_initial_state,
-    add_error,
-    add_checkpoint,
-    add_cost,
-    has_critical_error,
-    get_session_type,
-    get_package_name,
-)
+import pytest
+
 from cortex.tutor.agents.tutor_agent.graph import (
-    plan_node,
-    load_cache_node,
+    create_tutor_graph,
+    fail_node,
     generate_lesson_node,
+    get_tutor_graph,
+    load_cache_node,
+    plan_node,
     qa_node,
     reflect_node,
-    fail_node,
-    route_after_plan,
     route_after_act,
-    create_tutor_graph,
-    get_tutor_graph,
+    route_after_plan,
+)
+from cortex.tutor.agents.tutor_agent.state import (
+    TutorAgentState,
+    add_checkpoint,
+    add_cost,
+    add_error,
+    create_initial_state,
+    get_package_name,
+    get_session_type,
+    has_critical_error,
 )
 
 

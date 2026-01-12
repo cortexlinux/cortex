@@ -5,7 +5,7 @@ Defines the structured output schema for progress tracking.
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field, computed_field
 
@@ -17,16 +17,16 @@ class TopicProgress(BaseModel):
     completed: bool = Field(default=False, description="Whether topic is completed")
     score: float = Field(default=0.0, description="Score achieved (0-1)", ge=0.0, le=1.0)
     time_spent_seconds: int = Field(default=0, description="Time spent on topic", ge=0)
-    last_accessed: Optional[datetime] = Field(default=None, description="Last access time")
+    last_accessed: datetime | None = Field(default=None, description="Last access time")
 
 
 class PackageProgress(BaseModel):
     """Progress for a complete package."""
 
     package_name: str = Field(..., description="Name of the package")
-    topics: List[TopicProgress] = Field(default_factory=list, description="Progress per topic")
-    started_at: Optional[datetime] = Field(default=None, description="When learning started")
-    last_session: Optional[datetime] = Field(default=None, description="Last learning session")
+    topics: list[TopicProgress] = Field(default_factory=list, description="Progress per topic")
+    started_at: datetime | None = Field(default=None, description="When learning started")
+    last_session: datetime | None = Field(default=None, description="Last learning session")
 
     @computed_field
     @property
@@ -51,7 +51,7 @@ class PackageProgress(BaseModel):
         """Calculate total time spent."""
         return sum(t.time_spent_seconds for t in self.topics)
 
-    def get_next_topic(self) -> Optional[str]:
+    def get_next_topic(self) -> str | None:
         """Get the next uncompleted topic."""
         for topic in self.topics:
             if not topic.completed:
@@ -78,13 +78,13 @@ class ProgressContext(BaseModel):
     )
 
     # Progress data
-    packages: List[PackageProgress] = Field(
+    packages: list[PackageProgress] = Field(
         default_factory=list, description="Progress for each package"
     )
-    mastered_concepts: List[str] = Field(
+    mastered_concepts: list[str] = Field(
         default_factory=list, description="Concepts the student has mastered"
     )
-    weak_concepts: List[str] = Field(
+    weak_concepts: list[str] = Field(
         default_factory=list, description="Concepts the student struggles with"
     )
 
@@ -99,7 +99,7 @@ class ProgressContext(BaseModel):
         default_factory=datetime.utcnow, description="Last update timestamp"
     )
 
-    def get_package_progress(self, package_name: str) -> Optional[PackageProgress]:
+    def get_package_progress(self, package_name: str) -> PackageProgress | None:
         """Get progress for a specific package."""
         for pkg in self.packages:
             if pkg.package_name == package_name:
@@ -112,7 +112,7 @@ class ProgressContext(BaseModel):
             return 0.0
         return sum(p.completion_percentage for p in self.packages) / len(self.packages)
 
-    def get_recommendations(self) -> List[str]:
+    def get_recommendations(self) -> list[str]:
         """Get learning recommendations based on progress."""
         recommendations = []
 
@@ -130,7 +130,7 @@ class ProgressContext(BaseModel):
 
         return recommendations
 
-    def to_summary_dict(self) -> Dict[str, Any]:
+    def to_summary_dict(self) -> dict[str, Any]:
         """Create a summary dictionary for display."""
         return {
             "packages_started": self.total_packages_started,
@@ -152,8 +152,8 @@ class QuizContext(BaseModel):
     score_percentage: float = Field(..., description="Score as percentage", ge=0.0, le=100.0)
     passed: bool = Field(..., description="Whether the quiz was passed (>=70%)")
     feedback: str = Field(..., description="Feedback on quiz performance")
-    weak_areas: List[str] = Field(default_factory=list, description="Areas that need improvement")
-    strong_areas: List[str] = Field(default_factory=list, description="Areas of strength")
+    weak_areas: list[str] = Field(default_factory=list, description="Areas that need improvement")
+    strong_areas: list[str] = Field(default_factory=list, description="Areas of strength")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Quiz completion time")
 
     @classmethod

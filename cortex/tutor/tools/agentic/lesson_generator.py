@@ -6,16 +6,16 @@ It is used when no cached lesson is available.
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from langchain.tools import BaseTool
 from langchain_anthropic import ChatAnthropic
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 from pydantic import Field
 
 from cortex.tutor.config import get_config
-from cortex.tutor.contracts.lesson_context import LessonContext, CodeExample, TutorialStep
+from cortex.tutor.contracts.lesson_context import CodeExample, LessonContext, TutorialStep
 
 
 # Load prompt template
@@ -56,13 +56,13 @@ class LessonGeneratorTool(BaseTool):
         "Returns structured lesson with explanations, examples, and tutorials."
     )
 
-    llm: Optional[ChatAnthropic] = Field(default=None, exclude=True)
+    llm: ChatAnthropic | None = Field(default=None, exclude=True)
     model_name: str = Field(default="claude-sonnet-4-20250514")
 
     class Config:
         arbitrary_types_allowed = True
 
-    def __init__(self, model_name: Optional[str] = None) -> None:
+    def __init__(self, model_name: str | None = None) -> None:
         """
         Initialize the lesson generator tool.
 
@@ -84,9 +84,9 @@ class LessonGeneratorTool(BaseTool):
         package_name: str,
         student_level: str = "beginner",
         learning_style: str = "reading",
-        focus_areas: Optional[List[str]] = None,
-        skip_areas: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
+        focus_areas: list[str] | None = None,
+        skip_areas: list[str] | None = None,
+    ) -> dict[str, Any]:
         """
         Generate lesson content for a package.
 
@@ -144,9 +144,9 @@ class LessonGeneratorTool(BaseTool):
         package_name: str,
         student_level: str = "beginner",
         learning_style: str = "reading",
-        focus_areas: Optional[List[str]] = None,
-        skip_areas: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
+        focus_areas: list[str] | None = None,
+        skip_areas: list[str] | None = None,
+    ) -> dict[str, Any]:
         """Async version of lesson generation."""
         try:
             prompt = ChatPromptTemplate.from_messages(
@@ -248,7 +248,7 @@ Ensure:
 - Tutorial steps have logical progression
 - Confidence reflects your actual certainty (0.5-1.0)"""
 
-    def _structure_response(self, response: Dict[str, Any], package_name: str) -> Dict[str, Any]:
+    def _structure_response(self, response: dict[str, Any], package_name: str) -> dict[str, Any]:
         """
         Structure and validate the LLM response.
 
@@ -307,7 +307,7 @@ def generate_lesson(
     package_name: str,
     student_level: str = "beginner",
     learning_style: str = "reading",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Convenience function to generate a lesson.
 

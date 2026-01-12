@@ -4,17 +4,17 @@ Tutor Agent - Main orchestrator for interactive tutoring.
 Provides high-level interface for the Plan→Act→Reflect workflow.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from cortex.tutor.agents.tutor_agent.state import TutorAgentState, create_initial_state
 from cortex.tutor.agents.tutor_agent.graph import get_tutor_graph
+from cortex.tutor.agents.tutor_agent.state import TutorAgentState, create_initial_state
+from cortex.tutor.branding import console, tutor_print
+from cortex.tutor.contracts.lesson_context import LessonContext
 from cortex.tutor.tools.deterministic.progress_tracker import ProgressTrackerTool
 from cortex.tutor.tools.deterministic.validators import (
     validate_package_name,
     validate_question,
 )
-from cortex.tutor.contracts.lesson_context import LessonContext
-from cortex.tutor.branding import tutor_print, console
 
 # Default number of topics per package for progress tracking
 DEFAULT_TUTOR_TOPICS = 5
@@ -51,7 +51,7 @@ class TutorAgent:
         self,
         package_name: str,
         force_fresh: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Start a tutoring session for a package.
 
@@ -100,7 +100,7 @@ class TutorAgent:
         self,
         package_name: str,
         question: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Ask a question about a package.
 
@@ -141,7 +141,7 @@ class TutorAgent:
 
         return result.get("output", {})
 
-    def get_progress(self, package_name: Optional[str] = None) -> Dict[str, Any]:
+    def get_progress(self, package_name: str | None = None) -> dict[str, Any]:
         """
         Get learning progress.
 
@@ -155,7 +155,7 @@ class TutorAgent:
             return self.progress_tool._run("get_stats", package_name=package_name)
         return self.progress_tool._run("get_all_progress")
 
-    def get_profile(self) -> Dict[str, Any]:
+    def get_profile(self) -> dict[str, Any]:
         """
         Get student profile.
 
@@ -197,7 +197,7 @@ class TutorAgent:
         )
         return result.get("success", False)
 
-    def reset_progress(self, package_name: Optional[str] = None) -> int:
+    def reset_progress(self, package_name: str | None = None) -> int:
         """
         Reset learning progress.
 
@@ -210,7 +210,7 @@ class TutorAgent:
         result = self.progress_tool._run("reset", package_name=package_name)
         return result.get("count", 0) if result.get("success") else 0
 
-    def get_packages_studied(self) -> List[str]:
+    def get_packages_studied(self) -> list[str]:
         """
         Get list of packages that have been studied.
 
@@ -220,7 +220,7 @@ class TutorAgent:
         result = self.progress_tool._run("get_packages")
         return result.get("packages", []) if result.get("success") else []
 
-    def _print_execution_summary(self, result: Dict[str, Any]) -> None:
+    def _print_execution_summary(self, result: dict[str, Any]) -> None:
         """Print execution summary for verbose mode."""
         output = result.get("output", {})
 
@@ -259,18 +259,18 @@ class InteractiveTutor:
         self.package_name = package_name
         self.force_fresh = force_fresh
         self.agent = TutorAgent(verbose=False)
-        self.lesson: Optional[Dict[str, Any]] = None
+        self.lesson: dict[str, Any] | None = None
         self.current_step = 0
 
     def start(self) -> None:
         """Start the interactive tutoring session."""
         from cortex.tutor.branding import (
-            print_lesson_header,
-            print_menu,
             get_user_input,
-            print_markdown,
-            print_code_example,
             print_best_practice,
+            print_code_example,
+            print_lesson_header,
+            print_markdown,
+            print_menu,
             print_tutorial_step,
         )
 
@@ -365,7 +365,7 @@ class InteractiveTutor:
 
     def _run_tutorial(self) -> None:
         """Run step-by-step tutorial."""
-        from cortex.tutor.branding import print_tutorial_step, get_user_input
+        from cortex.tutor.branding import get_user_input, print_tutorial_step
 
         if not self.lesson:
             return

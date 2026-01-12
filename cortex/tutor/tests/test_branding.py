@@ -4,25 +4,26 @@ Tests for branding/UI utilities.
 Tests Rich console output functions.
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 from io import StringIO
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 from cortex.tutor.branding import (
     console,
-    tutor_print,
-    print_banner,
-    print_lesson_header,
-    print_code_example,
-    print_menu,
-    print_table,
-    print_progress_summary,
-    print_markdown,
-    print_best_practice,
-    print_tutorial_step,
-    print_error_panel,
-    print_success_panel,
     get_user_input,
+    print_banner,
+    print_best_practice,
+    print_code_example,
+    print_error_panel,
+    print_lesson_header,
+    print_markdown,
+    print_menu,
+    print_progress_summary,
+    print_success_panel,
+    print_table,
+    print_tutorial_step,
+    tutor_print,
 )
 
 

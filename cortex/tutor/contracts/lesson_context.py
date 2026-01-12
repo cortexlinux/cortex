@@ -5,7 +5,7 @@ Defines the structured output schema for lesson content.
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -27,8 +27,8 @@ class TutorialStep(BaseModel):
     step_number: int = Field(..., ge=1, description="Step number in sequence")
     title: str = Field(..., description="Brief title for this step")
     content: str = Field(..., description="Detailed instruction for this step")
-    code: Optional[str] = Field(default=None, description="Optional code for this step")
-    expected_output: Optional[str] = Field(
+    code: str | None = Field(default=None, description="Optional code for this step")
+    expected_output: str | None = Field(
         default=None, description="Expected output if code is executed"
     )
 
@@ -53,22 +53,22 @@ class LessonContext(BaseModel):
         description="Detailed explanation of the package functionality",
         max_length=5000,
     )
-    use_cases: List[str] = Field(
+    use_cases: list[str] = Field(
         default_factory=list,
         description="Common use cases for this package",
         max_length=10,
     )
-    best_practices: List[str] = Field(
+    best_practices: list[str] = Field(
         default_factory=list,
         description="Best practices when using this package",
         max_length=10,
     )
-    code_examples: List[CodeExample] = Field(
+    code_examples: list[CodeExample] = Field(
         default_factory=list,
         description="Code examples demonstrating package usage",
         max_length=5,
     )
-    tutorial_steps: List[TutorialStep] = Field(
+    tutorial_steps: list[TutorialStep] = Field(
         default_factory=list,
         description="Step-by-step tutorial for hands-on learning",
         max_length=10,
@@ -78,10 +78,8 @@ class LessonContext(BaseModel):
     installation_command: str = Field(
         ..., description="Command to install the package (apt, pip, etc.)"
     )
-    official_docs_url: Optional[str] = Field(
-        default=None, description="URL to official documentation"
-    )
-    related_packages: List[str] = Field(
+    official_docs_url: str | None = Field(default=None, description="URL to official documentation")
+    related_packages: list[str] = Field(
         default_factory=list,
         description="Related packages the user might want to learn",
         max_length=5,
@@ -117,7 +115,7 @@ class LessonContext(BaseModel):
         """Get count of best practices."""
         return len(self.best_practices)
 
-    def to_display_dict(self) -> Dict[str, Any]:
+    def to_display_dict(self) -> dict[str, Any]:
         """Convert to dictionary for display purposes."""
         return {
             "package": self.package_name,
@@ -138,7 +136,7 @@ class LessonPlanOutput(BaseModel):
     strategy: Literal["use_cache", "generate_full", "generate_quick"] = Field(
         ..., description="Strategy chosen for lesson generation"
     )
-    cached_data: Optional[Dict[str, Any]] = Field(
+    cached_data: dict[str, Any] | None = Field(
         default=None, description="Cached lesson data if strategy is use_cache"
     )
     estimated_cost: float = Field(
@@ -162,18 +160,18 @@ class LessonReflectionOutput(BaseModel):
         ge=0.0,
         le=1.0,
     )
-    insights: List[str] = Field(
+    insights: list[str] = Field(
         default_factory=list,
         description="Key insights about the generated lesson",
     )
-    improvements: List[str] = Field(
+    improvements: list[str] = Field(
         default_factory=list,
         description="Suggested improvements for future iterations",
     )
     validation_passed: bool = Field(
         ..., description="Whether the lesson passed all validation checks"
     )
-    validation_errors: List[str] = Field(
+    validation_errors: list[str] = Field(
         default_factory=list,
         description="List of validation errors if any",
     )

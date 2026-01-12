@@ -7,13 +7,12 @@ Provides Rich console utilities following Cortex Linux patterns.
 from typing import Literal, Optional
 
 from rich.console import Console
+from rich.markdown import Markdown
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
+from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
-from rich.markdown import Markdown
-from rich.syntax import Syntax
-
 
 # Global Rich console instance
 console = Console()
@@ -99,7 +98,7 @@ def print_menu(options: list[str], title: str = "Select an option") -> None:
     console.print()
 
 
-def print_code_example(code: str, language: str = "python", title: Optional[str] = None) -> None:
+def print_code_example(code: str, language: str = "python", title: str | None = None) -> None:
     """
     Print a syntax-highlighted code block.
 
@@ -191,7 +190,7 @@ def print_markdown(content: str) -> None:
     console.print(md)
 
 
-def get_user_input(prompt: str, default: Optional[str] = None) -> str:
+def get_user_input(prompt: str, default: str | None = None) -> str:
     """
     Get user input with optional default value.
 

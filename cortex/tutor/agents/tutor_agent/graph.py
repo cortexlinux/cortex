@@ -6,22 +6,21 @@ Implements the Plan→Act→Reflect pattern for interactive tutoring.
 
 from typing import Literal
 
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
 
 from cortex.tutor.agents.tutor_agent.state import (
     TutorAgentState,
-    add_error,
     add_checkpoint,
     add_cost,
-    has_critical_error,
-    get_session_type,
+    add_error,
     get_package_name,
+    get_session_type,
+    has_critical_error,
 )
-from cortex.tutor.tools.deterministic.lesson_loader import LessonLoaderTool
-from cortex.tutor.tools.deterministic.progress_tracker import ProgressTrackerTool
 from cortex.tutor.tools.agentic.lesson_generator import LessonGeneratorTool
 from cortex.tutor.tools.agentic.qa_handler import QAHandlerTool
-
+from cortex.tutor.tools.deterministic.lesson_loader import LessonLoaderTool
+from cortex.tutor.tools.deterministic.progress_tracker import ProgressTrackerTool
 
 # ==================== Node Functions ====================
 

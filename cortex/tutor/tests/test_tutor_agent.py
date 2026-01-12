@@ -4,28 +4,29 @@ Tests for TutorAgent and LangGraph workflow.
 Tests the main agent orchestrator and state management.
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
 
+import pytest
+
+from cortex.tutor.agents.tutor_agent.graph import (
+    fail_node,
+    load_cache_node,
+    plan_node,
+    reflect_node,
+    route_after_act,
+    route_after_plan,
+)
 from cortex.tutor.agents.tutor_agent.state import (
     TutorAgentState,
-    create_initial_state,
-    add_error,
     add_checkpoint,
     add_cost,
-    has_critical_error,
-    get_session_type,
+    add_error,
+    create_initial_state,
     get_package_name,
-)
-from cortex.tutor.agents.tutor_agent.graph import (
-    plan_node,
-    load_cache_node,
-    reflect_node,
-    fail_node,
-    route_after_plan,
-    route_after_act,
+    get_session_type,
+    has_critical_error,
 )
 
 
@@ -292,6 +293,7 @@ class TestTutorAgentIntegration:
         """Test teach validates package name."""
         from cortex.tutor.agents.tutor_agent import TutorAgent
         from cortex.tutor.config import reset_config
+
         reset_config()
 
         with pytest.raises(ValueError) as exc_info:
@@ -306,6 +308,7 @@ class TestTutorAgentIntegration:
         """Test ask validates inputs."""
         from cortex.tutor.agents.tutor_agent import TutorAgent
         from cortex.tutor.config import reset_config
+
         reset_config()
 
         agent = TutorAgent()

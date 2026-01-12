@@ -6,7 +6,6 @@ No LLM calls - pure rule-based validation.
 """
 
 import re
-from typing import Tuple, List, Optional
 
 # Maximum input length to prevent abuse
 MAX_INPUT_LENGTH = 1000
@@ -49,7 +48,7 @@ KNOWN_PACKAGE_CATEGORIES = [
 ]
 
 
-def validate_package_name(package_name: str) -> Tuple[bool, Optional[str]]:
+def validate_package_name(package_name: str) -> tuple[bool, str | None]:
     """
     Validate a package name for safety and format.
 
@@ -98,7 +97,7 @@ def validate_input(
     input_text: str,
     max_length: int = MAX_INPUT_LENGTH,
     allow_empty: bool = False,
-) -> Tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """
     Validate general user input for safety.
 
@@ -136,7 +135,7 @@ def validate_input(
     return True, None
 
 
-def validate_question(question: str) -> Tuple[bool, Optional[str]]:
+def validate_question(question: str) -> tuple[bool, str | None]:
     """
     Validate a user question for the Q&A system.
 
@@ -149,7 +148,7 @@ def validate_question(question: str) -> Tuple[bool, Optional[str]]:
     return validate_input(question, max_length=MAX_QUESTION_LENGTH, allow_empty=False)
 
 
-def validate_topic(topic: str) -> Tuple[bool, Optional[str]]:
+def validate_topic(topic: str) -> tuple[bool, str | None]:
     """
     Validate a topic name.
 
@@ -174,7 +173,7 @@ def validate_topic(topic: str) -> Tuple[bool, Optional[str]]:
     return True, None
 
 
-def validate_score(score: float) -> Tuple[bool, Optional[str]]:
+def validate_score(score: float) -> tuple[bool, str | None]:
     """
     Validate a score value.
 
@@ -193,7 +192,7 @@ def validate_score(score: float) -> Tuple[bool, Optional[str]]:
     return True, None
 
 
-def validate_learning_style(style: str) -> Tuple[bool, Optional[str]]:
+def validate_learning_style(style: str) -> tuple[bool, str | None]:
     """
     Validate a learning style preference.
 
@@ -237,7 +236,7 @@ def sanitize_input(input_text: str) -> str:
     return sanitized
 
 
-def extract_package_name(input_text: str) -> Optional[str]:
+def extract_package_name(input_text: str) -> str | None:
     """
     Extract a potential package name from user input.
 
@@ -279,11 +278,11 @@ def extract_package_name(input_text: str) -> Optional[str]:
 
 
 def get_validation_errors(
-    package_name: Optional[str] = None,
-    topic: Optional[str] = None,
-    question: Optional[str] = None,
-    score: Optional[float] = None,
-) -> List[str]:
+    package_name: str | None = None,
+    topic: str | None = None,
+    question: str | None = None,
+    score: float | None = None,
+) -> list[str]:
     """
     Validate multiple inputs and return all errors.
 
@@ -324,7 +323,7 @@ def get_validation_errors(
 class ValidationResult:
     """Result of a validation operation."""
 
-    def __init__(self, is_valid: bool, errors: Optional[List[str]] = None) -> None:
+    def __init__(self, is_valid: bool, errors: list[str] | None = None) -> None:
         """
         Initialize validation result.
 
@@ -347,10 +346,10 @@ class ValidationResult:
 
 
 def validate_all(
-    package_name: Optional[str] = None,
-    topic: Optional[str] = None,
-    question: Optional[str] = None,
-    score: Optional[float] = None,
+    package_name: str | None = None,
+    topic: str | None = None,
+    question: str | None = None,
+    score: float | None = None,
 ) -> ValidationResult:
     """
     Validate all provided inputs and return a ValidationResult.

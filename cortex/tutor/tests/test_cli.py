@@ -5,17 +5,18 @@ Comprehensive tests for command-line interface.
 """
 
 import os
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 from io import StringIO
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 from cortex.tutor.cli import (
-    create_parser,
-    cmd_teach,
-    cmd_question,
     cmd_list_packages,
     cmd_progress,
+    cmd_question,
     cmd_reset,
+    cmd_teach,
+    create_parser,
     main,
 )
 
@@ -105,6 +106,7 @@ class TestCmdTeach:
     def test_successful_teach(self, mock_tutor_class):
         """Test successful teach session."""
         from cortex.tutor.config import reset_config
+
         reset_config()  # Reset config singleton
 
         mock_tutor = Mock()
@@ -119,6 +121,7 @@ class TestCmdTeach:
     def test_teach_with_value_error(self, mock_tutor_class):
         """Test teach handles ValueError."""
         from cortex.tutor.config import reset_config
+
         reset_config()
 
         mock_tutor_class.side_effect = ValueError("Test error")
@@ -132,6 +135,7 @@ class TestCmdTeach:
     def test_teach_with_keyboard_interrupt(self, mock_tutor_class):
         """Test teach handles KeyboardInterrupt."""
         from cortex.tutor.config import reset_config
+
         reset_config()
 
         mock_tutor = Mock()
@@ -158,6 +162,7 @@ class TestCmdQuestion:
     def test_successful_question(self, mock_agent_class):
         """Test successful question."""
         from cortex.tutor.config import reset_config
+
         reset_config()
 
         mock_agent = Mock()
@@ -180,6 +185,7 @@ class TestCmdQuestion:
     def test_question_with_code_example(self, mock_agent_class):
         """Test question with code example in response."""
         from cortex.tutor.config import reset_config
+
         reset_config()
 
         mock_agent = Mock()
@@ -206,6 +212,7 @@ class TestCmdQuestion:
     def test_question_validation_failed(self, mock_agent_class):
         """Test question when validation fails."""
         from cortex.tutor.config import reset_config
+
         reset_config()
 
         mock_agent = Mock()
@@ -275,7 +282,10 @@ class TestCmdProgress:
 
         mock_store = Mock()
         mock_store.get_completion_stats.return_value = {
-            "completed": 3, "total": 5, "avg_score": 0.8, "total_time_seconds": 600
+            "completed": 3,
+            "total": 5,
+            "avg_score": 0.8,
+            "total_time_seconds": 600,
         }
         mock_store_class.return_value = mock_store
 

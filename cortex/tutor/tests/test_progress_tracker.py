@@ -11,16 +11,16 @@ from pathlib import Path
 import pytest
 
 from cortex.tutor.memory.sqlite_store import (
-    SQLiteStore,
     LearningProgress,
     QuizResult,
+    SQLiteStore,
     StudentProfile,
 )
 from cortex.tutor.tools.deterministic.progress_tracker import (
     ProgressTrackerTool,
     get_learning_progress,
-    mark_topic_completed,
     get_package_stats,
+    mark_topic_completed,
 )
 
 
@@ -292,13 +292,15 @@ class TestConvenienceFunctions:
 
     def test_get_learning_progress(self, temp_db):
         """Test get_learning_progress function."""
-        from unittest.mock import patch, Mock
+        from unittest.mock import Mock, patch
 
         # Mock the global config to use temp_db
         mock_config = Mock()
         mock_config.get_db_path.return_value = temp_db
 
-        with patch("cortex.tutor.tools.deterministic.progress_tracker.get_config", return_value=mock_config):
+        with patch(
+            "cortex.tutor.tools.deterministic.progress_tracker.get_config", return_value=mock_config
+        ):
             # First mark a topic completed
             result = mark_topic_completed("docker", "basics", 0.85)
             assert result is True
@@ -311,12 +313,14 @@ class TestConvenienceFunctions:
 
     def test_mark_topic_completed(self, temp_db):
         """Test mark_topic_completed function."""
-        from unittest.mock import patch, Mock
+        from unittest.mock import Mock, patch
 
         mock_config = Mock()
         mock_config.get_db_path.return_value = temp_db
 
-        with patch("cortex.tutor.tools.deterministic.progress_tracker.get_config", return_value=mock_config):
+        with patch(
+            "cortex.tutor.tools.deterministic.progress_tracker.get_config", return_value=mock_config
+        ):
             result = mark_topic_completed("git", "branching", 0.9)
             assert result is True
 
@@ -327,12 +331,14 @@ class TestConvenienceFunctions:
 
     def test_get_package_stats(self, temp_db):
         """Test get_package_stats function."""
-        from unittest.mock import patch, Mock
+        from unittest.mock import Mock, patch
 
         mock_config = Mock()
         mock_config.get_db_path.return_value = temp_db
 
-        with patch("cortex.tutor.tools.deterministic.progress_tracker.get_config", return_value=mock_config):
+        with patch(
+            "cortex.tutor.tools.deterministic.progress_tracker.get_config", return_value=mock_config
+        ):
             # Mark some topics
             mark_topic_completed("nginx", "basics", 0.9)
             mark_topic_completed("nginx", "config", 0.7)

@@ -4,18 +4,19 @@ Integration tests for Intelligent Tutor.
 End-to-end tests for the complete tutoring workflow.
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
+import os
 import tempfile
 from pathlib import Path
-import os
+from unittest.mock import MagicMock, Mock, patch
 
+import pytest
+
+from cortex.tutor.branding import console, print_banner, tutor_print
 from cortex.tutor.config import Config, get_config, reset_config
-from cortex.tutor.branding import tutor_print, console, print_banner
-from cortex.tutor.contracts.lesson_context import LessonContext, CodeExample, TutorialStep
+from cortex.tutor.contracts.lesson_context import CodeExample, LessonContext, TutorialStep
 from cortex.tutor.contracts.progress_context import (
-    ProgressContext,
     PackageProgress,
+    ProgressContext,
     TopicProgress,
 )
 
@@ -338,12 +339,12 @@ class TestEndToEnd:
         mock_loader_class.return_value = mock_loader
 
         # Run workflow
-        from cortex.tutor.agents.tutor_agent.state import create_initial_state
         from cortex.tutor.agents.tutor_agent.graph import (
-            plan_node,
             load_cache_node,
+            plan_node,
             reflect_node,
         )
+        from cortex.tutor.agents.tutor_agent.state import create_initial_state
 
         state = create_initial_state("docker")
 

@@ -4,20 +4,21 @@ Tests for deterministic and agentic tools.
 Tests tool functionality with mocked LLM calls.
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
 
+import pytest
+
+from cortex.tutor.tools.agentic.examples_provider import ExamplesProviderTool
+from cortex.tutor.tools.agentic.lesson_generator import LessonGeneratorTool
+from cortex.tutor.tools.agentic.qa_handler import ConversationHandler, QAHandlerTool
 from cortex.tutor.tools.deterministic.lesson_loader import (
+    FALLBACK_LESSONS,
     LessonLoaderTool,
     get_fallback_lesson,
     load_lesson_with_fallback,
-    FALLBACK_LESSONS,
 )
-from cortex.tutor.tools.agentic.lesson_generator import LessonGeneratorTool
-from cortex.tutor.tools.agentic.examples_provider import ExamplesProviderTool
-from cortex.tutor.tools.agentic.qa_handler import QAHandlerTool, ConversationHandler
 
 
 @pytest.fixture

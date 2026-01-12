@@ -12,22 +12,21 @@ Usage:
 
 import argparse
 import sys
-from typing import List, Optional
 
 from cortex.tutor import __version__
 from cortex.tutor.branding import (
     console,
-    print_banner,
-    tutor_print,
-    print_table,
-    print_progress_summary,
-    print_error_panel,
-    print_success_panel,
     get_user_input,
+    print_banner,
+    print_error_panel,
+    print_progress_summary,
+    print_success_panel,
+    print_table,
+    tutor_print,
 )
-from cortex.tutor.tools.deterministic.validators import validate_package_name
 from cortex.tutor.config import Config
 from cortex.tutor.memory.sqlite_store import SQLiteStore
+from cortex.tutor.tools.deterministic.validators import validate_package_name
 
 # Default number of topics per package for progress tracking
 DEFAULT_TUTOR_TOPICS = 5
@@ -182,7 +181,7 @@ def cmd_question(package: str, question: str, verbose: bool = False) -> int:
             content = result.get("content", {})
 
             # Print answer
-            console.print(f"\n[bold cyan]Answer:[/bold cyan]")
+            console.print("\n[bold cyan]Answer:[/bold cyan]")
             console.print(content.get("answer", "No answer available"))
 
             # Print code example if available
@@ -241,7 +240,7 @@ def cmd_list_packages(verbose: bool = False) -> int:
         return 1
 
 
-def cmd_progress(package: Optional[str] = None, verbose: bool = False) -> int:
+def cmd_progress(package: str | None = None, verbose: bool = False) -> int:
     """
     Show learning progress.
 
@@ -314,7 +313,7 @@ def cmd_progress(package: Optional[str] = None, verbose: bool = False) -> int:
         return 1
 
 
-def cmd_reset(package: Optional[str] = None, verbose: bool = False) -> int:
+def cmd_reset(package: str | None = None, verbose: bool = False) -> int:
     """
     Reset learning progress.
 
@@ -348,7 +347,7 @@ def cmd_reset(package: Optional[str] = None, verbose: bool = False) -> int:
         return 1
 
 
-def main(args: Optional[List[str]] = None) -> int:
+def main(args: list[str] | None = None) -> int:
     """
     Main entry point for the CLI.
 

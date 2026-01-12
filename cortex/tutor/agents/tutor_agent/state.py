@@ -4,16 +4,16 @@ Tutor Agent State - TypedDict for LangGraph workflow state.
 Defines the state schema that flows through the Plan→Act→Reflect workflow.
 """
 
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, TypedDict
 
 
 class StudentProfileState(TypedDict, total=False):
     """Student profile state within the agent."""
 
     learning_style: str
-    mastered_concepts: List[str]
-    weak_concepts: List[str]
-    last_session: Optional[str]
+    mastered_concepts: list[str]
+    weak_concepts: list[str]
+    last_session: str | None
 
 
 class LessonContentState(TypedDict, total=False):
@@ -22,10 +22,10 @@ class LessonContentState(TypedDict, total=False):
     package_name: str
     summary: str
     explanation: str
-    use_cases: List[str]
-    best_practices: List[str]
-    code_examples: List[Dict[str, Any]]
-    tutorial_steps: List[Dict[str, Any]]
+    use_cases: list[str]
+    best_practices: list[str]
+    code_examples: list[dict[str, Any]]
+    tutorial_steps: list[dict[str, Any]]
     installation_command: str
     confidence: float
 
@@ -34,7 +34,7 @@ class PlanState(TypedDict, total=False):
     """Plan phase output state."""
 
     strategy: str  # "use_cache", "generate_full", "generate_quick", "qa_mode"
-    cached_data: Optional[Dict[str, Any]]
+    cached_data: dict[str, Any] | None
     estimated_cost: float
     reasoning: str
 
@@ -71,7 +71,7 @@ class TutorAgentState(TypedDict, total=False):
     """
 
     # Input
-    input: Dict[str, Any]
+    input: dict[str, Any]
     force_fresh: bool
 
     # PLAN phase
@@ -82,15 +82,15 @@ class TutorAgentState(TypedDict, total=False):
 
     # ACT phase outputs
     lesson_content: LessonContentState
-    qa_result: Optional[Dict[str, Any]]
-    examples_result: Optional[Dict[str, Any]]
+    qa_result: dict[str, Any] | None
+    examples_result: dict[str, Any] | None
 
     # Combined results
-    results: Dict[str, Any]
+    results: dict[str, Any]
 
     # Errors and monitoring
-    errors: List[ErrorState]
-    checkpoints: List[Dict[str, Any]]
+    errors: list[ErrorState]
+    checkpoints: list[dict[str, Any]]
 
     # Costs
     cost_gbp: float
@@ -101,13 +101,13 @@ class TutorAgentState(TypedDict, total=False):
     replan_count: int
 
     # Final output
-    output: Optional[Dict[str, Any]]
+    output: dict[str, Any] | None
 
 
 def create_initial_state(
     package_name: str,
     session_type: str = "lesson",
-    question: Optional[str] = None,
+    question: str | None = None,
     force_fresh: bool = False,
 ) -> TutorAgentState:
     """

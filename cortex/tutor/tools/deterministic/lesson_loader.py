@@ -5,14 +5,14 @@ This tool does NOT use LLM calls - it retrieves pre-generated lessons from cache
 """
 
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from langchain.tools import BaseTool
 from pydantic import Field
 
 from cortex.tutor.config import get_config
-from cortex.tutor.memory.sqlite_store import SQLiteStore
 from cortex.tutor.contracts.lesson_context import LessonContext
+from cortex.tutor.memory.sqlite_store import SQLiteStore
 
 
 class LessonLoaderTool(BaseTool):
@@ -30,12 +30,12 @@ class LessonLoaderTool(BaseTool):
         "Returns None if no valid cache exists."
     )
 
-    store: Optional[SQLiteStore] = Field(default=None, exclude=True)
+    store: SQLiteStore | None = Field(default=None, exclude=True)
 
     class Config:
         arbitrary_types_allowed = True
 
-    def __init__(self, db_path: Optional[Path] = None) -> None:
+    def __init__(self, db_path: Path | None = None) -> None:
         """
         Initialize the lesson loader tool.
 
@@ -52,7 +52,7 @@ class LessonLoaderTool(BaseTool):
         self,
         package_name: str,
         force_fresh: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Load cached lesson content.
 
@@ -101,14 +101,14 @@ class LessonLoaderTool(BaseTool):
         self,
         package_name: str,
         force_fresh: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Async version - delegates to sync implementation."""
         return self._run(package_name, force_fresh)
 
     def cache_lesson(
         self,
         package_name: str,
-        lesson: Dict[str, Any],
+        lesson: dict[str, Any],
         ttl_hours: int = 24,
     ) -> bool:
         """
@@ -128,7 +128,7 @@ class LessonLoaderTool(BaseTool):
         except Exception:
             return False
 
-    def clear_cache(self, package_name: Optional[str] = None) -> int:
+    def clear_cache(self, package_name: str | None = None) -> int:
         """
         Clear cached lessons.
 
@@ -232,7 +232,7 @@ FALLBACK_LESSONS = {
 }
 
 
-def get_fallback_lesson(package_name: str) -> Optional[Dict[str, Any]]:
+def get_fallback_lesson(package_name: str) -> dict[str, Any] | None:
     """
     Get a fallback lesson template for common packages.
 
@@ -247,8 +247,8 @@ def get_fallback_lesson(package_name: str) -> Optional[Dict[str, Any]]:
 
 def load_lesson_with_fallback(
     package_name: str,
-    db_path: Optional[Path] = None,
-) -> Dict[str, Any]:
+    db_path: Path | None = None,
+) -> dict[str, Any]:
     """
     Load lesson from cache with fallback to templates.
 

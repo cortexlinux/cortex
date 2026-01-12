@@ -1025,14 +1025,14 @@ class CortexCLI:
         Returns:
             Exit code (0 for success, 1 for error).
         """
+        from cortex.tutor.branding import print_banner
         from cortex.tutor.cli import (
-            cmd_teach,
-            cmd_question,
             cmd_list_packages,
             cmd_progress,
+            cmd_question,
             cmd_reset,
+            cmd_teach,
         )
-        from cortex.tutor.branding import print_banner
 
         # Handle --list flag
         if getattr(args, "list", False):
@@ -2197,11 +2197,15 @@ def main():
         "-q", "--question", type=str, help="Ask a quick question about the package"
     )
     tutor_parser.add_argument("--list", "-l", action="store_true", help="List studied packages")
-    tutor_parser.add_argument("--progress", "-p", action="store_true", help="Show learning progress")
+    tutor_parser.add_argument(
+        "--progress", "-p", action="store_true", help="Show learning progress"
+    )
     tutor_parser.add_argument(
         "--reset", nargs="?", const="__all__", metavar="PACKAGE", help="Reset progress"
     )
-    tutor_parser.add_argument("--fresh", "-f", action="store_true", help="Skip cache, generate fresh")
+    tutor_parser.add_argument(
+        "--fresh", "-f", action="store_true", help="Skip cache, generate fresh"
+    )
 
     # Ask command
     ask_parser = subparsers.add_parser("ask", help="Ask a question about your system")
