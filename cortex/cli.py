@@ -2359,9 +2359,7 @@ def main():
     systemd_deps_parser.add_argument("service", help="Service name")
 
     # systemd generate
-    systemd_subs.add_parser(
-        "generate", help="Interactive wizard to generate a systemd unit file"
-    )
+    systemd_subs.add_parser("generate", help="Interactive wizard to generate a systemd unit file")
     # --------------------------
 
     # --- Environment Variable Management Commands ---
