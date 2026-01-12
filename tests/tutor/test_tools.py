@@ -251,27 +251,27 @@ class TestQAHandlerTool:
                 anthropic_api_key="test_key",
                 model="claude-sonnet-4-20250514",
             )
-            with patch("cortex.tutor.tools.agentic.qa_handler.ChatAnthropic"):
-                tool = QAHandlerTool()
+            # QAHandlerTool uses lazy LLM init, no need to mock ChatAnthropic
+            tool = QAHandlerTool()
 
-                response = {
-                    "question_understood": "What is Docker?",
-                    "answer": "Docker is a containerization platform.",
-                    "explanation": "It allows you to package applications.",
-                    "code_example": {
-                        "code": "docker run hello-world",
-                        "language": "bash",
-                        "description": "Runs test container",
-                    },
-                    "related_topics": ["containers", "images"],
-                    "confidence": 0.9,
-                }
+            response = {
+                "question_understood": "What is Docker?",
+                "answer": "Docker is a containerization platform.",
+                "explanation": "It allows you to package applications.",
+                "code_example": {
+                    "code": "docker run hello-world",
+                    "language": "bash",
+                    "description": "Runs test container",
+                },
+                "related_topics": ["containers", "images"],
+                "confidence": 0.9,
+            }
 
-                result = tool._structure_response(response, "docker", "What is Docker?")
+            result = tool._structure_response(response, "docker", "What is Docker?")
 
-                assert result["answer"] == "Docker is a containerization platform."
-                assert result["code_example"] is not None
-                assert len(result["related_topics"]) == 2
+            assert result["answer"] == "Docker is a containerization platform."
+            assert result["code_example"] is not None
+            assert len(result["related_topics"]) == 2
 
 
 class TestConversationHandler:
