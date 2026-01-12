@@ -7,12 +7,11 @@ import pytest
 # Skip all tests if voice dependencies are not installed
 np = pytest.importorskip("numpy", reason="numpy not installed (voice dependencies required)")
 
-from cortex.voice import (
+from cortex.voice import (  # noqa: E402
     MicrophoneNotFoundError,
     ModelNotFoundError,
     VoiceInputError,
     VoiceInputHandler,
-    get_voice_handler,
 )
 
 
@@ -101,16 +100,10 @@ class TestVoiceInputHandler:
     def test_ensure_dependencies_missing(self, handler):
         """Test _ensure_dependencies when deps are missing."""
         # Test that ensure_dependencies returns False when import fails
-        with patch("cortex.voice.cx_print") as mock_print:
-            # Simulate missing sounddevice by making import fail
-            original_model = handler._model
-            handler._model = None
-
-            # Mock import to raise ImportError for sounddevice
-            with patch.object(handler, "_ensure_dependencies") as mock_deps:
-                mock_deps.return_value = False
-                result = handler._ensure_dependencies()
-                assert result is False
+        with patch.object(handler, "_ensure_dependencies") as mock_deps:
+            mock_deps.return_value = False
+            result = handler._ensure_dependencies()
+            assert result is False
 
     def test_check_microphone_available(self, handler):
         """Test microphone check when device is available."""
@@ -139,7 +132,7 @@ class TestVoiceInputHandler:
         mock_sd.query_devices.return_value = []
 
         with patch.dict("sys.modules", {"sounddevice": mock_sd}):
-            with patch("cortex.voice.cx_print") as mock_print:
+            with patch("cortex.voice.cx_print"):
                 import importlib
 
                 import cortex.voice
