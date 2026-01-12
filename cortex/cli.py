@@ -36,6 +36,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 class CortexCLI:
+    # Installation messages
+    INSTALL_FAIL_MSG = "Installation failed"
+
     def __init__(self, verbose: bool = False):
         self.spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         self.spinner_idx = 0
@@ -845,7 +848,7 @@ class CortexCLI:
         failed_tasks = [
             t for t in parallel_tasks if getattr(t.status, "value", "") == "failed"
         ]
-        return failed_tasks[0].error if failed_tasks else "Installation failed"
+        return failed_tasks[0].error if failed_tasks else self.INSTALL_FAIL_MSG
 
     def _handle_sequential_execution(
         self,
@@ -886,12 +889,12 @@ class CortexCLI:
 
         # Handle failure
         self._record_history_error(
-            history, install_id, result.error_message or "Installation failed"
+            history, install_id, result.error_message or self.INSTALL_FAIL_MSG
         )
         if result.failed_step is not None:
-            self._print_error(f"Installation failed at step {result.failed_step + 1}")
+            self._print_error(f"{self.INSTALL_FAIL_MSG} at step {result.failed_step + 1}")
         else:
-            self._print_error("Installation failed")
+            self._print_error(self.INSTALL_FAIL_MSG)
         if result.error_message:
             print(f"  Error: {result.error_message}", file=sys.stderr)
         if install_id:
@@ -2078,7 +2081,7 @@ class CortexCLI:
             console.print(f"Completed in {result.total_duration:.2f} seconds")
             return 0
         else:
-            self._print_error("Installation failed")
+            self._print_error(self.INSTALL_FAIL_MSG)
             if result.error_message:
                 console.print(f"Error: {result.error_message}", style="red")
             return 1
@@ -2114,9 +2117,9 @@ class CortexCLI:
             return 0
         else:
             if result.failed_step is not None:
-                self._print_error(f"\nInstallation failed at step {result.failed_step + 1}")
+                self._print_error(f"\n{self.INSTALL_FAIL_MSG} at step {result.failed_step + 1}")
             else:
-                self._print_error("\nInstallation failed")
+                self._print_error(f"\n{self.INSTALL_FAIL_MSG}")
             if result.error_message:
                 console.print(f"Error: {result.error_message}", style="red")
             return 1
