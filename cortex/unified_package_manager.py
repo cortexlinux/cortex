@@ -182,7 +182,10 @@ class UnifiedPackageManager:
                     version = line.split(":", 1)[1].strip()
                 elif line.startswith("Installed-Size:"):
                     size_str = line.split(":", 1)[1].strip()
-                    size = int(size_str) * 1024 if size_str.isdigit() else 0
+                    try:
+                        size = int(size_str) * 1024
+                    except ValueError:
+                        size = 0
                 elif line.startswith("Description:"):
                     description = line.split(":", 1)[1].strip()
 
@@ -556,18 +559,28 @@ class UnifiedPackageManager:
         return permissions
 
     def modify_snap_permission(
-        self, snap_name: str, interface: str, action: str
+        self, snap_name: str, interface: str, action: str, slot: str | None = None
     ) -> tuple[bool, str]:
         """
         Modify a snap permission (connect/disconnect an interface).
 
         Args:
             snap_name: Name of the snap package
-            interface: Interface to modify
+            interface: Interface/plug to modify
             action: 'connect' or 'disconnect'
+            slot: Optional slot specification. If not provided, connects to the
+                  system/core slot with matching interface name (e.g., :audio-playback).
+                  For connecting to slots in other snaps, use format "snap-name:slot-name".
 
         Returns:
             Tuple of (success, message)
+
+        Example:
+            # Connect to system slot (most common case)
+            modify_snap_permission("firefox", "camera", "connect")
+
+            # Connect to specific snap's slot
+            modify_snap_permission("myapp", "content", "connect", "other-snap:data")
         """
         if action not in ("connect", "disconnect"):
             return False, f"Invalid action: {action}. Use 'connect' or 'disconnect'"
@@ -575,7 +588,13 @@ class UnifiedPackageManager:
         if not self._snap_available:
             return False, "Snap is not available on this system"
 
-        cmd = ["snap", action, f"{snap_name}:{interface}"]
+        # Build command with optional slot specification
+        plug_spec = f"{snap_name}:{interface}"
+        if slot:
+            cmd = ["snap", action, plug_spec, slot]
+        else:
+            cmd = ["snap", action, plug_spec]
+
         success, stdout, stderr = self._run_command(cmd)
 
         if success:
