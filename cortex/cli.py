@@ -261,9 +261,7 @@ class CortexCLI:
             )
             console.print(f"Status: {status}")
             console.print(
-                f"DND Window: [yellow]{
-                    mgr.config['dnd_start']} - {
-                    mgr.config['dnd_end']}[/yellow]"
+                f"DND Window: [yellow]{mgr.config['dnd_start']} - {mgr.config['dnd_end']}[/yellow]"
             )
             console.print(f"History File: {mgr.history_file}")
             return 0
