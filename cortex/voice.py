@@ -7,17 +7,13 @@ Supports push-to-talk (F9 by default) for low-latency voice input.
 
 import logging
 import os
-import sys
 import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from cortex.branding import console, cx_print
-
-if TYPE_CHECKING:
-    import numpy as np
 
 
 class VoiceInputError(Exception):
@@ -304,7 +300,7 @@ class VoiceInputHandler:
         if self._model is None:
             raise ModelNotFoundError("Model must be loaded before transcription")
 
-        segments, info = self._model.transcribe(
+        segments, _ = self._model.transcribe(
             audio_data,
             beam_size=5,
             language="en",
