@@ -9,6 +9,9 @@
 namespace cortex {
 namespace daemon {
 
+// Forward declaration
+class SystemMonitor;
+
 // Unix socket server
 class SocketServer {
 public:
@@ -27,11 +30,15 @@ public:
     // Get socket path
     const std::string& get_socket_path() const { return socket_path_; }
 
+    // Set system monitor for health checks (must be called before start)
+    void set_system_monitor(SystemMonitor* monitor) { system_monitor_ = monitor; }
+
 private:
     std::string socket_path_;
     int server_fd_;
     std::atomic<bool> running_;
     std::unique_ptr<std::thread> accept_thread_;
+    SystemMonitor* system_monitor_ = nullptr;  // Non-owning pointer
 
     // Accept connections and handle requests
     void accept_connections();

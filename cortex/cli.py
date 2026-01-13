@@ -286,7 +286,9 @@ class CortexCLI:
             return mgr.health()
 
         elif args.daemon_action == "install":
-            return mgr.install()
+            execute = getattr(args, "execute", False)
+            skip_confirm = getattr(args, "yes", False)
+            return mgr.install(dry_run=not execute, skip_confirm=skip_confirm)
 
         elif args.daemon_action == "uninstall":
             return mgr.uninstall()
@@ -2199,7 +2201,18 @@ def main():
     status_parser = daemon_subs.add_parser("status", help="Check daemon status")
     status_parser.add_argument("-v", "--verbose", action="store_true", help="Show detailed status")
     daemon_subs.add_parser("health", help="Show daemon health snapshot")
-    daemon_subs.add_parser("install", help="Install and start daemon service")
+    install_daemon_parser = daemon_subs.add_parser(
+        "install", help="Install and start daemon service (dry-run by default)"
+    )
+    install_daemon_parser.add_argument(
+        "--execute",
+        "-e",
+        action="store_true",
+        help="Actually perform installation (default: dry-run)",
+    )
+    install_daemon_parser.add_argument(
+        "--yes", "-y", action="store_true", help="Skip confirmation prompt (requires --execute)"
+    )
     daemon_subs.add_parser("uninstall", help="Uninstall daemon service")
 
     alerts_parser = daemon_subs.add_parser("alerts", help="Show daemon alerts")

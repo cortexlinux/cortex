@@ -421,11 +421,15 @@ class DependencyImporter:
         # Dev-related optional dependency groups
         dev_groups = {"dev", "development", "test", "testing", "lint", "docs", "all"}
 
+        # Get project name once for self-reference detection
+        project_name = self._get_project_name(content)
+
         for group_name, deps in optional_deps.items():
             is_dev_group = group_name.lower() in dev_groups
             for dep_str in deps:
                 # Handle self-references like "cortex-linux[dev,security,docs]"
-                if dep_str.startswith(self._get_project_name(content)):
+                # Only skip if we have a valid (non-empty) project name
+                if project_name and dep_str.startswith(project_name):
                     # Skip self-references, they're just grouping
                     continue
                 pkg = self._parse_python_requirement(dep_str, is_dev=is_dev_group)

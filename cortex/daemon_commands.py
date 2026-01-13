@@ -187,16 +187,68 @@ class DaemonManager:
             console.print(f"[red]✗ Connection error: {e}[/red]")
             return 1
 
-    def install(self) -> int:
-        """Install and start the daemon with interactive setup"""
-        console.print("[cyan]Starting cortexd daemon setup...[/cyan]\n")
+    def install(self, dry_run: bool = True, skip_confirm: bool = False) -> int:
+        """Install and start the daemon with interactive setup.
 
+        Per project safety requirements, this uses dry-run mode by default.
+        Users must explicitly pass --execute to perform actual installation,
+        and must confirm unless --yes is provided.
+
+        Args:
+            dry_run: If True (default), only show what would be done without
+                    making changes. Pass False to actually install.
+            skip_confirm: If True, skip the confirmation prompt. Only has effect
+                         when dry_run is False.
+
+        Returns:
+            int: 0 on success, 1 on failure.
+        """
         # Use the interactive setup_daemon.py script
         script_path = Path(__file__).parent.parent / "daemon" / "scripts" / "setup_daemon.py"
 
         if not script_path.exists():
             console.print(f"[red]✗ Setup script not found: {script_path}[/red]")
             return 1
+
+        if dry_run:
+            # Dry-run mode: show what would be done
+            console.print("[bold cyan]Daemon Installation Preview (dry-run)[/bold cyan]\n")
+            console.print("[cyan]The following actions would be performed:[/cyan]\n")
+            console.print(
+                "  1. Check and install system dependencies (cmake, build-essential, etc.)"
+            )
+            console.print("  2. Build the cortexd daemon from source")
+            console.print("  3. Install cortexd binary to /usr/local/bin/")
+            console.print("  4. Install systemd service files")
+            console.print("  5. Create /etc/cortex/ configuration directory")
+            console.print("  6. Configure LLM backend (cloud API or local llama.cpp)")
+            console.print("  7. Start the cortexd service")
+            console.print()
+            console.print("[yellow]⚠ This operation requires sudo privileges.[/yellow]")
+            console.print()
+            console.print("[dim]To perform the actual installation, run:[/dim]")
+            console.print("  [bold]cortex daemon install --execute[/bold]")
+            console.print()
+            console.print("[dim]To skip confirmation prompt:[/dim]")
+            console.print("  [bold]cortex daemon install --execute --yes[/bold]")
+            return 0
+
+        # Actual installation mode
+        console.print("[bold cyan]Cortex Daemon Installation[/bold cyan]\n")
+        console.print("[yellow]⚠ This will perform the following system changes:[/yellow]")
+        console.print("  • Install system packages via apt (requires sudo)")
+        console.print("  • Build and install cortexd to /usr/local/bin/")
+        console.print("  • Create systemd service files")
+        console.print("  • Create configuration in /etc/cortex/")
+        console.print()
+
+        # SAFETY GUARD: Require explicit confirmation unless --yes flag provided
+        if not skip_confirm:
+            if not self.confirm("Do you want to proceed with the installation?"):
+                console.print("[yellow]Installation cancelled.[/yellow]")
+                return 0
+
+        console.print("[cyan]Starting cortexd daemon setup...[/cyan]\n")
 
         try:
             # Run the setup script with Python

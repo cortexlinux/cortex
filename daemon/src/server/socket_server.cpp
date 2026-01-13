@@ -165,8 +165,15 @@ void SocketServer::handle_client(int client_fd) {
                 response = IPCProtocol::build_alerts_response(nlohmann::json::array());
                 break;
             case CommandType::HEALTH: {
-                HealthSnapshot health = g_system_monitor->get_health_snapshot();
-                response = IPCProtocol::build_health_response(health);
+                if (system_monitor_) {
+                    HealthSnapshot health = system_monitor_->get_health_snapshot();
+                    response = IPCProtocol::build_health_response(health);
+                } else {
+                    // No system monitor available - return empty health snapshot
+                    HealthSnapshot health{};
+                    health.timestamp = std::chrono::system_clock::now();
+                    response = IPCProtocol::build_health_response(health);
+                }
                 break;
             }
             case CommandType::SHUTDOWN:

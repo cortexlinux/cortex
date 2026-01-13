@@ -86,14 +86,6 @@ struct HealthSnapshot {
 } // namespace daemon
 } // namespace cortex
 
-// Forward declarations for global objects
-namespace cortex::daemon {
-class SystemMonitor;
-class SocketServer;
-class LLMWrapper;
-}
-
-// Extern global pointers
-extern std::unique_ptr<cortex::daemon::SocketServer> g_socket_server;
-extern std::unique_ptr<cortex::daemon::SystemMonitor> g_system_monitor;
-extern std::unique_ptr<cortex::daemon::LLMWrapper> g_llm_wrapper;
+// NOTE: Global pointers were removed in favor of dependency injection.
+// Use Daemon::get_service<T>() for cortexd services, or inject
+// dependencies directly into constructors/setters for legacy code.
