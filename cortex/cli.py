@@ -1084,9 +1084,9 @@ class CortexCLI:
         else:
             console.print("\n[bold magenta]🔧 Affected services:[/bold magenta] None")
 
-    def _display_summary_table(self, result, style: str, Table) -> None:
+    def _display_summary_table(self, result, style: str, table_class) -> None:
         """Display the impact summary table."""
-        summary_table = Table(show_header=False, box=None, padding=(0, 2))
+        summary_table = table_class(show_header=False, box=None, padding=(0, 2))
         summary_table.add_column("Metric", style="dim")
         summary_table.add_column("Value")
         summary_table.add_row("Total packages affected", str(result.total_affected))

@@ -422,7 +422,7 @@ class ServiceImpactMapper:
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
             return (result.returncode == 0, result.stdout, result.stderr)
-        except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
+        except (subprocess.TimeoutExpired, OSError) as e:
             return (False, "", str(e))
 
     def get_service_status(self, service_name: str) -> ServiceStatus:
