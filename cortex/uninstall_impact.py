@@ -15,7 +15,6 @@ Components:
 import json
 import logging
 import os
-import re
 import subprocess
 import threading
 import time
@@ -287,12 +286,38 @@ class DependencyGraphBuilder:
         # Handle alternatives (package1 | package2) - take first option
         if "|" in dep:
             dep = dep.split("|")[0].strip()
-        # Remove version constraints (using negated char class to prevent ReDoS)
-        dep = re.sub(r"\s*\([^)]*\)|\s*<[^>]*>", "", dep).strip()
+        # Remove version constraints without regex (safer than regex)
+        dep = self._remove_version_constraints(dep)
 
         if dep and not dep.startswith("<"):
             return dep
         return None
+
+    def _remove_version_constraints(self, dep: str) -> str:
+        """Remove version constraints like (>= 1.0) and <pkg> from dependency string.
+
+        Uses string operations instead of regex to avoid any ReDoS concerns.
+        """
+        result = []
+        i = 0
+        paren_depth = 0
+        angle_depth = 0
+
+        while i < len(dep):
+            char = dep[i]
+            if char == "(":
+                paren_depth += 1
+            elif char == ")":
+                paren_depth = max(0, paren_depth - 1)
+            elif char == "<":
+                angle_depth += 1
+            elif char == ">":
+                angle_depth = max(0, angle_depth - 1)
+            elif paren_depth == 0 and angle_depth == 0:
+                result.append(char)
+            i += 1
+
+        return "".join(result).strip()
 
     def get_reverse_dependencies(self, package_name: str) -> list[str]:
         """Get reverse dependencies (what depends on this package)"""
