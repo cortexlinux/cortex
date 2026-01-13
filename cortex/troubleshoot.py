@@ -10,7 +10,6 @@ This module provides the Troubleshooter class which:
 import sys
 import re
 import subprocess
-import shlex
 from typing import List, Dict, Optional
 from rich.console import Console
 from rich.markdown import Markdown
@@ -39,6 +38,8 @@ DANGEROUS_PATTERNS = [
     r"\breboot\b",  # Reboot
     r"\binit\s+0\b",  # Halt
     r"\bpoweroff\b",  # Poweroff
+    r"\|\s*bash",  # Pipe to bash
+    r"\|\s*sh",  # Pipe to sh
 ]
 
 
@@ -49,14 +50,18 @@ class Troubleshooter:
 
         # Initialize AI
         try:
-            self.api_key = self._get_api_key()
-            self.provider = self._get_provider()
-
+            found, key, provider, _ = auto_detect_api_key()
+            self.api_key = key or ""
+            provider_name = provider or "openai"
+            if provider_name == "anthropic":
+                self.provider = "claude"
+            else:
+                self.provider = provider_name
             # Validate key presence (Ollama uses dummy key, so it's fine)
             if not self.api_key and self.provider != "ollama":
                 raise ValueError(f"No API key found for provider '{self.provider}'")
-
             self.ai = AskHandler(self.api_key, self.provider)
+            self.ai.cache = None  # Disable caching for conversational context
         except Exception as e:
             self.logger.warning(f"Failed to initialize AI: {e}")
             self.ai = None
