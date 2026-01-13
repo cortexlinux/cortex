@@ -4,7 +4,7 @@ import os
 import sys
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -347,11 +347,19 @@ class CortexCLI:
                 )
                 return 1
             provider = self._get_provider()
-            handler = AskHandler(api_key=api_key, provider=provider)
-            answer = handler.ask(question)
-
-            # Render the professional Markdown response using Rich.
-            console.print(Markdown(answer))
+            try:
+                handler = AskHandler(api_key=api_key, provider=provider)
+                answer = handler.ask(question)
+                console.print(Markdown(answer))
+            except ImportError as e:
+                self._print_error(str(e))
+                cx_print(
+                    "Install the required SDK or set CORTEX_PROVIDER=ollama for local mode.", "info"
+                )
+                return 1
+            except (ValueError, RuntimeError) as e:
+                self._print_error(str(e))
+                return 1
 
             # Record the detection event in the installation history database for audit purposes.
             history = InstallationHistory()
@@ -383,7 +391,7 @@ class CortexCLI:
                     InstallationType.CONFIG,
                     [role_slug],
                     [f"cortex role set {role_slug}"],
-                    datetime.now(),
+                    datetime.now(timezone.utc),
                 )
             except ValueError as e:
                 self._print_error(f"Invalid role slug: {e}")
@@ -421,10 +429,19 @@ class CortexCLI:
                 )
                 return 1
             provider = self._get_provider()
-            handler = AskHandler(api_key=api_key, provider=provider)
-            rec_answer = handler.ask(rec_question)
-
-            console.print(Markdown(rec_answer))
+            try:
+                handler = AskHandler(api_key=api_key, provider=provider)
+                rec_answer = handler.ask(rec_question)
+                console.print(Markdown(rec_answer))
+            except ImportError as e:
+                self._print_error(str(e))
+                cx_print(
+                    "Install the required SDK or set CORTEX_PROVIDER=ollama for local mode.", "info"
+                )
+                return 1
+            except (ValueError, RuntimeError) as e:
+                self._print_error(str(e))
+                return 1
 
             console.print(
                 "\n[dim italic]💡 Ready to upgrade? Install any of these using:[/dim italic]"
