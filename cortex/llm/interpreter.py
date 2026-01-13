@@ -140,10 +140,12 @@ class CommandInterpreter:
     - Avoid destructive operations unless explicitly requested
     - Use apt for system packages on Debian/Ubuntu
     - Add sudo only for system-level commands
-    IMPORTANT:
-    - Python libraries (e.g., numpy, pandas, scikit-learn, tensorflow, torch)
-    MUST be installed using pip, not apt.
-    - Use apt ONLY for system-level tools and OS packages.
+    CRITICAL - USE PIP FOR PYTHON:
+    - ALL Python libraries (e.g., numpy, pandas, scikit-learn, tensorflow, torch)
+    MUST be installed using pip, NEVER apt
+    - Use pip3 or pip to install Python packages
+    - Use apt ONLY for system-level tools and OS packages
+    - NEVER use "apt install python3-*" for Python libraries
     """
 
         if simplified:
