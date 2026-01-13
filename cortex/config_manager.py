@@ -136,7 +136,11 @@ class ConfigManager:
                         parts = line.split("\t")
                         if len(parts) >= 2:
                             packages.append(
-                                {"name": parts[0], "version": parts[1], "source": self.SOURCE_APT}
+                                {
+                                    "name": parts[0],
+                                    "version": parts[1],
+                                    "source": self.SOURCE_APT,
+                                }
                             )
         except (subprocess.TimeoutExpired, FileNotFoundError):
             # Silently handle errors - package manager may not be available

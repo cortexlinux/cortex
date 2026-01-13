@@ -51,8 +51,8 @@ Complete reference guide to the cortexd system daemon implementation.
 ## 🎯 Documentation by Use Case
 
 ### "I want to install cortexd"
-1. Read: [DAEMON_SETUP.md](DAEMON_SETUP.md) (5-10 min)
-2. Run: `./daemon/scripts/build.sh Release && sudo ./daemon/scripts/install.sh`
+1. **Quick way**: Run `python daemon/scripts/setup_daemon.py` (handles everything)
+2. **Or manually**: Read [DAEMON_SETUP.md](DAEMON_SETUP.md) (5-10 min)
 3. Verify: Follow [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)
 
 ### "I want to use cortexd commands"

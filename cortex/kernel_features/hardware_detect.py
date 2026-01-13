@@ -352,12 +352,22 @@ def recommend_models(total_vram_gb: float, system_ram_gb: float, has_npu: bool) 
 
     if available_gb >= 48:
         recommendations.extend(
-            ["llama3.1-70b-q4", "qwen2.5-72b-q4", "deepseek-coder-33b", "mixtral-8x22b-q4"]
+            [
+                "llama3.1-70b-q4",
+                "qwen2.5-72b-q4",
+                "deepseek-coder-33b",
+                "mixtral-8x22b-q4",
+            ]
         )
 
     if available_gb >= 24:
         recommendations.extend(
-            ["llama3.1-70b-q2", "qwen2.5-32b", "codellama-34b-q4", "deepseek-coder-33b-q4"]
+            [
+                "llama3.1-70b-q2",
+                "qwen2.5-32b",
+                "codellama-34b-q4",
+                "deepseek-coder-33b-q4",
+            ]
         )
 
     if available_gb >= 16:

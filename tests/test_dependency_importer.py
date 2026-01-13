@@ -123,6 +123,12 @@ class TestDependencyImporter(unittest.TestCase):
 class TestEcosystemDetection(TestDependencyImporter):
     """Tests for ecosystem detection."""
 
+    def test_detect_pyproject_toml(self):
+        self.assertEqual(
+            self.importer.detect_ecosystem("pyproject.toml"),
+            PackageEcosystem.PYTHON,
+        )
+
     def test_detect_requirements_txt(self):
         self.assertEqual(
             self.importer.detect_ecosystem("requirements.txt"),
@@ -420,6 +426,181 @@ mypy
         self.assertEqual(len(result.packages), 0)
         self.assertTrue(len(result.errors) > 0)
         self.assertIn("not found", result.errors[0].lower())
+
+
+class TestPyprojectTomlParsing(TestDependencyImporter):
+    """Tests for pyproject.toml parsing."""
+
+    def test_parse_simple_dependencies(self):
+        content = """[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "test-project"
+version = "0.1.0"
+dependencies = [
+    "requests>=2.28.0",
+    "flask",
+    "django~=4.0",
+]
+"""
+        file_path = self._create_temp_file("pyproject.toml", content)
+        result = self.importer.parse(file_path)
+
+        self.assertEqual(result.ecosystem, PackageEcosystem.PYTHON)
+        self.assertEqual(len(result.packages), 3)
+        names = [pkg.name for pkg in result.packages]
+        self.assertIn("requests", names)
+        self.assertIn("flask", names)
+        self.assertIn("django", names)
+
+    def test_parse_with_version_specifiers(self):
+        content = """[project]
+name = "test"
+dependencies = [
+    "requests==2.28.0",
+    "flask>=2.0.0",
+    "django~=4.0",
+    "numpy!=1.0.0",
+]
+"""
+        file_path = self._create_temp_file("pyproject.toml", content)
+        result = self.importer.parse(file_path)
+
+        self.assertEqual(len(result.packages), 4)
+        requests_pkg = next(pkg for pkg in result.packages if pkg.name == "requests")
+        self.assertEqual(requests_pkg.version, "==2.28.0")
+
+    def test_parse_optional_dependencies_dev(self):
+        content = """[project]
+name = "test"
+dependencies = [
+    "requests",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=24.0.0",
+    "mypy>=1.0.0",
+]
+"""
+        file_path = self._create_temp_file("pyproject.toml", content)
+        result = self.importer.parse(file_path, include_dev=True)
+
+        self.assertEqual(len(result.packages), 1)
+        self.assertEqual(len(result.dev_packages), 3)
+        self.assertTrue(all(pkg.is_dev for pkg in result.dev_packages))
+
+    def test_parse_optional_dependencies_multiple_groups(self):
+        content = """[project]
+name = "test"
+dependencies = ["requests"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+]
+security = [
+    "bandit>=1.7.0",
+]
+docs = [
+    "mkdocs>=1.5.0",
+]
+"""
+        file_path = self._create_temp_file("pyproject.toml", content)
+        result = self.importer.parse(file_path, include_dev=True)
+
+        # requests (production) + bandit (security - optional non-dev)
+        self.assertEqual(len(result.packages), 2)
+        # pytest (dev) + mkdocs (docs - treated as dev group)
+        self.assertEqual(len(result.dev_packages), 2)
+
+        # Security should be marked as optional
+        security_pkgs = [pkg for pkg in result.packages if pkg.group == "security"]
+        self.assertEqual(len(security_pkgs), 1)
+        self.assertTrue(security_pkgs[0].is_optional)
+
+    def test_parse_with_extras(self):
+        content = """[project]
+name = "test"
+dependencies = [
+    "requests[security,socks]>=2.20.0",
+    "celery[redis]",
+]
+"""
+        file_path = self._create_temp_file("pyproject.toml", content)
+        result = self.importer.parse(file_path)
+
+        self.assertEqual(len(result.packages), 2)
+        requests_pkg = next(pkg for pkg in result.packages if pkg.name == "requests")
+        self.assertIn("security", requests_pkg.extras)
+        self.assertIn("socks", requests_pkg.extras)
+
+    def test_parse_with_environment_markers(self):
+        content = """[project]
+name = "test"
+dependencies = [
+    "pywin32; sys_platform == 'win32'",
+    "requests>=2.20.0; python_version >= '3.6'",
+]
+"""
+        file_path = self._create_temp_file("pyproject.toml", content)
+        result = self.importer.parse(file_path)
+
+        self.assertEqual(len(result.packages), 2)
+        names = [pkg.name for pkg in result.packages]
+        self.assertIn("pywin32", names)
+        self.assertIn("requests", names)
+
+    def test_parse_empty_dependencies(self):
+        content = """[project]
+name = "test"
+version = "0.1.0"
+"""
+        file_path = self._create_temp_file("pyproject.toml", content)
+        result = self.importer.parse(file_path)
+
+        self.assertEqual(len(result.packages), 0)
+        self.assertEqual(len(result.errors), 0)
+
+    def test_parse_self_referencing_optional_deps(self):
+        """Test that self-references in optional deps are skipped."""
+        content = """[project]
+name = "cortex-linux"
+dependencies = ["requests"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+all = [
+    "cortex-linux[dev,security,docs]",
+]
+"""
+        file_path = self._create_temp_file("pyproject.toml", content)
+        result = self.importer.parse(file_path, include_dev=True)
+
+        # Should not include cortex-linux self-reference
+        all_names = [pkg.name for pkg in result.packages + result.dev_packages]
+        self.assertNotIn("cortex-linux", all_names)
+        self.assertIn("requests", all_names)
+        self.assertIn("pytest", all_names)
+
+    def test_parse_multiline_dependencies(self):
+        content = """[project]
+name = "test"
+dependencies = [
+    # LLM Provider APIs
+    "anthropic>=0.18.0",
+    "openai>=1.0.0",
+    # HTTP requests
+    "requests>=2.32.4",
+]
+"""
+        file_path = self._create_temp_file("pyproject.toml", content)
+        result = self.importer.parse(file_path)
+
+        self.assertEqual(len(result.packages), 3)
 
 
 class TestPackageJsonParsing(TestDependencyImporter):
@@ -880,6 +1061,16 @@ class TestInstallCommands(TestDependencyImporter):
         cmd = self.importer.get_install_command(PackageEcosystem.PYTHON, "requirements.txt")
         self.assertEqual(cmd, "pip install -r requirements.txt")
 
+    def test_get_pyproject_install_command(self):
+        cmd = self.importer.get_install_command(PackageEcosystem.PYTHON, "pyproject.toml")
+        self.assertEqual(cmd, "pip install -e .")
+
+    def test_get_pyproject_install_command_with_dev(self):
+        cmd = self.importer.get_install_command(
+            PackageEcosystem.PYTHON, "pyproject.toml", include_dev=True
+        )
+        self.assertEqual(cmd, "pip install -e '.[dev]'")
+
     def test_get_node_install_command(self):
         cmd = self.importer.get_install_command(PackageEcosystem.NODE)
         self.assertEqual(cmd, "npm install")
@@ -911,6 +1102,55 @@ class TestInstallCommands(TestDependencyImporter):
         self.assertEqual(len(commands), 2)
         self.assertTrue(all("command" in cmd for cmd in commands))
         self.assertTrue(all("description" in cmd for cmd in commands))
+
+    def test_get_install_commands_for_pyproject(self):
+        content = """[project]
+name = "test"
+dependencies = ["requests"]
+"""
+        self._create_temp_file("pyproject.toml", content)
+
+        importer = DependencyImporter(base_path=self.temp_dir)
+        results = importer.scan_directory()
+        commands = importer.get_install_commands_for_results(results)
+
+        self.assertEqual(len(commands), 1)
+        self.assertEqual(commands[0]["command"], "pip install -e .")
+        self.assertIn("pyproject.toml", commands[0]["description"])
+
+    def test_get_install_commands_for_pyproject_with_dev(self):
+        content = """[project]
+name = "test"
+dependencies = ["requests"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+"""
+        self._create_temp_file("pyproject.toml", content)
+
+        importer = DependencyImporter(base_path=self.temp_dir)
+        results = importer.scan_directory(include_dev=True)
+        commands = importer.get_install_commands_for_results(results, include_dev=True)
+
+        self.assertEqual(len(commands), 1)
+        self.assertEqual(commands[0]["command"], "pip install -e '.[dev]'")
+
+    def test_pyproject_takes_precedence_over_requirements(self):
+        """When both pyproject.toml and requirements.txt exist, prefer pyproject.toml."""
+        pyproject_content = """[project]
+name = "test"
+dependencies = ["requests"]
+"""
+        self._create_temp_file("pyproject.toml", pyproject_content)
+        self._create_temp_file("requirements.txt", "flask")
+
+        importer = DependencyImporter(base_path=self.temp_dir)
+        results = importer.scan_directory()
+        commands = importer.get_install_commands_for_results(results)
+
+        # Should only have pyproject.toml command, not requirements.txt
+        self.assertEqual(len(commands), 1)
+        self.assertIn("pyproject.toml", commands[0]["description"])
 
 
 class TestFormatPackageList(unittest.TestCase):

@@ -6,14 +6,17 @@ Welcome to the cortexd daemon implementation for Cortex Linux!
 
 ### I want to...
 
-**...build cortexd**
+**...set up the daemon quickly (recommended)**
+→ Run `python daemon/scripts/setup_daemon.py` - handles dependencies, build, install, and LLM setup
+
+**...build cortexd manually**
 → See [daemon/scripts/build.sh](../daemon/scripts/build.sh) or read [DAEMON_BUILD.md](DAEMON_BUILD.md)
 
 **...install and run it**
 → Follow [DAEMON_SETUP.md](DAEMON_SETUP.md)
 
 **...load an LLM model**
-→ Run `./daemon/scripts/setup-llm.sh` or see [LLM_SETUP.md](LLM_SETUP.md) and [COMPATIBLE_MODELS.md](../COMPATIBLE_MODELS.md)
+→ Run `python daemon/scripts/setup_daemon.py` or see [LLM_SETUP.md](LLM_SETUP.md) and [COMPATIBLE_MODELS.md](../COMPATIBLE_MODELS.md)
 
 **...understand the architecture**
 → Read [DAEMON_ARCHITECTURE.md](DAEMON_ARCHITECTURE.md)
@@ -68,24 +71,51 @@ Welcome to the cortexd daemon implementation for Cortex Linux!
 
 ## 🚀 Getting Started (5 Minutes)
 
+### Option 1: Interactive Setup Wizard (Recommended)
+
 ```bash
-# 1. Build the daemon
+# Run the all-in-one setup wizard
+python daemon/scripts/setup_daemon.py
+```
+
+The wizard handles everything:
+- ✅ Checks and installs system dependencies (cmake, build-essential, etc.)
+- ✅ Builds the daemon from source
+- ✅ Installs the systemd service
+- ✅ Configures LLM backend (Cloud API or local llama.cpp)
+
+### Option 2: Manual Setup
+
+```bash
+# 1. Install system dependencies
+sudo apt-get install -y cmake build-essential libsystemd-dev \
+    libssl-dev libsqlite3-dev uuid-dev pkg-config libcap-dev
+
+# 2. Build the daemon
 cd /path/to/cortex/daemon
 ./scripts/build.sh Release
 
-# 2. Install system-wide
-sudo ./daemon/scripts/install.sh
+# 3. Install system-wide
+sudo ./scripts/install.sh
 
-# 3. Setup LLM (Optional but recommended)
-./daemon/scripts/setup-llm.sh
-# Or manually: update /etc/cortex/daemon.conf with model_path and restart
+# 4. Setup LLM (Optional but recommended)
+./scripts/setup-llm.sh
+# Or manually: update /etc/cortex/daemon.yaml with model_path and restart
+```
 
-# 4. Verify installation
+### Verify Installation
+
+```bash
+# Check daemon status
 cortex daemon status
-cortex daemon health      # Shows CPU, memory, disk, LLM status
+
+# View system health metrics
+cortex daemon health
+
+# List active alerts
 cortex daemon alerts
 
-# 5. View logs
+# View logs
 journalctl -u cortexd -f
 ```
 

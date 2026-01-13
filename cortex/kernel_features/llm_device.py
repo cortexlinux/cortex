@@ -124,7 +124,11 @@ class LLMDevice(Operations):
             return s.response.encode()[offset : offset + size]
         if t == "status":
             return json.dumps(
-                {"status": "running", "uptime": time.time() - self.start, "requests": self.requests}
+                {
+                    "status": "running",
+                    "uptime": time.time() - self.start,
+                    "requests": self.requests,
+                }
             ).encode()[offset : offset + size]
         return b""
 

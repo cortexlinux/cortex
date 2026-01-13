@@ -355,7 +355,11 @@ class HardwareProfiler:
                                     storage_type = "nvme"
 
                             storage_devices.append(
-                                {"type": storage_type, "size": size_mb, "device": device_name}
+                                {
+                                    "type": storage_type,
+                                    "size": size_mb,
+                                    "device": device_name,
+                                }
                             )
         except (subprocess.TimeoutExpired, FileNotFoundError):
             pass

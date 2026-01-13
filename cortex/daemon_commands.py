@@ -62,7 +62,7 @@ class DaemonManager:
 
     def get_llm_backend(self) -> str:
         """Get the configured LLM backend from daemon config or environment.
-        
+
         Returns:
             str: "cloud", "local", or "none"
         """
@@ -72,7 +72,7 @@ class DaemonManager:
             return "local"
         elif provider in ("claude", "openai", "ollama"):
             return "cloud"
-        
+
         # Check daemon config
         if DAEMON_CONFIG_FILE.exists():
             try:
@@ -83,7 +83,7 @@ class DaemonManager:
                 return backend
             except (yaml.YAMLError, OSError):
                 pass
-        
+
         return "none"
 
     def get_llm_service_info(self) -> dict:
@@ -96,10 +96,10 @@ class DaemonManager:
             "ctx_size": None,
             "error": None,
         }
-        
+
         if info["installed"]:
             info["running"] = self.check_llm_service_running()
-            
+
             # Get service status/error if not running
             if not info["running"]:
                 result = subprocess.run(
@@ -113,7 +113,7 @@ class DaemonManager:
                     info["error"] = "Service exited with error"
                 elif "not-found" in result.stdout.lower():
                     info["error"] = "llama-server not found"
-        
+
         # Read config from env file (may need sudo, try both ways)
         env_content = None
         if LLM_ENV_FILE.exists():
@@ -132,7 +132,7 @@ class DaemonManager:
                     env_content = result.stdout
             except OSError:
                 pass
-        
+
         if env_content:
             for line in env_content.splitlines():
                 line = line.strip()
@@ -142,7 +142,7 @@ class DaemonManager:
                     info["threads"] = line.split("=", 1)[1]
                 elif line.startswith("CORTEX_LLM_CTX_SIZE="):
                     info["ctx_size"] = line.split("=", 1)[1]
-        
+
         return info
 
     def show_daemon_setup_help(self) -> None:
@@ -246,13 +246,13 @@ class DaemonManager:
                 border_style="green",
             )
             console.print(panel)
-            
+
             # Also show LLM service status if using local backend
             backend = self.get_llm_backend()
             if backend == "local":
                 llm_info = self.get_llm_service_info()
                 lines = [
-                    f"  Backend:            Local (llama.cpp)",
+                    "  Backend:            Local (llama.cpp)",
                     f"  Service Installed:  {'Yes' if llm_info['installed'] else 'No'}",
                     f"  Service Running:    {'Yes' if llm_info['running'] else 'No'}",
                 ]
@@ -260,7 +260,7 @@ class DaemonManager:
                     lines.append(f"  Model:              {llm_info['model_path']}")
                 if llm_info["threads"]:
                     lines.append(f"  Threads:            {llm_info['threads']}")
-                
+
                 panel = Panel(
                     "\n".join(lines),
                     title="[bold]LLM Service Status[/bold]",
@@ -270,7 +270,7 @@ class DaemonManager:
             elif backend == "cloud":
                 provider = os.environ.get("CORTEX_PROVIDER", "unknown")
                 console.print(f"\n[cyan]LLM Backend: Cloud API ({provider})[/cyan]")
-            
+
             return 0
         except DaemonConnectionError as e:
             console.print(f"[red]✗ Connection error: {e}[/red]")
@@ -475,17 +475,17 @@ class DaemonManager:
                 "\n".join(lines), title="[bold]Daemon Configuration[/bold]", border_style="cyan"
             )
             console.print(panel)
-            
+
             # Show LLM configuration based on backend
             backend = self.get_llm_backend()
             llm_lines = [f"  Backend:            {backend.capitalize() if backend else 'None'}"]
-            
+
             if backend == "local":
                 llm_info = self.get_llm_service_info()
                 if llm_info["model_path"]:
                     llm_lines.append(f"  Model Path:         {llm_info['model_path']}")
                 else:
-                    llm_lines.append(f"  Model Path:         [yellow]Not configured[/yellow]")
+                    llm_lines.append("  Model Path:         [yellow]Not configured[/yellow]")
                 if llm_info["threads"]:
                     llm_lines.append(f"  Threads:            {llm_info['threads']}")
                 if llm_info["ctx_size"]:
@@ -496,13 +496,13 @@ class DaemonManager:
                 provider = os.environ.get("CORTEX_PROVIDER", "unknown")
                 llm_lines.append(f"  Provider:           {provider.capitalize()}")
             else:
-                llm_lines.append(f"  [dim]Run setup: python daemon/scripts/setup_daemon.py[/dim]")
-            
+                llm_lines.append("  [dim]Run setup: python daemon/scripts/setup_daemon.py[/dim]")
+
             llm_panel = Panel(
                 "\n".join(llm_lines), title="[bold]LLM Configuration[/bold]", border_style="cyan"
             )
             console.print(llm_panel)
-            
+
             return 0
         except DaemonConnectionError as e:
             console.print(f"[red]✗ Connection error: {e}[/red]")
@@ -516,7 +516,7 @@ class DaemonManager:
     def llm_status(self) -> int:
         """Show LLM engine status"""
         backend = self.get_llm_backend()
-        
+
         if backend == "local":
             # Show cortex-llm.service status
             return self._llm_status_local()
@@ -532,57 +532,59 @@ class DaemonManager:
     def _llm_status_local(self) -> int:
         """Show status for local llama.cpp service"""
         llm_info = self.get_llm_service_info()
-        
+
         if not llm_info["installed"]:
             console.print("[yellow]⚠ cortex-llm.service is not installed[/yellow]")
             console.print("\n[cyan]Install with:[/cyan]")
-            console.print("  [bold]sudo daemon/scripts/install-llm.sh install <model_path>[/bold]\n")
+            console.print(
+                "  [bold]sudo daemon/scripts/install-llm.sh install <model_path>[/bold]\n"
+            )
             return 1
-        
+
         status_icon = "✓" if llm_info["running"] else "✗"
         status_color = "green" if llm_info["running"] else "red"
         status_text = "Running" if llm_info["running"] else "Stopped"
-        
+
         lines = [
-            f"  Backend:            Local (llama.cpp)",
-            f"  Service:            cortex-llm.service",
+            "  Backend:            Local (llama.cpp)",
+            "  Service:            cortex-llm.service",
             f"  Status:             [{status_color}]{status_icon} {status_text}[/{status_color}]",
         ]
-        
+
         if llm_info["model_path"]:
             model_path = Path(llm_info["model_path"])
             lines.append(f"  Model:              {model_path.name}")
             lines.append(f"  Model Path:         {llm_info['model_path']}")
-            
+
             # Check if model file exists
             if not Path(llm_info["model_path"]).expanduser().exists():
-                lines.append(f"  [red]⚠ Model file not found![/red]")
+                lines.append("  [red]⚠ Model file not found![/red]")
         else:
-            lines.append(f"  Model:              [yellow]Not configured[/yellow]")
-            
+            lines.append("  Model:              [yellow]Not configured[/yellow]")
+
         if llm_info["threads"]:
             lines.append(f"  Threads:            {llm_info['threads']}")
         if llm_info["ctx_size"]:
             lines.append(f"  Context Size:       {llm_info['ctx_size']}")
-        
+
         # Get URL
         llm_url = os.environ.get("LLAMA_CPP_BASE_URL", "http://127.0.0.1:8085")
         lines.append(f"  API URL:            {llm_url}")
-        
+
         panel = Panel(
             "\n".join(lines),
             title="[bold]LLM Engine Status (Local)[/bold]",
             border_style="cyan",
         )
         console.print(panel)
-        
+
         # Show troubleshooting info if not running
         if not llm_info["running"]:
             console.print()
-            
+
             # Check for common issues
             issues = []
-            
+
             # Check if llama-server is installed
             llama_server_check = subprocess.run(
                 ["which", "llama-server"],
@@ -594,7 +596,7 @@ class DaemonManager:
                 issues.append("llama-server is not installed")
                 console.print("[red]✗ llama-server not found in PATH[/red]")
                 console.print("  Install from: https://github.com/ggerganov/llama.cpp")
-            
+
             # Check if model is configured
             if not llm_info["model_path"]:
                 issues.append("No model configured")
@@ -603,20 +605,20 @@ class DaemonManager:
             elif not Path(llm_info["model_path"]).expanduser().exists():
                 issues.append("Model file not found")
                 console.print(f"[red]✗ Model file not found: {llm_info['model_path']}[/red]")
-            
+
             if not issues:
                 console.print("[cyan]Start the service with:[/cyan]")
                 console.print("  [bold]sudo systemctl start cortex-llm[/bold]")
                 console.print("\n[dim]View logs with: journalctl -u cortex-llm -f[/dim]")
-            
+
             console.print()
-        
+
         return 0
 
     def _llm_status_cloud(self) -> int:
         """Show status for cloud LLM provider"""
         provider = os.environ.get("CORTEX_PROVIDER", "unknown")
-        
+
         # Check API key
         api_key_vars = {
             "claude": "ANTHROPIC_API_KEY",
@@ -625,34 +627,36 @@ class DaemonManager:
         }
         api_key_var = api_key_vars.get(provider, f"{provider.upper()}_API_KEY")
         has_key = bool(os.environ.get(api_key_var))
-        
+
         key_status = "[green]✓ Configured[/green]" if has_key else "[red]✗ Not set[/red]"
-        
+
         lines = [
-            f"  Backend:            Cloud API",
+            "  Backend:            Cloud API",
             f"  Provider:           {provider.capitalize()}",
             f"  API Key ({api_key_var}): {key_status}",
         ]
-        
+
         panel = Panel(
             "\n".join(lines),
             title="[bold]LLM Engine Status (Cloud)[/bold]",
             border_style="cyan",
         )
         console.print(panel)
-        
+
         if not has_key:
-            console.print(f"\n[yellow]Set your API key:[/yellow]")
+            console.print("\n[yellow]Set your API key:[/yellow]")
             console.print(f"  [bold]export {api_key_var}=your-api-key[/bold]\n")
-        
+
         return 0
 
     def llm_load(self, model_path: str) -> int:
         """Load an LLM model"""
         backend = self.get_llm_backend()
-        
+
         if backend == "cloud":
-            console.print("[yellow]Cloud backend is configured - no local model loading needed[/yellow]")
+            console.print(
+                "[yellow]Cloud backend is configured - no local model loading needed[/yellow]"
+            )
             console.print("\n[cyan]To switch to local llama.cpp:[/cyan]")
             console.print("  [bold]export CORTEX_PROVIDER=llama_cpp[/bold]")
             console.print("  [bold]cortex daemon llm load <model_path>[/bold]\n")
@@ -664,21 +668,21 @@ class DaemonManager:
     def _llm_load_local(self, model_path: str) -> int:
         """Load model using cortex-llm.service"""
         model_file = Path(model_path).expanduser().resolve()
-        
+
         if not model_file.exists():
             console.print(f"[red]✗ Model file not found: {model_path}[/red]")
             return 1
-        
+
         if not model_file.suffix == ".gguf":
             console.print(f"[yellow]⚠ Expected .gguf file, got: {model_file.suffix}[/yellow]")
-        
+
         console.print(f"[cyan]Configuring cortex-llm service with model: {model_file.name}[/cyan]")
-        
+
         # Check if install script exists
         if not INSTALL_LLM_SCRIPT.exists():
             console.print(f"[red]✗ Install script not found: {INSTALL_LLM_SCRIPT}[/red]")
             return 1
-        
+
         # Configure the service with the new model
         try:
             result = subprocess.run(
@@ -687,26 +691,26 @@ class DaemonManager:
                 capture_output=True,
                 text=True,
             )
-            
+
             if result.returncode != 0:
-                console.print(f"[red]✗ Failed to configure service[/red]")
+                console.print("[red]✗ Failed to configure service[/red]")
                 if result.stderr:
                     console.print(f"[dim]{result.stderr}[/dim]")
                 return 1
-            
+
             console.print("[green]✓ Model configured successfully[/green]")
             console.print(f"  Model: {model_file.name}")
             console.print(f"  Path: {model_file}")
-            
+
             # Check if service is running
             if self.check_llm_service_running():
                 console.print("[green]✓ Service restarted with new model[/green]")
             else:
                 console.print("\n[cyan]Start the service with:[/cyan]")
                 console.print("  [bold]sudo systemctl start cortex-llm[/bold]\n")
-            
+
             return 0
-            
+
         except Exception as e:
             console.print(f"[red]✗ Error: {e}[/red]")
             return 1
@@ -714,7 +718,7 @@ class DaemonManager:
     def llm_unload(self) -> int:
         """Unload the current LLM model"""
         backend = self.get_llm_backend()
-        
+
         if backend == "cloud":
             console.print("[yellow]Cloud backend - no local model to unload[/yellow]")
             return 0
@@ -727,13 +731,13 @@ class DaemonManager:
         if not self.check_llm_service_installed():
             console.print("[yellow]cortex-llm.service is not installed[/yellow]")
             return 0
-        
+
         if not self.check_llm_service_running():
             console.print("[yellow]cortex-llm.service is not running[/yellow]")
             return 0
-        
+
         console.print("[cyan]Stopping cortex-llm service...[/cyan]")
-        
+
         try:
             result = subprocess.run(
                 ["sudo", "systemctl", "stop", LLM_SERVICE_NAME],
@@ -741,16 +745,16 @@ class DaemonManager:
                 capture_output=True,
                 text=True,
             )
-            
+
             if result.returncode == 0:
                 console.print("[green]✓ Model unloaded (service stopped)[/green]")
                 return 0
             else:
-                console.print(f"[red]✗ Failed to stop service[/red]")
+                console.print("[red]✗ Failed to stop service[/red]")
                 if result.stderr:
                     console.print(f"[dim]{result.stderr}[/dim]")
                 return 1
-                
+
         except Exception as e:
             console.print(f"[red]✗ Error: {e}[/red]")
             return 1

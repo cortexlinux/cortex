@@ -76,6 +76,7 @@ class ParseResult:
 
 # Mapping of filenames to ecosystems
 DEPENDENCY_FILES = {
+    "pyproject.toml": PackageEcosystem.PYTHON,
     "requirements.txt": PackageEcosystem.PYTHON,
     "requirements-dev.txt": PackageEcosystem.PYTHON,
     "requirements-test.txt": PackageEcosystem.PYTHON,
@@ -97,6 +98,10 @@ INSTALL_COMMANDS = {
     PackageEcosystem.RUST: "cargo build",
     PackageEcosystem.GO: "go mod download",
 }
+
+# Special install command for pyproject.toml
+PYPROJECT_INSTALL_COMMAND = "pip install -e ."
+PYPROJECT_INSTALL_DEV_COMMAND = "pip install -e '.[dev]'"
 
 
 class DependencyImporter:
@@ -159,6 +164,9 @@ class DependencyImporter:
 
         try:
             if ecosystem == PackageEcosystem.PYTHON:
+                # Check if it's a pyproject.toml file
+                if path.name == "pyproject.toml":
+                    return self._parse_pyproject_toml(path, include_dev)
                 return self._parse_requirements_txt(path, include_dev)
             elif ecosystem == PackageEcosystem.NODE:
                 return self._parse_package_json(path, include_dev)
@@ -371,6 +379,202 @@ class DependencyImporter:
             return os.path.basename(source.rstrip("/"))
 
         return None
+
+    def _parse_pyproject_toml(self, path: Path, include_dev: bool = False) -> ParseResult:
+        """Parse Python pyproject.toml file (PEP 621).
+
+        Handles:
+        - [project].dependencies for production dependencies
+        - [project.optional-dependencies] for dev, test, docs, etc.
+        - Version specifiers (==, >=, <=, ~=, !=, <, >)
+        - Extras (package[extra1,extra2])
+        - Environment markers (; python_version >= "3.8")
+        """
+        packages: list[Package] = []
+        dev_packages: list[Package] = []
+        errors: list[str] = []
+        warnings: list[str] = []
+
+        try:
+            content = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            content = path.read_text(encoding="latin-1")
+        except Exception as e:
+            return ParseResult(
+                file_path=str(path),
+                ecosystem=PackageEcosystem.PYTHON,
+                packages=[],
+                errors=[f"Read error: {str(e)}"],
+            )
+
+        # Simple TOML parsing for pyproject.toml (without external library)
+        # Parse [project] dependencies
+        project_deps = self._extract_toml_string_list(content, "dependencies")
+        for dep_str in project_deps:
+            pkg = self._parse_python_requirement(dep_str, is_dev=False)
+            if pkg:
+                packages.append(pkg)
+
+        # Parse [project.optional-dependencies] sections
+        optional_deps = self._extract_optional_dependencies(content)
+
+        # Dev-related optional dependency groups
+        dev_groups = {"dev", "development", "test", "testing", "lint", "docs", "all"}
+
+        for group_name, deps in optional_deps.items():
+            is_dev_group = group_name.lower() in dev_groups
+            for dep_str in deps:
+                # Handle self-references like "cortex-linux[dev,security,docs]"
+                if dep_str.startswith(self._get_project_name(content)):
+                    # Skip self-references, they're just grouping
+                    continue
+                pkg = self._parse_python_requirement(dep_str, is_dev=is_dev_group)
+                if pkg:
+                    pkg.group = group_name
+                    if is_dev_group:
+                        dev_packages.append(pkg)
+                    else:
+                        # Non-dev optional dependencies (like 'security')
+                        pkg.is_optional = True
+                        packages.append(pkg)
+
+        return ParseResult(
+            file_path=str(path),
+            ecosystem=PackageEcosystem.PYTHON,
+            packages=packages,
+            dev_packages=dev_packages if include_dev else [],
+            errors=errors,
+            warnings=warnings,
+        )
+
+    def _get_project_name(self, content: str) -> str:
+        """Extract project name from pyproject.toml content."""
+        match = re.search(r'^\s*name\s*=\s*["\']([^"\']+)["\']', content, re.MULTILINE)
+        return match.group(1) if match else ""
+
+    def _extract_toml_string_list(self, content: str, key: str) -> list[str]:
+        """Extract a string list value from TOML content.
+
+        Handles:
+        - dependencies = ["pkg1", "pkg2"]
+        - Multi-line arrays
+        - Strings with nested quotes (e.g., "pkg; python_version >= '3.8'")
+        - Strings with brackets (e.g., "pkg[extras]>=1.0")
+        """
+        # Find the start of the array: key = [
+        start_pattern = rf"^\s*{re.escape(key)}\s*=\s*\["
+        start_match = re.search(start_pattern, content, re.MULTILINE)
+
+        if not start_match:
+            return []
+
+        # Find the matching closing bracket by parsing character by character
+        array_start = start_match.end()
+        array_content = self._extract_balanced_brackets(content[array_start:])
+
+        if not array_content:
+            return []
+
+        items: list[str] = []
+
+        # Extract quoted strings from the array
+        # Handle double-quoted strings (may contain single quotes inside)
+        for item_match in re.finditer(r'"([^"]*)"', array_content):
+            item = item_match.group(1).strip()
+            if item and not item.startswith("#"):  # Skip comments
+                items.append(item)
+
+        # If no double-quoted strings found, try single-quoted strings
+        if not items:
+            for item_match in re.finditer(r"'([^']*)'", array_content):
+                item = item_match.group(1).strip()
+                if item and not item.startswith("#"):
+                    items.append(item)
+
+        return items
+
+    def _extract_balanced_brackets(self, content: str) -> str:
+        """Extract content until we find the matching closing bracket.
+
+        Handles brackets inside quoted strings properly.
+        """
+        depth = 1
+        in_double_quote = False
+        in_single_quote = False
+        i = 0
+
+        while i < len(content) and depth > 0:
+            char = content[i]
+
+            # Handle string boundaries
+            if char == '"' and not in_single_quote:
+                in_double_quote = not in_double_quote
+            elif char == "'" and not in_double_quote:
+                in_single_quote = not in_single_quote
+            # Only count brackets outside of strings
+            elif not in_double_quote and not in_single_quote:
+                if char == "[":
+                    depth += 1
+                elif char == "]":
+                    depth -= 1
+
+            i += 1
+
+        return content[: i - 1] if depth == 0 else ""
+
+    def _extract_optional_dependencies(self, content: str) -> dict[str, list[str]]:
+        """Extract [project.optional-dependencies] sections from pyproject.toml.
+
+        Returns:
+            Dict mapping group name to list of dependency strings.
+        """
+        result: dict[str, list[str]] = {}
+
+        # Find the [project.optional-dependencies] section
+        # Pattern: [project.optional-dependencies]
+        section_start = content.find("[project.optional-dependencies]")
+        if section_start == -1:
+            return result
+
+        # Find the end of the section (next [ header or end of file)
+        section_content = content[section_start:]
+        # Find next section header (looking for [something] that's not inside a string)
+        next_section = re.search(r"\n\s*\[(?!project\.optional)", section_content[1:])
+        if next_section:
+            section_content = section_content[: next_section.start() + 1]
+
+        # Parse each group: group_name = [...]
+        # Find group names and their array starts
+        group_start_pattern = r"^\s*(\w+)\s*=\s*\["
+        for match in re.finditer(group_start_pattern, section_content, re.MULTILINE):
+            group_name = match.group(1)
+            array_start = match.end()
+
+            # Use balanced brackets to find the full array content
+            remaining = section_content[array_start:]
+            array_content = self._extract_balanced_brackets(remaining)
+
+            if not array_content:
+                continue
+
+            items: list[str] = []
+            # Handle double-quoted strings (may contain single quotes inside)
+            for item_match in re.finditer(r'"([^"]*)"', array_content):
+                item = item_match.group(1).strip()
+                if item and not item.startswith("#"):
+                    items.append(item)
+
+            # If no double-quoted strings found, try single-quoted strings
+            if not items:
+                for item_match in re.finditer(r"'([^']*)'", array_content):
+                    item = item_match.group(1).strip()
+                    if item and not item.startswith("#"):
+                        items.append(item)
+
+            if items:
+                result[group_name] = items
+
+        return result
 
     def _parse_package_json(self, path: Path, include_dev: bool = False) -> ParseResult:
         """Parse Node.js package.json file.
@@ -834,17 +1038,24 @@ class DependencyImporter:
         return results
 
     def get_install_command(
-        self, ecosystem: PackageEcosystem, file_path: str | None = None
+        self, ecosystem: PackageEcosystem, file_path: str | None = None, include_dev: bool = False
     ) -> str | None:
         """Get the appropriate install command for an ecosystem.
 
         Args:
             ecosystem: The package ecosystem.
             file_path: Optional file path to include in command.
+            include_dev: Whether to include dev dependencies (for pyproject.toml).
 
         Returns:
             Install command string or None if unknown ecosystem.
         """
+        # Handle pyproject.toml specially
+        if file_path and os.path.basename(file_path) == "pyproject.toml":
+            if include_dev:
+                return PYPROJECT_INSTALL_DEV_COMMAND
+            return PYPROJECT_INSTALL_COMMAND
+
         if ecosystem not in INSTALL_COMMANDS:
             return None
 
@@ -854,34 +1065,49 @@ class DependencyImporter:
         return cmd
 
     def get_install_commands_for_results(
-        self, results: dict[str, ParseResult]
+        self, results: dict[str, ParseResult], include_dev: bool = False
     ) -> list[dict[str, str]]:
         """Generate install commands for multiple parse results.
 
         Args:
             results: Dict of file paths to ParseResults.
+            include_dev: Whether to include dev dependencies in commands.
 
         Returns:
             List of dicts with 'command' and 'description' keys.
         """
         commands: list[dict[str, str]] = []
         seen_ecosystems: set[PackageEcosystem] = set()
+        has_pyproject = False
 
         for file_path, result in results.items():
             if result.errors:
                 continue
 
             ecosystem = result.ecosystem
+            filename = os.path.basename(file_path)
 
-            # For Python, we use pip install -r for each file
-            if ecosystem == PackageEcosystem.PYTHON:
+            # Handle pyproject.toml specially
+            if filename == "pyproject.toml":
                 if result.packages or result.dev_packages:
+                    cmd = self.get_install_command(ecosystem, file_path, include_dev)
+                    if cmd:
+                        desc = "Install Python packages from pyproject.toml"
+                        if include_dev:
+                            desc += " (including dev dependencies)"
+                        commands.append({"command": cmd, "description": desc})
+                        has_pyproject = True
+                continue
+
+            # For Python requirements files (skip if pyproject.toml is present)
+            if ecosystem == PackageEcosystem.PYTHON:
+                if not has_pyproject and (result.packages or result.dev_packages):
                     cmd = self.get_install_command(ecosystem, file_path)
                     if cmd:
                         commands.append(
                             {
                                 "command": cmd,
-                                "description": f"Install Python packages from {os.path.basename(file_path)}",
+                                "description": f"Install Python packages from {filename}",
                             }
                         )
             # For other ecosystems, one command per ecosystem

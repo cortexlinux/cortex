@@ -74,16 +74,25 @@ dev = [
     "build>=0.10.0",
 ]
 daemon = [
-    # Build and System Dependencies for cortexd daemon
-    # Install with: sudo apt-get install <package>
-    # cmake>=3.28.0
-    # build-essential
-    # libssl-dev
-    # libsqlite3-dev
-    # uuid-dev
-    # libsystemd-dev
-    # libcap-dev
-    # nlohmann-json3-dev
+    # NOTE: The cortexd daemon is a C++ project that requires SYSTEM packages (apt),
+    # not Python packages. These cannot be installed via pip.
+    #
+    # To set up the daemon with automatic dependency installation, run:
+    #   python daemon/scripts/setup_daemon.py
+    #
+    # Or install system dependencies manually:
+    #   sudo apt-get install -y cmake build-essential libsystemd-dev \
+    #       libssl-dev libsqlite3-dev uuid-dev pkg-config libcap-dev
+    #
+    # Required system packages:
+    # - cmake (build system)
+    # - build-essential (gcc, g++, make)
+    # - libsystemd-dev (systemd integration)
+    # - libssl-dev (OpenSSL)
+    # - libsqlite3-dev (SQLite3)
+    # - uuid-dev (UUID generation)
+    # - pkg-config (package config tool)
+    # - libcap-dev (Linux capabilities)
 ]
 security = [
     "bandit>=1.7.0",

@@ -2,10 +2,26 @@
 
 ## Quick Start
 
-### Installation (One Command)
+### Interactive Setup Wizard (Recommended)
+
+The easiest way to set up the daemon is using the interactive setup wizard:
 
 ```bash
-# Build and install cortexd
+python daemon/scripts/setup_daemon.py
+```
+
+The wizard handles everything:
+- ✅ **System Dependencies**: Checks and installs required apt packages (cmake, build-essential, etc.)
+- ✅ **Build**: Compiles the daemon from source
+- ✅ **Install**: Sets up the systemd service
+- ✅ **LLM Setup**: Configures Cloud API or local llama.cpp
+
+### Script Installation
+
+If you've already installed dependencies and built the daemon:
+
+```bash
+# Install cortexd
 cd /path/to/cortex
 sudo ./daemon/scripts/install.sh
 

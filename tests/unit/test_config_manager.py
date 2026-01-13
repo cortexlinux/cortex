@@ -69,7 +69,10 @@ class TestConfigManager(unittest.TestCase):
         mock_result = MagicMock()
         mock_result.returncode = 0
         mock_result.stdout = json.dumps(
-            [{"name": "numpy", "version": "1.24.0"}, {"name": "requests", "version": "2.28.0"}]
+            [
+                {"name": "numpy", "version": "1.24.0"},
+                {"name": "requests", "version": "2.28.0"},
+            ]
         )
         mock_run.return_value = mock_result
 

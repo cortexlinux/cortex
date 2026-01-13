@@ -261,12 +261,13 @@ Cortex includes **cortexd**, a production-grade Linux system daemon that:
 ### Quick Start: Cortexd
 
 ```bash
-# Build and install the daemon (one command)
-cd daemon
-sudo ./scripts/install.sh
+# Interactive setup wizard (recommended - handles everything)
+python daemon/scripts/setup_daemon.py
 
-# Load an LLM model (optional but recommended)
-sudo ./scripts/setup-llm.sh
+# Or manual installation:
+cd daemon
+./scripts/build.sh Release
+sudo ./scripts/install.sh
 
 # Use via CLI
 cortex daemon status       # Check daemon health
@@ -341,7 +342,10 @@ Cortex includes **cortexd**, a production-grade C++ system daemon that provides 
 ### Quick Start
 
 ```bash
-# Build and install the daemon
+# Interactive setup wizard (recommended)
+python daemon/scripts/setup_daemon.py
+
+# Or manual installation:
 cd daemon
 ./scripts/build.sh Release
 sudo ./scripts/install.sh

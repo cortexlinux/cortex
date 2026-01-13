@@ -22,6 +22,18 @@ CONFIG_EXAMPLE = DAEMON_DIR / "config" / "cortexd.yaml.example"
 LLM_ENV_FILE = "/etc/cortex/llm.env"
 CORTEX_ENV_FILE = Path.home() / ".cortex" / ".env"
 
+# System dependencies required to build the daemon (apt packages)
+DAEMON_SYSTEM_DEPENDENCIES = [
+    "cmake",
+    "build-essential",
+    "libsystemd-dev",
+    "libssl-dev",
+    "libsqlite3-dev",
+    "uuid-dev",
+    "pkg-config",
+    "libcap-dev",
+]
+
 # Recommended models for local llama.cpp
 RECOMMENDED_MODELS = {
     "1": {
@@ -69,6 +81,144 @@ CLOUD_PROVIDERS = {
         "description": "Popular choice with broad capabilities",
     },
 }
+
+
+def check_package_installed(package: str) -> bool:
+    """
+    Check if a system package is installed via dpkg.
+
+    Args:
+        package: Name of the apt package to check.
+
+    Returns:
+        bool: True if the package is installed, False otherwise.
+    """
+    result = subprocess.run(
+        ["dpkg", "-s", package],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def check_system_dependencies() -> tuple[list[str], list[str]]:
+    """
+    Check which system dependencies are installed and which are missing.
+
+    Returns:
+        tuple: (installed_packages, missing_packages)
+    """
+    installed = []
+    missing = []
+
+    for package in DAEMON_SYSTEM_DEPENDENCIES:
+        if check_package_installed(package):
+            installed.append(package)
+        else:
+            missing.append(package)
+
+    return installed, missing
+
+
+def install_system_dependencies(packages: list[str]) -> bool:
+    """
+    Install system dependencies using apt-get.
+
+    Args:
+        packages: List of package names to install.
+
+    Returns:
+        bool: True if installation succeeded, False otherwise.
+    """
+    if not packages:
+        return True
+
+    console.print(f"\n[cyan]Installing {len(packages)} system package(s)...[/cyan]")
+    console.print(f"[dim]Packages: {', '.join(packages)}[/dim]\n")
+
+    # Update package list first
+    console.print("[cyan]Updating package list...[/cyan]")
+    update_result = subprocess.run(
+        ["sudo", "apt-get", "update"],
+        check=False,
+    )
+    if update_result.returncode != 0:
+        console.print("[yellow]Warning: apt-get update failed, continuing anyway...[/yellow]")
+
+    # Install packages
+    install_cmd = ["sudo", "apt-get", "install", "-y"] + packages
+    result = subprocess.run(install_cmd, check=False)
+
+    if result.returncode == 0:
+        console.print(f"[green]✓ Successfully installed {len(packages)} package(s)[/green]")
+        return True
+    else:
+        console.print("[red]✗ Failed to install some packages[/red]")
+        return False
+
+
+def setup_system_dependencies() -> bool:
+    """
+    Check and install required system dependencies for building the daemon.
+
+    Displays a table of dependencies with their status and prompts the user
+    to install missing ones.
+
+    Returns:
+        bool: True if all dependencies are satisfied, False otherwise.
+    """
+    console.print("\n[bold cyan]Checking System Dependencies[/bold cyan]\n")
+
+    installed, missing = check_system_dependencies()
+
+    # Display dependency status table
+    table = Table(title="Build Dependencies")
+    table.add_column("Package", style="cyan")
+    table.add_column("Status", style="green")
+    table.add_column("Description")
+
+    package_descriptions = {
+        "cmake": "Build system generator",
+        "build-essential": "GCC, G++, make, and other build tools",
+        "libsystemd-dev": "systemd integration headers",
+        "libssl-dev": "OpenSSL development libraries",
+        "libsqlite3-dev": "SQLite3 development libraries",
+        "uuid-dev": "UUID generation libraries",
+        "pkg-config": "Package configuration tool",
+        "libcap-dev": "Linux capabilities library",
+    }
+
+    for package in DAEMON_SYSTEM_DEPENDENCIES:
+        status = "[green]✓ Installed[/green]" if package in installed else "[red]✗ Missing[/red]"
+        description = package_descriptions.get(package, "")
+        table.add_row(package, status, description)
+
+    console.print(table)
+
+    if not missing:
+        console.print("\n[green]✓ All system dependencies are installed![/green]")
+        return True
+
+    console.print(
+        f"\n[yellow]⚠ Missing {len(missing)} required package(s): {', '.join(missing)}[/yellow]"
+    )
+
+    if Confirm.ask("\nDo you want to install the missing dependencies now?", default=True):
+        if install_system_dependencies(missing):
+            # Verify installation
+            _, still_missing = check_system_dependencies()
+            if still_missing:
+                console.print(f"[red]Some packages still missing: {', '.join(still_missing)}[/red]")
+                return False
+            return True
+        else:
+            return False
+    else:
+        console.print("[yellow]Cannot build daemon without required dependencies.[/yellow]")
+        console.print("\n[cyan]You can install them manually with:[/cyan]")
+        console.print(f"[dim]  sudo apt-get install -y {' '.join(missing)}[/dim]\n")
+        return False
 
 
 def choose_llm_backend() -> str:
@@ -308,7 +458,9 @@ def setup_local_llm() -> Path | None:
         console.print("[dim]  1. Build from source: https://github.com/ggerganov/llama.cpp[/dim]")
         console.print("[dim]  2. Package manager (if available)[/dim]")
 
-        if not Confirm.ask("\nContinue anyway (you can install llama-server later)?", default=False):
+        if not Confirm.ask(
+            "\nContinue anyway (you can install llama-server later)?", default=False
+        ):
             return None
 
     # Download or select model
@@ -358,8 +510,8 @@ def setup_local_llm() -> Path | None:
     with open(env_file, "w") as f:
         f.writelines(new_lines)
 
-    console.print(f"[green]✓ Provider set to: llama_cpp[/green]")
-    console.print(f"[green]✓ LLM service URL: http://127.0.0.1:8085[/green]")
+    console.print("[green]✓ Provider set to: llama_cpp[/green]")
+    console.print("[green]✓ LLM service URL: http://127.0.0.1:8085[/green]")
 
     return model_path
 
@@ -637,7 +789,9 @@ def configure_daemon_llm_backend(backend: str, config: dict | None = None) -> No
             if "cloud" not in daemon_config["llm"]:
                 daemon_config["llm"]["cloud"] = {}
             daemon_config["llm"]["cloud"]["provider"] = config.get("provider", "claude")
-            daemon_config["llm"]["cloud"]["api_key_env"] = config.get("env_var", "ANTHROPIC_API_KEY")
+            daemon_config["llm"]["cloud"]["api_key_env"] = config.get(
+                "env_var", "ANTHROPIC_API_KEY"
+            )
 
         elif backend == "local":
             if "local" not in daemon_config["llm"]:
@@ -662,7 +816,7 @@ def configure_daemon_llm_backend(backend: str, config: dict | None = None) -> No
         )
 
         if write_result.returncode != 0:
-            console.print(f"[red]Failed to write config file[/red]")
+            console.print("[red]Failed to write config file[/red]")
             return
 
         console.print(f"[green]✓ Daemon configured with LLM backend: {backend}[/green]")
@@ -694,6 +848,11 @@ def main() -> int:
     console.print(
         "[bold cyan]╚══════════════════════════════════════════════════════════════╝[/bold cyan]\n"
     )
+
+    # Step 0: Check and install system dependencies
+    if not setup_system_dependencies():
+        console.print("[red]Cannot proceed without required system dependencies.[/red]")
+        sys.exit(1)
 
     # Step 1: Build daemon
     if not check_daemon_built():
@@ -772,7 +931,9 @@ def main() -> int:
             console.print("\n[dim]Useful commands:[/dim]")
             console.print("[dim]  sudo systemctl status cortex-llm   # Check LLM service[/dim]")
             console.print("[dim]  journalctl -u cortex-llm -f        # View LLM logs[/dim]")
-            console.print("\n[cyan]Try it out:[/cyan] cortex ask 'What packages do I have installed?'\n")
+            console.print(
+                "\n[cyan]Try it out:[/cyan] cortex ask 'What packages do I have installed?'\n"
+            )
             return 0
         else:
             console.print("[red]Failed to set up local LLM.[/red]")

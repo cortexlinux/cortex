@@ -153,7 +153,12 @@ class InstallationHistory:
         """Get current state of a package"""
         # Check if package is installed
         success, stdout, _ = self._run_command(
-            ["dpkg-query", "-W", "-f=${Status}|${Version}", package_name]
+            [
+                "dpkg-query",
+                "-W",
+                "-f=${Status}|${Version}",
+                package_name,
+            ]
         )
 
         if not success:
@@ -593,7 +598,15 @@ class InstallationHistory:
             with open(filepath, "w", newline="") as f:
                 writer = csv.writer(f)
                 writer.writerow(
-                    ["ID", "Timestamp", "Operation", "Packages", "Status", "Duration", "Error"]
+                    [
+                        "ID",
+                        "Timestamp",
+                        "Operation",
+                        "Packages",
+                        "Status",
+                        "Duration",
+                        "Error",
+                    ]
                 )
 
                 for r in history:

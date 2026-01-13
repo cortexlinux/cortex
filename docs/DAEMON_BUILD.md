@@ -19,25 +19,38 @@
 - **RAM**: 2GB minimum (4GB recommended for full build)
 - **Disk**: 1GB for build directory
 
-### Required Tools
+### Automatic Dependency Installation (Recommended)
+
+The setup wizard automatically checks and installs all required dependencies:
+
+```bash
+python daemon/scripts/setup_daemon.py
+```
+
+The wizard displays a table showing which packages are installed and which are missing, then offers to install them for you.
+
+### Manual Dependency Installation
+
+If you prefer manual installation:
 
 ```bash
 # Build tools
-sudo apt install -y \
-    cmake (>= 3.20) \
+sudo apt-get install -y \
+    cmake \
     build-essential \
     git
 
 # Development libraries
-sudo apt install -y \
+sudo apt-get install -y \
     libsystemd-dev \
     libssl-dev \
     libsqlite3-dev \
     uuid-dev \
-    pkg-config
+    pkg-config \
+    libcap-dev
 
 # Testing (optional but recommended)
-sudo apt install -y \
+sudo apt-get install -y \
     gtest \
     gmock
 ```

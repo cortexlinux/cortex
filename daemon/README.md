@@ -15,14 +15,39 @@
 
 ## Quick Start
 
-### Build
+### Recommended: Interactive Setup (Handles Everything)
+
+```bash
+# Run the interactive setup wizard
+python daemon/scripts/setup_daemon.py
+```
+
+The setup wizard will:
+1. ✅ Check and install required system dependencies (cmake, build-essential, etc.)
+2. ✅ Build the daemon from source
+3. ✅ Install the systemd service
+4. ✅ Configure LLM backend (Cloud API or local llama.cpp)
+
+### Manual Setup
+
+If you prefer manual installation:
+
+#### 1. Install System Dependencies
+
+```bash
+sudo apt-get install -y \
+    cmake build-essential libsystemd-dev \
+    libssl-dev libsqlite3-dev uuid-dev pkg-config libcap-dev
+```
+
+#### 2. Build
 
 ```bash
 cd daemon
 ./scripts/build.sh Release
 ```
 
-### Install
+#### 3. Install
 
 ```bash
 sudo ./scripts/install.sh
@@ -251,16 +276,41 @@ alerts:
 
 ### Prerequisites
 
+The easiest way to install all prerequisites is using the setup wizard:
+
+```bash
+python daemon/scripts/setup_daemon.py
+```
+
+The wizard automatically checks and installs these required system packages:
+
+| Package | Purpose |
+|---------|---------|
+| `cmake` | Build system generator |
+| `build-essential` | GCC, G++, make, and other build tools |
+| `libsystemd-dev` | systemd integration headers |
+| `libssl-dev` | OpenSSL development libraries |
+| `libsqlite3-dev` | SQLite3 development libraries |
+| `uuid-dev` | UUID generation libraries |
+| `pkg-config` | Package configuration tool |
+| `libcap-dev` | Linux capabilities library |
+
+#### Manual Prerequisite Installation
+
+If you prefer to install dependencies manually:
+
 ```bash
 # Ubuntu/Debian
-sudo apt install -y \
+sudo apt-get update
+sudo apt-get install -y \
     cmake \
     build-essential \
     libsystemd-dev \
     libssl-dev \
     libsqlite3-dev \
     uuid-dev \
-    pkg-config
+    pkg-config \
+    libcap-dev
 
 # Optional: llama.cpp for LLM features
 git clone https://github.com/ggerganov/llama.cpp

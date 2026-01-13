@@ -6,7 +6,22 @@ Cortex Daemon supports running any GGUF-format language model via llama.cpp. The
 
 ## Quick Start
 
-### Automated Setup (Recommended)
+### Interactive Setup Wizard (Recommended)
+
+The easiest way to set up LLM is using the daemon setup wizard:
+
+```bash
+python daemon/scripts/setup_daemon.py
+```
+
+The wizard will:
+1. ✅ Check and install required system dependencies
+2. ✅ Build and install the daemon (if needed)
+3. ✅ Let you choose between Cloud APIs or Local llama.cpp
+4. ✅ Download and configure a model (for local llama.cpp)
+5. ✅ Verify the setup works
+
+### Alternative: Shell Script Setup
 
 ```bash
 cd /path/to/cortex
