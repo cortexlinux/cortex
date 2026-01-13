@@ -143,7 +143,7 @@ class ProgressTrackerTool:
         topic: str | None,
         score: float | None = None,
         time_seconds: int | None = None,
-        completed: bool = False,
+        completed: bool | None = None,
         **_kwargs: Any,
     ) -> dict[str, Any]:
         """Update progress for a topic."""
@@ -154,7 +154,7 @@ class ProgressTrackerTool:
         total_time = (existing.total_time_seconds if existing else 0) + (time_seconds or 0)
 
         # Preserve existing values if not explicitly provided
-        if completed:
+        if completed is not None:
             final_completed = completed
         else:
             final_completed = existing.completed if existing else False
