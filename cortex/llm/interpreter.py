@@ -182,6 +182,7 @@ class CommandInterpreter:
     ]}}
     {domain_context}
     """
+
     def _extract_intent_ollama(self, user_input: str) -> dict:
         import urllib.error
         import urllib.request
