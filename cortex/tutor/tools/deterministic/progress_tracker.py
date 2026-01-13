@@ -4,6 +4,7 @@ Progress Tracker Tool - Deterministic tool for learning progress management.
 This tool does NOT use LLM calls - it is fast, free, and predictable.
 """
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,8 @@ from cortex.tutor.memory.sqlite_store import (
     LearningProgress,
     SQLiteStore,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ProgressTrackerTool:
@@ -65,6 +68,7 @@ class ProgressTrackerTool:
                 **kwargs,
             )
         except Exception as e:
+            logger.exception("Progress tracker action '%s' failed", action)
             return {"success": False, "error": str(e)}
 
     def _get_progress(
@@ -237,7 +241,11 @@ class ProgressTrackerTool:
         """Reset learning progress."""
         count = self.store.reset_progress(package_name)
         scope = f"for {package_name}" if package_name else "all"
-        return {"success": True, "count": count, "message": f"Reset {count} progress records {scope}"}
+        return {
+            "success": True,
+            "count": count,
+            "message": f"Reset {count} progress records {scope}",
+        }
 
     def _get_packages_studied(self, **kwargs: Any) -> dict[str, Any]:
         """Get list of packages that have been studied."""
