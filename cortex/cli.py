@@ -273,6 +273,27 @@ class CortexCLI:
 
     # -------------------------------
 
+    def _ask_ai_and_render(self, question: str) -> int:
+        """Invoke AI with question and render response as Markdown."""
+        api_key = self._get_api_key()
+        if not api_key:
+            self._print_error("No API key found. Please configure an API provider.")
+            return 1
+            
+        provider = self._get_provider()
+        try:
+            handler = AskHandler(api_key=api_key, provider=provider)
+            answer = handler.ask(question)
+            console.print(Markdown(answer))
+            return 0
+        except ImportError as e:
+            self._print_error(str(e))
+            cx_print("Install required SDK or use CORTEX_PROVIDER=ollama", "info")
+            return 1
+        except (ValueError, RuntimeError) as e:
+            self._print_error(str(e))
+            return 1
+        
     def role(self, args: argparse.Namespace) -> int:
         """
         Handles system role detection and manual configuration via AI context sensing.
@@ -315,7 +336,7 @@ class CortexCLI:
             )
 
             # Generate a unique timestamp for cache-busting and session tracking.
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+            timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
 
             # Construct the architectural analysis prompt for the LLM.
             question = (
@@ -337,29 +358,9 @@ class CortexCLI:
             )
 
             cx_print("🧠 AI is sensing system context and activity patterns...", "thinking")
+            if self._ask_ai_and_render(question) != 0:
+                return 1
             console.print()
-
-            # Capture the AI response manually to render it as Markdown.
-            api_key = self._get_api_key()
-            if not api_key:
-                self._print_error(
-                    "No API key found. Please configure an API provider or use Ollama."
-                )
-                return 1
-            provider = self._get_provider()
-            try:
-                handler = AskHandler(api_key=api_key, provider=provider)
-                answer = handler.ask(question)
-                console.print(Markdown(answer))
-            except ImportError as e:
-                self._print_error(str(e))
-                cx_print(
-                    "Install the required SDK or set CORTEX_PROVIDER=ollama for local mode.", "info"
-                )
-                return 1
-            except (ValueError, RuntimeError) as e:
-                self._print_error(str(e))
-                return 1
 
             # Record the detection event in the installation history database for audit purposes.
             history = InstallationHistory()
@@ -367,7 +368,7 @@ class CortexCLI:
                 InstallationType.CONFIG,
                 ["system-detection"],
                 ["cortex role detect"],
-                datetime.now(),
+                datetime.now(timezone.utc),
             )
 
             console.print(
@@ -420,27 +421,8 @@ class CortexCLI:
                 f"💡 Recommended packages for {role_slug}:\n"
                 f"  - "
             )
-
-            # Capture and render the recommendation response as Markdown using Rich.
-            api_key = self._get_api_key()
-            if not api_key:
-                self._print_error(
-                    "No API key found. Please configure an API provider or use Ollama."
-                )
-                return 1
-            provider = self._get_provider()
-            try:
-                handler = AskHandler(api_key=api_key, provider=provider)
-                rec_answer = handler.ask(rec_question)
-                console.print(Markdown(rec_answer))
-            except ImportError as e:
-                self._print_error(str(e))
-                cx_print(
-                    "Install the required SDK or set CORTEX_PROVIDER=ollama for local mode.", "info"
-                )
-                return 1
-            except (ValueError, RuntimeError) as e:
-                self._print_error(str(e))
+            
+            if self._ask_ai_and_render(rec_question) != 0:
                 return 1
 
             console.print(
