@@ -17,15 +17,15 @@ def run_demo() -> int:
     print(f"✔ CPU: {hw.cpu.model}")
     print(f"✔ RAM: {hw.memory.total_gb} GB")
 
-    gpu = hw.gpu
-    if gpu and len(gpu) > 0:
-        print(f"✔ GPU: {gpu[0].model}")
+    gpu_info = hw.gpu
+    if gpu_info and len(gpu_info) > 0:
+        print(f"✔ GPU: {gpu_info[0].model}")
     else:
         print("⚠️ GPU: Not detected (CPU mode enabled)")
 
     # 2️⃣ Model Recommendations
     print("\n🤖 Model Recommendations:")
-    if gpu and len(gpu) > 0:
+    if gpu_info and len(gpu_info) > 0:
         print("• LLaMA-3-8B → Optimized for your GPU")
         print("• Mistral-7B → High performance inference")
     else:
