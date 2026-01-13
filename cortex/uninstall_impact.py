@@ -23,10 +23,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-logging.basicConfig(level=logging.INFO)
 # Constants
 SERVICE_SUFFIX = ".service"
 
+# Module logger - does not configure global logging when imported
 logger = logging.getLogger(__name__)
 
 
@@ -1027,6 +1027,9 @@ if __name__ == "__main__":
     import argparse
     import datetime
     import sys
+
+    # Configure logging only when running as standalone script
+    logging.basicConfig(level=logging.INFO)
 
     from cortex.installation_history import (
         InstallationHistory,
