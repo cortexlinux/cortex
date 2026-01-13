@@ -7,19 +7,20 @@ This module provides the Troubleshooter class which:
 3. Executes commands on behalf of the user (with confirmation)
 """
 
-import sys
 import re
 import subprocess
-from typing import List, Dict, Optional
+import sys
+from typing import Optional
+
 from rich.console import Console
 from rich.markdown import Markdown
-from rich.prompt import Prompt, Confirm
-from rich.syntax import Syntax
 from rich.panel import Panel
+from rich.prompt import Confirm, Prompt
+from rich.syntax import Syntax
 
+from cortex.api_key_detector import auto_detect_api_key
 from cortex.ask import AskHandler
 from cortex.logging_system import CortexLogger
-from cortex.api_key_detector import auto_detect_api_key
 
 console = Console()
 
@@ -46,7 +47,7 @@ DANGEROUS_PATTERNS = [
 class Troubleshooter:
     def __init__(self):
         self.logger = CortexLogger("troubleshooter")
-        self.messages: List[Dict[str, str]] = []
+        self.messages: list[dict[str, str]] = []
 
         # Initialize AI
         try:
@@ -102,7 +103,7 @@ class Troubleshooter:
 
         return self._interactive_loop()
 
-    def _extract_code_blocks(self, text: str) -> List[str]:
+    def _extract_code_blocks(self, text: str) -> list[str]:
         """Extract content from markdown code blocks."""
         # Match ```bash ... ``` or ```sh ... ``` or just ``` ... ```
         pattern = r"```(?:bash|sh)?\n(.*?)```"
@@ -173,14 +174,14 @@ class Troubleshooter:
                         if not cmd:
                             continue
 
-                        console.print(f"\n[bold yellow]Suggested Command:[/bold yellow]")
+                        console.print("\n[bold yellow]Suggested Command:[/bold yellow]")
                         console.print(Syntax(cmd, "bash", theme="monokai", line_numbers=False))
 
                         # Check if command is safe
                         is_safe, reason = self._is_command_safe(cmd)
                         if not is_safe:
                             console.print(
-                                f"\n[bold red]⚠️  BLOCKED: This command is potentially dangerous.[/bold red]"
+                                "\n[bold red]⚠️  BLOCKED: This command is potentially dangerous.[/bold red]"
                             )
                             console.print(f"[dim]Reason: {reason}[/dim]")
                             self.logger.warning(f"Blocked dangerous command: {cmd}")

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from cortex.troubleshoot import Troubleshooter, DANGEROUS_PATTERNS
+from cortex.troubleshoot import DANGEROUS_PATTERNS, Troubleshooter
 
 
 class TestExtractCodeBlocks(unittest.TestCase):
