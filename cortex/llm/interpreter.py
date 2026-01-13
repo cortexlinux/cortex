@@ -118,39 +118,66 @@ class CommandInterpreter:
         """
         domain_context = ""
         if domain and domain != "unknown":
-            domain_context = f"\n\nDomain: {domain}\nGenerate commands specific to {domain}. Avoid installing unrelated packages."
+            domain_context = (
+                f"\n\nDomain: {domain}\n"
+                f"Generate commands specific to this domain only. "
+                f"Avoid installing unrelated packages."
+            )
 
-        if simplified:
-            return f"""You must respond with ONLY a JSON object. No explanations, no markdown, no code blocks.
-
-Format: {{"commands": ["command1", "command2"]}}
-
-Example input: install nginx
-Example output: {{"commands": ["sudo apt update", "sudo apt install -y nginx"]}}
-
-Rules:
-- Use apt for Ubuntu packages
-- Add sudo for system commands
-- Return ONLY the JSON object{domain_context}"""
-
-        return f"""You are a Linux system command expert. Convert natural language requests into safe, validated bash commands.
+        common_rules = """
+    Execution environment:
+    - Target OS: Linux (Ubuntu/Debian family)
+    - Commands will be executed by a non-interactive POSIX-compatible shell
 
     Rules:
-    1. Return ONLY a JSON array of commands
-    2. Each command must be a safe, executable bash command
-    3. Commands should be atomic and sequential
-    4. Avoid destructive operations without explicit user confirmation
-    5. Use package managers appropriate for Debian/Ubuntu systems (apt)
-    6. Add sudo for system commands
-    7. Validate command syntax before returning
-    8. {domain_context if domain_context else "Generate commands relevant to the user's request."}
+    - Respond with ONLY valid JSON
+    - No explanations, no markdown, no code blocks
+    - Commands must be POSIX-compliant (portable across Linux shells)
+    - Do NOT assume interactive shells
+    - Avoid shell-specific features that are not POSIX-compliant
+    - Commands should be safe, atomic, and sequential
+    - Avoid destructive operations unless explicitly requested
+    - Use apt for system packages on Debian/Ubuntu
+    - Add sudo only for system-level commands
+    """
+
+        if simplified:
+            return f"""{common_rules}
+
+    Format:
+    {{"commands": ["command1", "command2"]}}
+
+    Example input: install nginx
+    Example output:
+    {{"commands": ["sudo apt update", "sudo apt install -y nginx"]}}
+    {domain_context}
+    """
+
+        return f"""You are a Linux system command expert.
+    Convert natural language requests into safe, executable Linux commands.
+
+    {common_rules}
+
+    Additional guidance:
+    - If virtual environments are needed, prefer invoking tools directly
+    (e.g., venv/bin/pip install ...) instead of relying on shell activation.
+    - Validate command syntax before returning.
 
     Format:
     {{"commands": ["command1", "command2", ...]}}
 
-    Example request: "install docker with nvidia support"
-    Example response: {{"commands": ["sudo apt update", "sudo apt install -y docker.io", "sudo apt install -y nvidia-docker2", "sudo systemctl restart docker"]}}"""
+    Example request:
+    "install docker with nvidia support"
 
+    Example response:
+    {{"commands": [
+    "sudo apt update",
+    "sudo apt install -y docker.io",
+    "sudo apt install -y nvidia-docker2",
+    "sudo systemctl restart docker"
+    ]}}
+    {domain_context}
+    """
     def _extract_intent_ollama(self, user_input: str) -> dict:
         import urllib.error
         import urllib.request
