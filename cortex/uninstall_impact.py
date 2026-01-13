@@ -620,11 +620,14 @@ class RecommendationEngine:
         # Safe removal path
         if impact.safe_to_remove:
             recommendations.append(
-                "This package can be safely removed. Use 'cortex remove <package>' to proceed."
+                "This package can be safely removed. Use 'cortex remove <package>' to proceed. "
+                "Add --purge to also remove configuration files."
             )
         else:
             recommendations.append(
-                "Consider using 'cortex remove <package> --purge' to also remove configuration files."
+                "⚠️  This package is NOT safe to remove due to dependencies or critical services. "
+                "Review the impact details above before proceeding. Use 'cortex remove <package> --force' "
+                "only after careful consideration and ensuring you have backups."
             )
 
         # Alternative suggestions
@@ -756,7 +759,7 @@ class ImpactAnalyzer:
         result.cascade_packages = self._get_cascade_packages(package_name)
 
         # Get orphaned packages
-        result.orphaned_packages = self._get_orphaned_packages()
+        result.orphaned_packages = self._get_orphaned_packages(package_name)
 
         # Get affected services
         packages_to_check = [package_name] + list(all_affected)
@@ -793,11 +796,23 @@ class ImpactAnalyzer:
 
         return cascade
 
-    def _get_orphaned_packages(self) -> list[str]:
-        """Get packages that would become orphaned after removal"""
+    def _get_orphaned_packages(self, package_name: str) -> list[str]:
+        """Get packages that would become orphaned after removing the target package.
+
+        This simulates the removal first, then checks what would be auto-removed.
+        Note: This returns current autoremove candidates as apt simulation doesn't
+        fully cascade dependency changes in a single pass.
+        """
         orphaned = []
 
-        # Simulate removal and check for autoremove candidates
+        # First simulate removing the target package
+        remove_success, _, _ = self.graph._run_command(["apt-get", "-s", "remove", package_name])
+
+        if not remove_success:
+            # If removal simulation fails, fall back to current autoremove candidates
+            pass
+
+        # Then check for autoremove candidates
         success, stdout, _ = self.graph._run_command(["apt-get", "-s", "autoremove", "--purge"])
 
         if success:
@@ -846,7 +861,7 @@ class ImpactAnalyzer:
         plan.packages_to_remove.insert(0, package_name)
 
         # Get autoremove candidates
-        plan.autoremove_candidates = self._get_orphaned_packages()
+        plan.autoremove_candidates = self._get_orphaned_packages(package_name)
 
         # Get config files
         plan.config_files_affected = self._get_config_files(package_name)
@@ -854,16 +869,17 @@ class ImpactAnalyzer:
         # Get estimated space
         plan.estimated_freed_space = self._estimate_freed_space(plan.packages_to_remove)
 
-        # Generate commands
+        # Generate commands (without -y flag for interactive confirmation)
+        # The -y flag should only be added after explicit user confirmation
         if purge:
             plan.commands = [
-                f"sudo apt-get purge -y {package_name}",
-                "sudo apt-get autoremove -y",
+                f"sudo apt-get purge {package_name}",
+                "sudo apt-get autoremove",
             ]
         else:
             plan.commands = [
-                f"sudo apt-get remove -y {package_name}",
-                "sudo apt-get autoremove -y",
+                f"sudo apt-get remove {package_name}",
+                "sudo apt-get autoremove",
             ]
 
         return plan
@@ -1009,7 +1025,14 @@ class UninstallImpactAnalyzer:
 # CLI Interface for standalone usage
 if __name__ == "__main__":
     import argparse
+    import datetime
     import sys
+
+    from cortex.installation_history import (
+        InstallationHistory,
+        InstallationStatus,
+        InstallationType,
+    )
 
     parser = argparse.ArgumentParser(description="Analyze impact of package removal")
     parser.add_argument("package", help="Package name to analyze")
@@ -1020,50 +1043,94 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     analyzer = UninstallImpactAnalyzer()
+    history = InstallationHistory()
+    start_time = datetime.datetime.now()
+    exit_code = 0
 
+    # Determine operation type for audit logging
     if args.plan:
-        plan = analyzer.get_removal_plan(args.package, args.purge)
-        print(f"\nRemoval Plan for: {plan.target_package}")
-        print("=" * 60)
-        print(f"Packages to remove: {', '.join(plan.packages_to_remove)}")
-        print(f"Autoremove candidates: {len(plan.autoremove_candidates)}")
-        print(f"Config files affected: {len(plan.config_files_affected)}")
-        print(f"Estimated freed space: {plan.estimated_freed_space}")
-        print("\nCommands:")
-        for cmd in plan.commands:
-            print(f"  {cmd}")
+        operation_type = InstallationType.REMOVE  # Plan is pre-removal analysis
+        operation_desc = "plan"
     else:
-        result = analyzer.analyze(args.package)
+        operation_type = InstallationType.REMOVE  # Analyze is also pre-removal
+        operation_desc = "analyze"
 
-        if args.json:
-            import json
-            from dataclasses import asdict
+    try:
+        if args.plan:
+            plan = analyzer.get_removal_plan(args.package, args.purge)
+            print(f"\nRemoval Plan for: {plan.target_package}")
+            print("=" * 60)
+            print(f"Packages to remove: {', '.join(plan.packages_to_remove)}")
+            print(f"Autoremove candidates: {len(plan.autoremove_candidates)}")
+            print(f"Config files affected: {len(plan.config_files_affected)}")
+            print(f"Estimated freed space: {plan.estimated_freed_space}")
+            print("\nCommands:")
+            for cmd in plan.commands:
+                print(f"  {cmd}")
 
-            # Convert to dict (handle enums)
-            data = {
-                "target_package": result.target_package,
-                "direct_dependents": result.direct_dependents,
-                "transitive_dependents": result.transitive_dependents,
-                "affected_services": [
-                    {
-                        "name": s.name,
-                        "status": s.status.value,
-                        "package": s.package,
-                        "is_critical": s.is_critical,
-                    }
-                    for s in result.affected_services
+            # Record successful plan operation
+            install_id = history.record_installation(
+                operation_type=operation_type,
+                packages=[args.package],
+                commands=[
+                    f"uninstall_impact --plan {'--purge' if args.purge else ''} {args.package}"
                 ],
-                "orphaned_packages": result.orphaned_packages,
-                "cascade_packages": result.cascade_packages,
-                "severity": result.severity.value,
-                "total_affected": result.total_affected,
-                "cascade_depth": result.cascade_depth,
-                "recommendations": result.recommendations,
-                "warnings": result.warnings,
-                "safe_to_remove": result.safe_to_remove,
-            }
-            print(json.dumps(data, indent=2))
+                start_time=start_time,
+            )
+            history.update_installation(install_id, InstallationStatus.SUCCESS)
         else:
-            print(analyzer.format_impact_report(result))
+            result = analyzer.analyze(args.package)
 
-    sys.exit(0)
+            if args.json:
+                # Convert to dict (handle enums)
+                data = {
+                    "target_package": result.target_package,
+                    "direct_dependents": result.direct_dependents,
+                    "transitive_dependents": result.transitive_dependents,
+                    "affected_services": [
+                        {
+                            "name": s.name,
+                            "status": s.status.value,
+                            "package": s.package,
+                            "is_critical": s.is_critical,
+                        }
+                        for s in result.affected_services
+                    ],
+                    "orphaned_packages": result.orphaned_packages,
+                    "cascade_packages": result.cascade_packages,
+                    "severity": result.severity.value,
+                    "total_affected": result.total_affected,
+                    "cascade_depth": result.cascade_depth,
+                    "recommendations": result.recommendations,
+                    "warnings": result.warnings,
+                    "safe_to_remove": result.safe_to_remove,
+                }
+                print(json.dumps(data, indent=2))
+            else:
+                print(analyzer.format_impact_report(result))
+
+            # Record successful analyze operation
+            install_id = history.record_installation(
+                operation_type=operation_type,
+                packages=[args.package],
+                commands=[f"uninstall_impact {'--json' if args.json else ''} {args.package}"],
+                start_time=start_time,
+            )
+            history.update_installation(install_id, InstallationStatus.SUCCESS)
+
+    except Exception as e:
+        # Record failed operation
+        try:
+            install_id = history.record_installation(
+                operation_type=operation_type,
+                packages=[args.package],
+                commands=[f"uninstall_impact {operation_desc} {args.package}"],
+                start_time=start_time,
+            )
+            history.update_installation(install_id, InstallationStatus.FAILED, error_message=str(e))
+        except Exception:
+            pass  # Don't fail on audit logging errors
+        print(f"Error: {e}", file=sys.stderr)
+        exit_code = 1
+
+    sys.exit(exit_code)

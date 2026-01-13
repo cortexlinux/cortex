@@ -24,7 +24,12 @@ from cortex.llm.interpreter import CommandInterpreter
 from cortex.network_config import NetworkConfig
 from cortex.notification_manager import NotificationManager
 from cortex.stack_manager import StackManager
-from cortex.uninstall_impact import ImpactSeverity, ServiceStatus, UninstallImpactAnalyzer
+from cortex.uninstall_impact import (
+    ImpactResult,
+    ImpactSeverity,
+    ServiceStatus,
+    UninstallImpactAnalyzer,
+)
 from cortex.validators import validate_api_key, validate_install_request
 
 # CLI Help Constants
@@ -1016,7 +1021,7 @@ class CortexCLI:
         cx_print("Removal cancelled", "info")
         return 0
 
-    def _display_impact_report(self, result) -> None:
+    def _display_impact_report(self, result: ImpactResult) -> None:
         """Display formatted impact analysis report"""
         from rich.panel import Panel
         from rich.table import Table
@@ -1104,16 +1109,34 @@ class CortexCLI:
                 console.print(f"   • {rec}")
 
     def _execute_removal(self, package: str, purge: bool = False) -> int:
-        """Execute the actual package removal"""
+        """Execute the actual package removal with audit logging"""
+        import datetime
         import subprocess
 
         cx_print(f"Removing '{package}'...", "info")
 
-        # Build removal command
+        # Initialize history for audit logging
+        history = InstallationHistory()
+        start_time = datetime.datetime.now()
+        operation_type = InstallationType.PURGE if purge else InstallationType.REMOVE
+
+        # Build removal command (with -y since user already confirmed)
         if purge:
             cmd = ["sudo", "apt-get", "purge", "-y", package]
         else:
             cmd = ["sudo", "apt-get", "remove", "-y", package]
+
+        # Record the operation start
+        try:
+            install_id = history.record_installation(
+                operation_type=operation_type,
+                packages=[package],
+                commands=[" ".join(cmd)],
+                start_time=start_time,
+            )
+        except Exception as e:
+            self._debug(f"Failed to record installation start: {e}")
+            install_id = None
 
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
@@ -1136,16 +1159,53 @@ class CortexCLI:
                 else:
                     cx_print("Autoremove completed with warnings", "warning")
 
+                # Record successful removal
+                if install_id:
+                    try:
+                        history.update_installation(install_id, InstallationStatus.SUCCESS)
+                    except Exception as e:
+                        self._debug(f"Failed to update installation record: {e}")
+
                 return 0
             else:
                 self._print_error(f"Removal failed: {result.stderr}")
+                # Record failed removal
+                if install_id:
+                    try:
+                        history.update_installation(
+                            install_id,
+                            InstallationStatus.FAILED,
+                            error_message=result.stderr[:500],
+                        )
+                    except Exception as e:
+                        self._debug(f"Failed to update installation record: {e}")
                 return 1
 
         except subprocess.TimeoutExpired:
             self._print_error("Removal timed out")
+            # Record timeout failure
+            if install_id:
+                try:
+                    history.update_installation(
+                        install_id,
+                        InstallationStatus.FAILED,
+                        error_message="Operation timed out after 300 seconds",
+                    )
+                except Exception:
+                    pass
             return 1
         except Exception as e:
             self._print_error(f"Removal failed: {e}")
+            # Record exception failure
+            if install_id:
+                try:
+                    history.update_installation(
+                        install_id,
+                        InstallationStatus.FAILED,
+                        error_message=str(e)[:500],
+                    )
+                except Exception:
+                    pass
             return 1
 
     def cache_stats(self) -> int:
