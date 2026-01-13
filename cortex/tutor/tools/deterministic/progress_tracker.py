@@ -75,7 +75,7 @@ class ProgressTrackerTool:
         self,
         package_name: str | None,
         topic: str | None,
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> dict[str, Any]:
         """Get progress for a specific package/topic."""
         if not package_name or not topic:
@@ -99,7 +99,7 @@ class ProgressTrackerTool:
     def _get_all_progress(
         self,
         package_name: str | None = None,
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> dict[str, Any]:
         """Get all progress, optionally filtered by package."""
         progress_list = self.store.get_all_progress(package_name)
@@ -123,7 +123,7 @@ class ProgressTrackerTool:
         package_name: str | None,
         topic: str | None,
         score: float | None = None,
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> dict[str, Any]:
         """Mark a topic as completed."""
         if not package_name or not topic:
@@ -144,7 +144,7 @@ class ProgressTrackerTool:
         score: float | None = None,
         time_seconds: int | None = None,
         completed: bool = False,
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> dict[str, Any]:
         """Update progress for a topic."""
         if not package_name or not topic:
@@ -153,11 +153,22 @@ class ProgressTrackerTool:
         existing = self.store.get_progress(package_name, topic)
         total_time = (existing.total_time_seconds if existing else 0) + (time_seconds or 0)
 
+        # Preserve existing values if not explicitly provided
+        if completed:
+            final_completed = completed
+        else:
+            final_completed = existing.completed if existing else False
+
+        if score is not None:
+            final_score = score
+        else:
+            final_score = existing.score if existing else 0.0
+
         progress = LearningProgress(
             package_name=package_name,
             topic=topic,
-            completed=completed if completed else (existing.completed if existing else False),
-            score=score if score is not None else (existing.score if existing else 0.0),
+            completed=final_completed,
+            score=final_score,
             total_time_seconds=total_time,
         )
         row_id = self.store.upsert_progress(progress)
@@ -170,7 +181,7 @@ class ProgressTrackerTool:
     def _get_stats(
         self,
         package_name: str | None,
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> dict[str, Any]:
         """Get completion statistics for a package."""
         if not package_name:
@@ -185,7 +196,7 @@ class ProgressTrackerTool:
             ),
         }
 
-    def _get_profile(self, **kwargs: Any) -> dict[str, Any]:
+    def _get_profile(self, **_kwargs: Any) -> dict[str, Any]:
         """Get student profile."""
         profile = self.store.get_student_profile()
         return {
@@ -201,7 +212,7 @@ class ProgressTrackerTool:
     def _update_profile(
         self,
         learning_style: str | None = None,
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> dict[str, Any]:
         """Update student profile."""
         profile = self.store.get_student_profile()
@@ -237,7 +248,7 @@ class ProgressTrackerTool:
     def _reset_progress(
         self,
         package_name: str | None = None,
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> dict[str, Any]:
         """Reset learning progress."""
         count = self.store.reset_progress(package_name)
@@ -248,7 +259,7 @@ class ProgressTrackerTool:
             "message": f"Reset {count} progress records {scope}",
         }
 
-    def _get_packages_studied(self, **kwargs: Any) -> dict[str, Any]:
+    def _get_packages_studied(self, **_kwargs: Any) -> dict[str, Any]:
         """Get list of packages that have been studied."""
         packages = self.store.get_packages_studied()
         return {"success": True, "packages": packages, "count": len(packages)}
