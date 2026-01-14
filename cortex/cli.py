@@ -1311,27 +1311,83 @@ class CortexCLI:
             if result.returncode == 0:
                 self._print_success(f"'{package}' removed successfully")
 
-                # Offer autoremove
-                console.print()
-                cx_print("Running autoremove to clean up orphaned packages...", "info")
-                autoremove_result = subprocess.run(
-                    ["sudo", "apt-get", "autoremove", "-y"],
-                    capture_output=True,
-                    text=True,
-                    timeout=300,
-                )
-
-                if autoremove_result.returncode == 0:
-                    cx_print("Cleanup complete", "success")
-                else:
-                    cx_print("Autoremove completed with warnings", "warning")
-
                 # Record successful removal
                 if install_id:
                     try:
                         history.update_installation(install_id, InstallationStatus.SUCCESS)
                     except Exception as e:
                         self._debug(f"Failed to update installation record: {e}")
+
+                # Run autoremove to clean up orphaned packages
+                console.print()
+                cx_print("Running autoremove to clean up orphaned packages...", "info")
+                autoremove_cmd = ["sudo", "apt-get", "autoremove", "-y"]
+                autoremove_start = datetime.datetime.now()
+
+                # Record autoremove operation start
+                autoremove_id = None
+                try:
+                    autoremove_id = history.record_installation(
+                        operation_type=InstallationType.REMOVE,
+                        packages=[f"{package}-autoremove"],
+                        commands=[" ".join(autoremove_cmd)],
+                        start_time=autoremove_start,
+                    )
+                except Exception as e:
+                    self._debug(f"Failed to record autoremove start: {e}")
+
+                try:
+                    autoremove_result = subprocess.run(
+                        autoremove_cmd,
+                        capture_output=True,
+                        text=True,
+                        timeout=300,
+                    )
+
+                    if autoremove_result.returncode == 0:
+                        cx_print("Cleanup complete", "success")
+                        if autoremove_id:
+                            try:
+                                history.update_installation(
+                                    autoremove_id, InstallationStatus.SUCCESS
+                                )
+                            except Exception as e:
+                                self._debug(f"Failed to update autoremove record: {e}")
+                    else:
+                        cx_print("Autoremove completed with warnings", "warning")
+                        if autoremove_id:
+                            try:
+                                history.update_installation(
+                                    autoremove_id,
+                                    InstallationStatus.FAILED,
+                                    error_message=autoremove_result.stderr[:500]
+                                    if autoremove_result.stderr
+                                    else "Autoremove returned non-zero exit code",
+                                )
+                            except Exception as e:
+                                self._debug(f"Failed to update autoremove record: {e}")
+                except subprocess.TimeoutExpired:
+                    cx_print("Autoremove timed out", "warning")
+                    if autoremove_id:
+                        try:
+                            history.update_installation(
+                                autoremove_id,
+                                InstallationStatus.FAILED,
+                                error_message="Autoremove timed out after 300 seconds",
+                            )
+                        except Exception:
+                            pass
+                except Exception as e:
+                    cx_print(f"Autoremove failed: {e}", "warning")
+                    if autoremove_id:
+                        try:
+                            history.update_installation(
+                                autoremove_id,
+                                InstallationStatus.FAILED,
+                                error_message=str(e)[:500],
+                            )
+                        except Exception:
+                            pass
 
                 return 0
             else:
