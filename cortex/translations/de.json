@@ -12,10 +12,7 @@
     "please_wait": "Bitte warten...",
     "back": "Zurück",
     "next": "Weiter",
-    "exit": "Beenden",
-    "info": "Information",
-    "done": "Erledigt",
-    "required_field": "Das Feld {field} ist erforderlich"
+    "exit": "Beenden"
   },
   "cli": {
     "help": "Diese Hilfemeldung anzeigen",
@@ -39,7 +36,10 @@
     "updating": "{package} wird aktualisiert...",
     "verifying": "Installation von {package} wird überprüft",
     "install_time": "Installation in {time}s abgeschlossen",
-    "requires": "Erforderlich: {dependencies}"
+    "requires": "Erforderlich: {dependencies}",
+    "dry_run_note": "Trockenlaufmodus - Befehle nicht ausgeführt",
+    "generated_commands": "Generierte Befehle",
+    "execute_note": "Um diese Befehle auszuführen, verwenden Sie das Flag --execute"
   },
   "remove": {
     "prompt": "Was möchten Sie entfernen?",
@@ -69,25 +69,20 @@
     "saved": "Konfiguration gespeichert",
     "reset": "Konfiguration auf Standardwerte zurückgesetzt",
     "invalid_key": "Ungültiger Konfigurationsschlüssel: {key}",
-    "invalid_value": "Ungültiger Wert für {key}: {value}",
-    "config_missing": "Konfigurationsdatei nicht gefunden",
-    "config_readonly": "Konfigurationsdatei ist schreibgeschützt"
+    "invalid_value": "Ungültiger Wert für {key}: {value}"
   },
   "errors": {
     "network": "Netzwerkfehler: {details}",
     "permission": "Zugriff verweigert: {details}",
     "invalid_package": "Paket '{package}' nicht gefunden",
-    "disk_space": "Nicht genug Speicherplatz verfügbar",
+    "disk_space": "Nicht genug Speicherplatz ({needed}GB benötigt, {available}GB verfügbar)",
     "api_key_missing": "API-Schlüssel nicht gesetzt. Bitte in der Konfiguration setzen.",
-    "timeout": "Zeitüberschreitung bei {operation}",
+    "timeout": "Zeitüberschreitung nach {seconds} Sekunden",
     "parse_error": "Antwort konnte nicht verarbeitet werden: {details}",
     "invalid_input": "Ungültige Eingabe: {details}",
     "operation_failed": "Vorgang fehlgeschlagen: {details}",
     "unexpected": "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
-    "permission_denied": "Berechtigung verweigert",
-    "package_conflict": "Paketkonflikt: {package}",
-    "installation_failed": "Installation fehlgeschlagen",
-    "unknown_error": "Unbekannter Fehler"
+    "no_commands": "Keine Befehle generiert. Bitte versuchen Sie es mit einer anderen Anfrage."
   },
   "prompts": {
     "confirm_install": "{packages} installieren? (j/n)",

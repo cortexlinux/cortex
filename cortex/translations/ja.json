@@ -38,7 +38,10 @@
     "updating": "{package} を更新中...",
     "verifying": "{package} のインストールを確認中",
     "install_time": "インストールは {time}s で完了しました",
-    "requires": "必要: {dependencies}"
+    "requires": "必要: {dependencies}",
+    "dry_run_note": "シミュレーションモード - コマンドは実行されていません",
+    "generated_commands": "生成されたコマンド",
+    "execute_note": "これらのコマンドを実行するには、--execute フラグを使用してください"
   },
 
   "remove": {
@@ -84,7 +87,8 @@
     "parse_error": "応答の解析に失敗しました: {details}",
     "invalid_input": "無効な入力: {details}",
     "operation_failed": "操作に失敗しました: {details}",
-    "unexpected": "予期しないエラーが発生しました。もう一度試してください。"
+    "unexpected": "予期しないエラーが発生しました。もう一度試してください。",
+    "no_commands": "コマンドが生成されませんでした。別のリクエストでもう一度お試しください。"
   },
 
   "prompts": {

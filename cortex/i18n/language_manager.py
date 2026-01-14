@@ -11,6 +11,7 @@ License: Apache 2.0
 import locale
 import logging
 import os
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -115,12 +116,12 @@ class LanguageManager:
         "ko_KR": "ko",
     }
 
-    def __init__(self, prefs_manager=None):
+    def __init__(self, prefs_manager: Any = None):
         """
         Initialize language manager.
 
         Args:
-            prefs_manager: PreferencesManager instance for config access
+            prefs_manager: PreferencesManager instance for config access (duck-typed)
         """
         self.prefs_manager = prefs_manager
 

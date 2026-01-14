@@ -12,10 +12,7 @@
     "please_wait": "Attendere prego...",
     "back": "Indietro",
     "next": "Avanti",
-    "exit": "Esci",
-    "info": "Informazione",
-    "done": "Fatto",
-    "required_field": "Il campo {field} è obbligatorio"
+    "exit": "Esci"
   },
   "cli": {
     "help": "Visualizza questo messaggio di aiuto",
@@ -72,25 +69,19 @@
     "saved": "Configurazione salvata",
     "reset": "Configurazione ripristinata ai valori predefiniti",
     "invalid_key": "Chiave di configurazione non valida: {key}",
-    "invalid_value": "Valore non valido per {key}: {value}",
-    "config_missing": "File di configurazione non trovato",
-    "config_readonly": "Il file di configurazione è di sola lettura"
+    "invalid_value": "Valore non valido per {key}: {value}"
   },
   "errors": {
     "network": "Errore di rete: {details}",
     "permission": "Permesso negato: {details}",
     "invalid_package": "Pacchetto '{package}' non trovato",
-    "disk_space": "Spazio su disco insufficiente",
+    "disk_space": "Spazio su disco insufficiente ({needed}GB necessario, {available}GB disponibile)",
     "api_key_missing": "Chiave API non impostata. Impostarla nella configurazione.",
-    "timeout": "Timeout per {operation}",
+    "timeout": "Operazione scaduta dopo {seconds} secondi",
     "parse_error": "Impossibile analizzare la risposta: {details}",
     "invalid_input": "Input non valido: {details}",
     "operation_failed": "Operazione fallita: {details}",
     "unexpected": "Si è verificato un errore imprevisto. Riprova.",
-    "permission_denied": "Permesso negato",
-    "package_conflict": "Conflitto pacchetto: {package}",
-    "installation_failed": "Installazione non riuscita",
-    "unknown_error": "Errore sconosciuto",
     "no_commands": "Nessun comando generato. Riprova con una richiesta diversa."
   },
   "prompts": {

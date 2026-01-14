@@ -12,10 +12,7 @@
     "please_wait": "잠시 기다려주세요...",
     "back": "뒤로",
     "next": "다음",
-    "exit": "종료",
-    "info": "정보",
-    "done": "완료",
-    "required_field": "{field} 필드는 필수입니다"
+    "exit": "종료"
   },
   "cli": {
     "help": "이 도움말 메시지 표시",
@@ -72,25 +69,19 @@
     "saved": "구성이 저장되었습니다",
     "reset": "구성이 기본값으로 재설정되었습니다",
     "invalid_key": "잘못된 구성 키: {key}",
-    "invalid_value": "{key}의 값이 잘못되었습니다: {value}",
-    "config_missing": "구성 파일을 찾을 수 없습니다",
-    "config_readonly": "구성 파일은 읽기 전용입니다"
+    "invalid_value": "{key}의 값이 잘못되었습니다: {value}"
   },
   "errors": {
     "network": "네트워크 오류: {details}",
     "permission": "권한 거부: {details}",
     "invalid_package": "패키지 '{package}'을(를) 찾을 수 없습니다",
-    "disk_space": "디스크 공간 부족",
+    "disk_space": "디스크 공간 부족 ({needed}GB 필요, {available}GB 사용 가능)",
     "api_key_missing": "API 키가 설정되지 않았습니다. 구성에서 설정하세요.",
-    "timeout": "{operation} 시간 초과",
+    "timeout": "{seconds}초 후 작업 시간 초과",
     "parse_error": "응답 파싱 실패: {details}",
     "invalid_input": "잘못된 입력: {details}",
     "operation_failed": "작업 실패: {details}",
     "unexpected": "예기치 않은 오류가 발생했습니다. 다시 시도해주세요.",
-    "permission_denied": "권한 거부",
-    "package_conflict": "패키지 충돌: {package}",
-    "installation_failed": "설치 실패",
-    "unknown_error": "알 수 없는 오류",
     "no_commands": "명령이 생성되지 않았습니다. 다른 요청으로 다시 시도해주세요."
   },
   "prompts": {

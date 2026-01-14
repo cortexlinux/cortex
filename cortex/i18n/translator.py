@@ -9,9 +9,7 @@ License: Apache 2.0
 """
 
 import json
-import locale
 import logging
-import os
 from pathlib import Path
 from typing import Any
 
@@ -292,8 +290,6 @@ class Translator:
 
         except Exception as e:
             logger.debug(f"Error parsing pluralization: {e}")
-
-        return message
 
         return message
 

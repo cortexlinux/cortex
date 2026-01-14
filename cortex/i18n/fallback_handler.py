@@ -102,7 +102,7 @@ class FallbackHandler:
         """
         Export missing translations as CSV for translator team.
 
-        Creates a CSV file with columns: key, namespace, suggested_placeholder
+        Creates a CSV file with columns: key, namespace
         This helps translator teams quickly identify gaps in translations.
 
         Args:

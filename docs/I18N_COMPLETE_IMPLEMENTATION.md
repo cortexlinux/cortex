@@ -1027,7 +1027,13 @@ output_path = Path("/tmp") / f"cortex_missing_{timestamp}.csv"
 **New Implementation (Secure)**:
 ```python
 # ✅ SECURE - User-specific directory with restricted permissions
-temp_dir = Path(tempfile.gettempdir()) / f"cortex_{os.getuid()}"
+# Cross-platform username detection with fallbacks
+try:
+    username = os.getlogin()
+except (OSError, AttributeError):
+    username = os.environ.get("USERNAME") or os.environ.get("USER") or "cortex_user"
+
+temp_dir = Path(tempfile.gettempdir()) / f"cortex_{username}"
 temp_dir.mkdir(mode=0o700, parents=True, exist_ok=True)  # Owner-only
 output_path = temp_dir / f"cortex_missing_{timestamp}.csv"
 os.chmod(output_path, 0o600)  # Owner read/write only
@@ -1243,5 +1249,5 @@ The Cortex Linux i18n implementation provides a **complete, production-ready mul
 
 **Last Updated**: December 29, 2025  
 **License**: Apache 2.0  
-**Repository**: https://github.com/cortexlinux/cortex  
+**Repository**: [github.com/cortexlinux/cortex](https://github.com/cortexlinux/cortex)  
 **Issue**: #93 – Multi-Language CLI Support

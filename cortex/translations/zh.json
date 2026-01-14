@@ -12,10 +12,7 @@
     "please_wait": "请稍候...",
     "back": "返回",
     "next": "下一步",
-    "exit": "退出",
-    "info": "信息",
-    "done": "完成",
-    "required_field": "字段 {field} 是必需的"
+    "exit": "退出"
   },
   "cli": {
     "help": "显示此帮助消息",
@@ -39,7 +36,10 @@
     "updating": "正在更新 {package}...",
     "verifying": "正在验证 {package} 的安装",
     "install_time": "安装在 {time}s 内完成",
-    "requires": "需要：{dependencies}"
+    "requires": "需要：{dependencies}",
+    "dry_run_note": "模拟运行模式 - 命令未执行",
+    "generated_commands": "生成的命令",
+    "execute_note": "要执行这些命令，请使用 --execute 标志"
   },
   "remove": {
     "prompt": "您想移除什么？",
@@ -69,25 +69,20 @@
     "saved": "配置已保存",
     "reset": "配置已重置为默认值",
     "invalid_key": "无效的配置键：{key}",
-    "invalid_value": "{key} 的值无效：{value}",
-    "config_missing": "未找到配置文件",
-    "config_readonly": "配置文件为只读"
+    "invalid_value": "{key} 的值无效：{value}"
   },
   "errors": {
     "network": "网络错误：{details}",
     "permission": "权限被拒绝：{details}",
     "invalid_package": "未找到软件包 '{package}'",
-    "disk_space": "磁盘空间不足",
+    "disk_space": "磁盘空间不足（需要 {needed}GB，可用 {available}GB）",
     "api_key_missing": "未设置 API 密钥。请在配置中设置。",
-    "timeout": "{operation} 超时",
+    "timeout": "操作在 {seconds} 秒后超时",
     "parse_error": "解析响应失败：{details}",
     "invalid_input": "输入无效：{details}",
     "operation_failed": "操作失败：{details}",
     "unexpected": "发生意外错误。请重试。",
-    "permission_denied": "权限被拒绝",
-    "package_conflict": "软件包冲突：{package}",
-    "installation_failed": "安装失败",
-    "unknown_error": "未知错误"
+    "no_commands": "未生成任何命令。请使用不同的请求重试。"
   },
   "prompts": {
     "confirm_install": "安装 {packages}？(y/n)",
