@@ -1139,8 +1139,9 @@ def download_model() -> Path | None:
     os.makedirs(MODEL_DIR, exist_ok=True)
 
     # Construct model_path safely and verify it stays within MODEL_DIR
-    model_path = (MODEL_DIR / safe_filename).resolve()
-    if not str(model_path).startswith(str(MODEL_DIR.resolve())):
+    model_dir = MODEL_DIR.expanduser().resolve()
+    model_path = (model_dir / safe_filename).resolve()
+    if not model_path.is_relative_to(model_dir):
         console.print("[red]Security error: model path escapes designated directory.[/red]")
         return None
 
