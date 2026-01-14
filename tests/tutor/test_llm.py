@@ -105,7 +105,7 @@ class TestGenerateLesson:
 
             assert result["success"] is True
             assert result["lesson"]["summary"] == "Test summary"
-            assert result["cost_usd"] == 0.01
+            assert result["cost_usd"] == pytest.approx(0.01)
 
     def test_generate_lesson_with_options(self):
         """Test lesson generation with custom options."""
@@ -194,7 +194,7 @@ class TestAnswerQuestion:
 
             assert result["success"] is True
             assert "containerization" in result["answer"]["answer"]
-            assert result["cost_usd"] == 0.005
+            assert result["cost_usd"] == pytest.approx(0.005)
 
     def test_answer_question_with_context(self):
         """Test question answering with context."""
