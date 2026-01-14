@@ -408,8 +408,10 @@ class DependencyImporter:
             )
 
         # Simple TOML parsing for pyproject.toml (without external library)
-        # Parse [project] dependencies
-        project_deps = self._extract_toml_string_list(content, "dependencies")
+        # Parse [project] dependencies - scope to [project] section to avoid
+        # matching dependencies from other sections
+        project_section = self._extract_project_section(content)
+        project_deps = self._extract_toml_string_list(project_section, "dependencies")
         for dep_str in project_deps:
             pkg = self._parse_python_requirement(dep_str, is_dev=False)
             if pkg:
@@ -453,9 +455,54 @@ class DependencyImporter:
             warnings=warnings,
         )
 
+    def _extract_project_section(self, content: str) -> str:
+        """Extract the [project] section content from pyproject.toml.
+
+        Finds the top-level [project] header and returns all content up to
+        the next top-level section (avoiding subsections like [project.optional-dependencies]).
+
+        Args:
+            content: Full pyproject.toml content.
+
+        Returns:
+            str: Content of the [project] section, or empty string if not found.
+        """
+        # Find the start of [project] section
+        project_start_match = re.search(r"^\s*\[project\]\s*$", content, re.MULTILINE)
+        if not project_start_match:
+            return ""
+
+        start_idx = project_start_match.end()
+
+        # Find the next top-level section (not a [project.xxx] subsection)
+        # Look for [something] where something doesn't start with "project."
+        next_section_match = re.search(r"^\s*\[(?!project\.)", content[start_idx:], re.MULTILINE)
+        if next_section_match:
+            end_idx = start_idx + next_section_match.start()
+        else:
+            end_idx = len(content)
+
+        return content[start_idx:end_idx]
+
     def _get_project_name(self, content: str) -> str:
-        """Extract project name from pyproject.toml content."""
-        match = re.search(r'^\s*name\s*=\s*["\']([^"\']+)["\']', content, re.MULTILINE)
+        """Extract project name from pyproject.toml content.
+
+        Only searches within the [project] section to avoid matching
+        names from other TOML sections.
+
+        Args:
+            content: Full pyproject.toml content.
+
+        Returns:
+            str: Project name or empty string if not found.
+        """
+        # First locate the [project] section
+        project_section = self._extract_project_section(content)
+        if not project_section:
+            return ""
+
+        # Search for name only within the [project] section
+        match = re.search(r'^\s*name\s*=\s*["\']([^"\']+)["\']', project_section, re.MULTILINE)
         return match.group(1) if match else ""
 
     def _normalize_package_name(self, name: str) -> str:

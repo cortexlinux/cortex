@@ -68,9 +68,9 @@ class DaemonManager:
         """
         # Check environment variable first
         provider = os.environ.get("CORTEX_PROVIDER", "").lower()
-        if provider == "llama_cpp":
+        if provider in ("llama_cpp", "ollama"):
             return "local"
-        elif provider in ("claude", "openai", "ollama"):
+        elif provider in ("claude", "openai"):
             return "cloud"
 
         # Check daemon config
@@ -818,4 +818,4 @@ class DaemonManager:
     def confirm(message: str) -> bool:
         """Ask user for confirmation"""
         response = console.input(f"[yellow]{message} [y/N][/yellow] ")
-        return response.lower() == "y"
+        return response.strip().lower() in ["y", "yes"]

@@ -1,7 +1,10 @@
 import os
 import re
+import sqlite3
 import subprocess
 import sys
+import tempfile
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -11,6 +14,81 @@ from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 console = Console()
+
+# Audit logging database path
+AUDIT_DB_PATH = Path.home() / ".cortex" / "history.db"
+
+
+def init_audit_db() -> bool:
+    """
+    Initialize the audit database for installer actions.
+
+    Creates ~/.cortex directory if needed and sets up a SQLite database
+    with an events table for logging installer actions.
+
+    Returns:
+        bool: True if initialization succeeded, False otherwise.
+    """
+    try:
+        # Create ~/.cortex directory
+        audit_dir = AUDIT_DB_PATH.parent
+        audit_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create/connect to database
+        conn = sqlite3.connect(str(AUDIT_DB_PATH))
+        cursor = conn.cursor()
+
+        # Create events table if it doesn't exist
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                details TEXT,
+                success INTEGER DEFAULT 1
+            )
+        """)
+
+        conn.commit()
+        conn.close()
+        return True
+    except (sqlite3.Error, OSError) as e:
+        console.print(f"[dim]Warning: Could not initialize audit database: {e}[/dim]")
+        return False
+
+
+def log_audit_event(event_type: str, details: str, success: bool = True) -> None:
+    """
+    Log an audit event to the history database.
+
+    Inserts a timestamped row into the events table. Handles errors gracefully
+    without crashing the installer.
+
+    Args:
+        event_type: Type of event (e.g., "install_dependencies", "build_daemon").
+        details: Human-readable description of the event.
+        success: Whether the action succeeded (default True).
+    """
+    try:
+        # Ensure the database exists
+        if not AUDIT_DB_PATH.exists():
+            if not init_audit_db():
+                return
+
+        conn = sqlite3.connect(str(AUDIT_DB_PATH))
+        cursor = conn.cursor()
+
+        timestamp = datetime.utcnow().isoformat() + "Z"
+        cursor.execute(
+            "INSERT INTO events (timestamp, event_type, details, success) VALUES (?, ?, ?, ?)",
+            (timestamp, event_type, details, 1 if success else 0),
+        )
+
+        conn.commit()
+        conn.close()
+    except (sqlite3.Error, OSError) as e:
+        # Log to console but don't crash the installer
+        console.print(f"[dim]Warning: Could not log audit event: {e}[/dim]")
 
 DAEMON_DIR = Path(__file__).parent.parent
 BUILD_SCRIPT = DAEMON_DIR / "scripts" / "build.sh"
@@ -152,9 +230,19 @@ def install_system_dependencies(packages: list[str]) -> bool:
 
     if result.returncode == 0:
         console.print(f"[green]✓ Successfully installed {len(packages)} package(s)[/green]")
+        log_audit_event(
+            "install_system_dependencies",
+            f"Installed {len(packages)} package(s): {', '.join(packages)}",
+            success=True,
+        )
         return True
     else:
         console.print("[red]✗ Failed to install some packages[/red]")
+        log_audit_event(
+            "install_system_dependencies",
+            f"Failed to install package(s): {', '.join(packages)}",
+            success=False,
+        )
         return False
 
 
@@ -371,6 +459,12 @@ def save_cloud_api_config(config: dict) -> None:
 
     console.print(f"[green]✓ API key saved to {env_file}[/green]")
     console.print(f"[green]✓ Provider set to: {provider}[/green]")
+
+    log_audit_event(
+        "save_cloud_api_config",
+        f"Saved cloud API configuration for provider: {provider}",
+        success=True,
+    )
 
 
 def check_llama_server() -> str | None:
@@ -760,6 +854,11 @@ def install_llm_service(model_path: Path, threads: int = 4, ctx_size: int = 2048
 
     if not INSTALL_LLM_SCRIPT.exists():
         console.print(f"[red]Install script not found: {INSTALL_LLM_SCRIPT}[/red]")
+        log_audit_event(
+            "install_llm_service",
+            f"Install script not found: {INSTALL_LLM_SCRIPT}",
+            success=False,
+        )
         return False
 
     result = subprocess.run(
@@ -774,7 +873,13 @@ def install_llm_service(model_path: Path, threads: int = 4, ctx_size: int = 2048
         check=False,
     )
 
-    return result.returncode == 0
+    success = result.returncode == 0
+    log_audit_event(
+        "install_llm_service",
+        f"Install LLM service {'succeeded' if success else 'failed'} (model: {model_path}, threads: {threads})",
+        success=success,
+    )
+    return success
 
 
 def setup_local_llm() -> Path | None:
@@ -913,7 +1018,13 @@ def build_daemon() -> bool:
     """
     console.print("[cyan]Building the daemon...[/cyan]")
     result = subprocess.run(["bash", str(BUILD_SCRIPT), "Release"], check=False)
-    return result.returncode == 0
+    success = result.returncode == 0
+    log_audit_event(
+        "build_daemon",
+        f"Build daemon {'succeeded' if success else 'failed'}",
+        success=success,
+    )
+    return success
 
 
 def install_daemon() -> bool:
@@ -929,7 +1040,13 @@ def install_daemon() -> bool:
     """
     console.print("[cyan]Installing the daemon...[/cyan]")
     result = subprocess.run(["sudo", str(INSTALL_SCRIPT)], check=False)
-    return result.returncode == 0
+    success = result.returncode == 0
+    log_audit_event(
+        "install_daemon",
+        f"Install daemon {'succeeded' if success else 'failed'}",
+        success=success,
+    )
+    return success
 
 
 def download_model() -> Path | None:
@@ -1027,7 +1144,21 @@ def download_model() -> Path | None:
     console.print(f"[cyan]Downloading to {model_path}...[/cyan]")
     # Use subprocess with list arguments (no shell) after URL validation
     result = subprocess.run(["wget", model_url, "-O", str(model_path)], check=False)
-    return model_path if result.returncode == 0 else None
+    success = result.returncode == 0
+    if success:
+        log_audit_event(
+            "download_model",
+            f"Downloaded model to {model_path}",
+            success=True,
+        )
+        return model_path
+    else:
+        log_audit_event(
+            "download_model",
+            f"Failed to download model from {model_url}",
+            success=False,
+        )
+        return None
 
 
 def configure_auto_load(model_path: Path | str) -> None:
@@ -1045,20 +1176,41 @@ def configure_auto_load(model_path: Path | str) -> None:
         None. Exits the program with code 1 on failure.
     """
     console.print("[cyan]Configuring auto-load for the model...[/cyan]")
-    # Create /etc/cortex directory if it doesn't exist
-    subprocess.run(["sudo", "mkdir", "-p", "/etc/cortex"], check=False)
 
-    # Check if config already exists
-    config_exists = Path(CONFIG_FILE).exists()
-
-    if not config_exists:
-        # Copy example config and modify it
-        console.print("[cyan]Creating daemon configuration file...[/cyan]")
-        subprocess.run(["sudo", "cp", str(CONFIG_EXAMPLE), CONFIG_FILE], check=False)
-
-    # Use YAML library to safely update the configuration instead of sed
-    # This avoids shell injection risks from special characters in model_path
     try:
+        # Create /etc/cortex directory if it doesn't exist
+        mkdir_result = subprocess.run(
+            ["sudo", "mkdir", "-p", "/etc/cortex"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if mkdir_result.returncode != 0:
+            console.print(
+                f"[red]Failed to create /etc/cortex directory: {mkdir_result.stderr}[/red]"
+            )
+            sys.exit(1)
+
+        # Check if config already exists
+        config_exists = Path(CONFIG_FILE).exists()
+
+        if not config_exists:
+            # Copy example config and modify it
+            console.print("[cyan]Creating daemon configuration file...[/cyan]")
+            cp_result = subprocess.run(
+                ["sudo", "cp", str(CONFIG_EXAMPLE), CONFIG_FILE],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if cp_result.returncode != 0:
+                console.print(
+                    f"[red]Failed to copy {CONFIG_EXAMPLE} to {CONFIG_FILE}: {cp_result.stderr}[/red]"
+                )
+                sys.exit(1)
+
+        # Use YAML library to safely update the configuration instead of sed
+        # This avoids shell injection risks from special characters in model_path
         # Read the current config file
         result = subprocess.run(
             ["sudo", "cat", CONFIG_FILE], capture_output=True, text=True, check=True
@@ -1074,19 +1226,29 @@ def configure_auto_load(model_path: Path | str) -> None:
         config["llm"]["model_path"] = str(model_path)
         config["llm"]["lazy_load"] = False
 
-        # Write the updated config back via sudo tee
+        # Write the updated config atomically using a temp file
         updated_yaml = yaml.dump(config, default_flow_style=False, sort_keys=False)
-        write_result = subprocess.run(
-            ["sudo", "tee", CONFIG_FILE],
-            input=updated_yaml,
-            text=True,
+
+        # Create a temp file with the updated config
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as tmp:
+            tmp.write(updated_yaml)
+            tmp_path = tmp.name
+
+        # Move the temp file to the config location atomically with sudo
+        mv_result = subprocess.run(
+            ["sudo", "mv", tmp_path, CONFIG_FILE],
             capture_output=True,
+            text=True,
             check=False,
         )
-
-        if write_result.returncode != 0:
+        if mv_result.returncode != 0:
+            # Clean up temp file if move failed
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
             console.print(
-                f"[red]Failed to write config file (exit code {write_result.returncode})[/red]"
+                f"[red]Failed to write config file {CONFIG_FILE}: {mv_result.stderr}[/red]"
             )
             sys.exit(1)
 
@@ -1094,14 +1256,26 @@ def configure_auto_load(model_path: Path | str) -> None:
             f"[green]Model configured to auto-load on daemon startup: {model_path}[/green]"
         )
         console.print("[cyan]Restarting daemon to apply configuration...[/cyan]")
-        subprocess.run(["sudo", "systemctl", "restart", "cortexd"], check=False)
+
+        restart_result = subprocess.run(
+            ["sudo", "systemctl", "restart", "cortexd"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if restart_result.returncode != 0:
+            console.print(
+                f"[red]Failed to restart cortexd service: {restart_result.stderr}[/red]"
+            )
+            sys.exit(1)
+
         console.print("[green]Daemon restarted with model loaded![/green]")
 
     except subprocess.CalledProcessError as e:
-        console.print(f"[red]Failed to read config file: {e}[/red]")
+        console.print(f"[red]Failed to read config file {CONFIG_FILE}: {e}[/red]")
         sys.exit(1)
     except yaml.YAMLError as e:
-        console.print(f"[red]Failed to parse config file: {e}[/red]")
+        console.print(f"[red]Failed to parse config file {CONFIG_FILE}: {e}[/red]")
         sys.exit(1)
 
 
@@ -1171,14 +1345,34 @@ def configure_daemon_llm_backend(backend: str, config: dict | None = None) -> No
 
         if write_result.returncode != 0:
             console.print("[red]Failed to write config file[/red]")
+            log_audit_event(
+                "configure_daemon_llm_backend",
+                f"Failed to write config file for backend: {backend}",
+                success=False,
+            )
             return
 
         console.print(f"[green]✓ Daemon configured with LLM backend: {backend}[/green]")
+        log_audit_event(
+            "configure_daemon_llm_backend",
+            f"Configured daemon with LLM backend: {backend}",
+            success=True,
+        )
 
     except subprocess.CalledProcessError as e:
         console.print(f"[red]Failed to read config file: {e}[/red]")
+        log_audit_event(
+            "configure_daemon_llm_backend",
+            f"Failed to read config file: {e}",
+            success=False,
+        )
     except yaml.YAMLError as e:
         console.print(f"[red]Failed to parse config file: {e}[/red]")
+        log_audit_event(
+            "configure_daemon_llm_backend",
+            f"Failed to parse config file: {e}",
+            success=False,
+        )
 
 
 def main() -> int:
@@ -1202,6 +1396,10 @@ def main() -> int:
     console.print(
         "[bold cyan]╚══════════════════════════════════════════════════════════════╝[/bold cyan]\n"
     )
+
+    # Initialize audit database
+    init_audit_db()
+    log_audit_event("setup_started", "Cortex daemon interactive setup started")
 
     # Step 0: Check and install system dependencies
     if not setup_system_dependencies():
@@ -1237,16 +1435,22 @@ def main() -> int:
         return 0
 
     backend = choose_llm_backend()
+    log_audit_event("choose_llm_backend", f"User selected LLM backend: {backend}")
 
     if backend == "none":
         console.print("\n[green]✓ Daemon installed successfully![/green]")
         console.print("[cyan]LLM backend not configured. You can set it up later.[/cyan]\n")
+        log_audit_event("setup_completed", "Setup completed without LLM backend")
         return 0
 
     elif backend == "cloud":
         # Setup cloud API
         cloud_config = setup_cloud_api()
         if cloud_config:
+            log_audit_event(
+                "setup_cloud_api",
+                f"Cloud API setup completed for provider: {cloud_config.get('provider', 'unknown')}",
+            )
             save_cloud_api_config(cloud_config)
             configure_daemon_llm_backend("cloud", cloud_config)
 
