@@ -2912,6 +2912,13 @@ def main():
     )
     # --------------------------
 
+    # License and upgrade commands
+    subparsers.add_parser("upgrade", help="Upgrade to Cortex Pro")
+    subparsers.add_parser("license", help="Show license status")
+
+    activate_parser = subparsers.add_parser("activate", help="Activate a license key")
+    activate_parser.add_argument("license_key", help="Your license key")
+
     args = parser.parse_args()
 
     # Handle --set-language global flag first (before any command)
