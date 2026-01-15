@@ -1435,6 +1435,12 @@ class CortexCLI:
 
         return run_benchmark(verbose=verbose)
 
+    def systemd(self, service: str, action: str = "status", verbose: bool = False):
+        """Systemd service helper with plain English explanations"""
+        from cortex.systemd_helper import run_systemd_helper
+
+        return run_systemd_helper(service, action, verbose)
+
     def wizard(self):
         """Interactive setup wizard for API key configuration"""
         show_banner()
@@ -2574,6 +2580,18 @@ def main():
     benchmark_parser = subparsers.add_parser("benchmark", help="Run AI performance benchmark")
     benchmark_parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 
+    # Systemd helper command
+    systemd_parser = subparsers.add_parser("systemd", help="Systemd service helper (plain English)")
+    systemd_parser.add_argument("service", help="Service name")
+    systemd_parser.add_argument(
+        "action",
+        nargs="?",
+        default="status",
+        choices=["status", "diagnose", "deps"],
+        help="Action: status (default), diagnose, deps"
+    )
+    systemd_parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
+
     # Ask command
     ask_parser = subparsers.add_parser("ask", help="Ask a question about your system")
     ask_parser.add_argument("question", type=str, help="Natural language question")
@@ -3014,6 +3032,12 @@ def main():
             return cli.status()
         elif args.command == "benchmark":
             return cli.benchmark(verbose=getattr(args, "verbose", False))
+        elif args.command == "systemd":
+            return cli.systemd(
+                args.service,
+                action=getattr(args, "action", "status"),
+                verbose=getattr(args, "verbose", False)
+            )
         elif args.command == "ask":
             return cli.ask(args.question)
         elif args.command == "install":
