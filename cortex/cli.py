@@ -14,6 +14,9 @@ from cortex.api_key_detector import auto_detect_api_key, setup_api_key
 from cortex.ask import AskHandler
 from cortex.branding import VERSION, console, cx_header, cx_print, show_banner
 from cortex.coordinator import InstallationCoordinator, InstallationStep, StepStatus
+from cortex.update_checker import UpdateChannel, should_notify_update
+from cortex.updater import Updater, UpdateStatus
+from cortex.version_manager import get_version_string
 from cortex.demo import run_demo
 from cortex.dependency_importer import (
     DependencyImporter,
@@ -1205,6 +1208,276 @@ class CortexCLI:
         doctor = SystemDoctor()
         return doctor.run_checks()
 
+    def update(self, args: argparse.Namespace) -> int:
+        """Handle the update command for self-updating Cortex."""
+        from rich.progress import Progress, SpinnerColumn, TextColumn
+        from rich.table import Table
+
+        # Parse channel
+        channel_str = getattr(args, "channel", "stable")
+        try:
+            channel = UpdateChannel(channel_str)
+        except ValueError:
+            channel = UpdateChannel.STABLE
+
+        updater = Updater(channel=channel)
+
+        # Handle subcommands
+        action = getattr(args, "update_action", None)
+
+        if action == "check" or (not action and getattr(args, "check", False)):
+            # Check for updates only
+            cx_print("Checking for updates...", "thinking")
+            result = updater.check_update_available(force=True)
+
+            if result.error:
+                self._print_error(f"Update check failed: {result.error}")
+                return 1
+
+            console.print()
+            cx_print(f"Current version: [cyan]{result.current_version}[/cyan]", "info")
+
+            if result.update_available and result.latest_release:
+                cx_print(
+                    f"Update available: [green]{result.latest_version}[/green]",
+                    "success",
+                )
+                console.print()
+                console.print(f"[bold]Release notes:[/bold]")
+                console.print(result.latest_release.release_notes_summary)
+                console.print()
+                cx_print(
+                    f"Run [bold]cortex update install[/bold] to upgrade",
+                    "info",
+                )
+            else:
+                cx_print("Cortex is up to date!", "success")
+
+            return 0
+
+        elif action == "install":
+            # Install update
+            target = getattr(args, "version", None)
+            dry_run = getattr(args, "dry_run", False)
+
+            if dry_run:
+                cx_print("Dry run mode - no changes will be made", "warning")
+
+            cx_header("Cortex Self-Update")
+
+            def progress_callback(message: str, percent: float) -> None:
+                if percent >= 0:
+                    cx_print(f"{message} ({percent:.0f}%)", "info")
+                else:
+                    cx_print(message, "info")
+
+            updater.progress_callback = progress_callback
+
+            result = updater.update(target_version=target, dry_run=dry_run)
+
+            console.print()
+
+            if result.success:
+                if result.status == UpdateStatus.SUCCESS:
+                    if result.new_version == result.previous_version:
+                        cx_print("Already up to date!", "success")
+                    else:
+                        cx_print(
+                            f"Updated: {result.previous_version} → {result.new_version}",
+                            "success",
+                        )
+                        if result.duration_seconds:
+                            console.print(
+                                f"[dim]Completed in {result.duration_seconds:.1f}s[/dim]"
+                            )
+                elif result.status == UpdateStatus.PENDING:
+                    # Dry run
+                    cx_print(
+                        f"Would update: {result.previous_version} → {result.new_version}",
+                        "info",
+                    )
+                return 0
+            else:
+                if result.status == UpdateStatus.ROLLED_BACK:
+                    cx_print("Update failed - rolled back to previous version", "warning")
+                else:
+                    self._print_error(f"Update failed: {result.error}")
+                return 1
+
+        elif action == "rollback":
+            # Rollback to previous version
+            backup_id = getattr(args, "backup_id", None)
+
+            backups = updater.list_backups()
+
+            if not backups:
+                self._print_error("No backups available for rollback")
+                return 1
+
+            if backup_id:
+                # Find specific backup
+                target_backup = None
+                for b in backups:
+                    if b.version == backup_id or str(b.path).endswith(backup_id):
+                        target_backup = b
+                        break
+
+                if not target_backup:
+                    self._print_error(f"Backup '{backup_id}' not found")
+                    return 1
+
+                backup_path = target_backup.path
+            else:
+                # Use most recent backup
+                backup_path = backups[0].path
+
+            cx_print(f"Rolling back to backup: {backup_path.name}", "info")
+            result = updater.rollback_to_backup(backup_path)
+
+            if result.success:
+                cx_print(
+                    f"Rolled back: {result.previous_version} → {result.new_version}",
+                    "success",
+                )
+                return 0
+            else:
+                self._print_error(f"Rollback failed: {result.error}")
+                return 1
+
+        elif action == "list" or getattr(args, "list_releases", False):
+            # List available versions
+            from cortex.update_checker import UpdateChecker
+
+            checker = UpdateChecker(channel=channel)
+            releases = checker.get_all_releases(limit=10)
+
+            if not releases:
+                cx_print("No releases found", "warning")
+                return 1
+
+            cx_header(f"Available Releases ({channel.value} channel)")
+
+            table = Table(show_header=True, header_style="bold cyan", box=None)
+            table.add_column("Version", style="green")
+            table.add_column("Date")
+            table.add_column("Channel")
+            table.add_column("Notes")
+
+            current = get_version_string()
+
+            for release in releases:
+                version_str = str(release.version)
+                if version_str == current:
+                    version_str = f"{version_str} [dim](current)[/dim]"
+
+                # Truncate notes
+                notes = release.name or release.body[:50] if release.body else ""
+                if len(notes) > 50:
+                    notes = notes[:47] + "..."
+
+                table.add_row(
+                    version_str,
+                    release.formatted_date,
+                    release.version.channel.value,
+                    notes,
+                )
+
+            console.print(table)
+            return 0
+
+        elif action == "backups":
+            # List backups
+            backups = updater.list_backups()
+
+            if not backups:
+                cx_print("No backups available", "info")
+                return 0
+
+            cx_header("Available Backups")
+
+            table = Table(show_header=True, header_style="bold cyan", box=None)
+            table.add_column("Version", style="green")
+            table.add_column("Date")
+            table.add_column("Size")
+            table.add_column("Path")
+
+            for backup in backups:
+                # Format size
+                size_mb = backup.size_bytes / (1024 * 1024)
+                size_str = f"{size_mb:.1f} MB"
+
+                # Format date
+                try:
+                    dt = datetime.fromisoformat(backup.timestamp)
+                    date_str = dt.strftime("%Y-%m-%d %H:%M")
+                except ValueError:
+                    date_str = backup.timestamp[:16]
+
+                table.add_row(
+                    backup.version,
+                    date_str,
+                    size_str,
+                    str(backup.path.name),
+                )
+
+            console.print(table)
+            console.print()
+            cx_print(
+                "Use [bold]cortex update rollback <version>[/bold] to restore",
+                "info",
+            )
+            return 0
+
+        else:
+            # Default: show current version and check for updates
+            cx_print(f"Current version: [cyan]{get_version_string()}[/cyan]", "info")
+            cx_print("Checking for updates...", "thinking")
+
+            result = updater.check_update_available()
+
+            if result.update_available and result.latest_release:
+                console.print()
+                cx_print(
+                    f"Update available: [green]{result.latest_version}[/green]",
+                    "success",
+                )
+                console.print()
+                console.print("[bold]What's new:[/bold]")
+                console.print(result.latest_release.release_notes_summary)
+                console.print()
+                cx_print(
+                    "Run [bold]cortex update install[/bold] to upgrade",
+                    "info",
+                )
+            else:
+                cx_print("Cortex is up to date!", "success")
+
+            return 0
+
+    def benchmark(self, verbose: bool = False):
+        """Run AI performance benchmark and display scores"""
+        from cortex.benchmark import run_benchmark
+
+        return run_benchmark(verbose=verbose)
+
+    def systemd(self, service: str, action: str = "status", verbose: bool = False):
+        """Systemd service helper with plain English explanations"""
+        from cortex.systemd_helper import run_systemd_helper
+
+        return run_systemd_helper(service, action, verbose)
+
+    def gpu(self, action: str = "status", mode: str = None, verbose: bool = False):
+        """Hybrid GPU (Optimus) manager"""
+        from cortex.gpu_manager import run_gpu_manager
+
+        return run_gpu_manager(action, mode, verbose)
+
+    def printer(self, action: str = "status", verbose: bool = False):
+        """Printer/Scanner auto-setup"""
+        from cortex.printer_setup import run_printer_setup
+
+        return run_printer_setup(action, verbose)
+
     def wizard(self):
         """Interactive setup wizard for API key configuration"""
         show_banner()
@@ -2234,7 +2507,7 @@ def show_rich_help():
     table.add_row("docker permissions", "Fix Docker bind-mount permissions")
     table.add_row("jit-benchmark", "Python JIT performance benchmarks")
     table.add_row("sandbox <cmd>", "Test packages in Docker sandbox")
-    table.add_row("doctor", "System health check")
+    table.add_row("update", "Check for and install updates")
 
     console.print(table)
     console.print()
@@ -2286,6 +2559,23 @@ def main():
     except Exception as e:
         # Network config is optional - don't block execution if it fails
         console.print(f"[yellow]⚠️  Network auto-config failed: {e}[/yellow]")
+
+    # Check for updates on startup (cached, non-blocking)
+    # Only show notification for commands that aren't 'update' itself
+    try:
+        if temp_args.command not in ["update", None]:
+            update_release = should_notify_update()
+            if update_release:
+                console.print(
+                    f"[cyan]🔔 Cortex update available:[/cyan] "
+                    f"[green]{update_release.version}[/green]"
+                )
+                console.print(
+                    f"   [dim]Run 'cortex update' to upgrade[/dim]"
+                )
+                console.print()
+    except Exception:
+        pass  # Don't block CLI on update check failures
 
     parser = argparse.ArgumentParser(
         prog="cortex",
@@ -2353,6 +2643,45 @@ def main():
 
     # Status command (includes comprehensive health checks)
     subparsers.add_parser("status", help="Show comprehensive system status and health checks")
+
+    # Benchmark command
+    benchmark_parser = subparsers.add_parser("benchmark", help="Run AI performance benchmark")
+    benchmark_parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
+
+    # Systemd helper command
+    systemd_parser = subparsers.add_parser("systemd", help="Systemd service helper (plain English)")
+    systemd_parser.add_argument("service", help="Service name")
+    systemd_parser.add_argument(
+        "action",
+        nargs="?",
+        default="status",
+        choices=["status", "diagnose", "deps"],
+        help="Action: status (default), diagnose, deps"
+    )
+    systemd_parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
+
+    # GPU manager command
+    gpu_parser = subparsers.add_parser("gpu", help="Hybrid GPU (Optimus) manager")
+    gpu_parser.add_argument(
+        "action",
+        nargs="?",
+        default="status",
+        choices=["status", "modes", "switch", "apps"],
+        help="Action: status (default), modes, switch, apps"
+    )
+    gpu_parser.add_argument("mode", nargs="?", help="Mode for switch action (integrated/hybrid/nvidia)")
+    gpu_parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
+
+    # Printer/Scanner setup command
+    printer_parser = subparsers.add_parser("printer", help="Printer/Scanner auto-setup")
+    printer_parser.add_argument(
+        "action",
+        nargs="?",
+        default="status",
+        choices=["status", "detect"],
+        help="Action: status (default), detect"
+    )
+    printer_parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 
     # Ask command
     ask_parser = subparsers.add_parser("ask", help="Ask a question about your system")
@@ -2725,6 +3054,126 @@ def main():
     )
     # --------------------------
 
+    # License and upgrade commands
+    subparsers.add_parser("upgrade", help="Upgrade to Cortex Pro")
+    subparsers.add_parser("license", help="Show license status")
+
+    activate_parser = subparsers.add_parser("activate", help="Activate a license key")
+    activate_parser.add_argument("license_key", help="Your license key")
+
+    # --- Update Command ---
+    update_parser = subparsers.add_parser("update", help="Check for and install Cortex updates")
+    update_parser.add_argument(
+        "--channel",
+        "-c",
+        choices=["stable", "beta", "dev"],
+        default="stable",
+        help="Update channel (default: stable)",
+    )
+    update_subs = update_parser.add_subparsers(dest="update_action", help="Update actions")
+
+    # update check
+    update_check_parser = update_subs.add_parser("check", help="Check for available updates")
+
+    # update install [version] [--dry-run]
+    update_install_parser = update_subs.add_parser("install", help="Install available update")
+    update_install_parser.add_argument(
+        "version", nargs="?", help="Specific version to install (default: latest)"
+    )
+    update_install_parser.add_argument(
+        "--dry-run", action="store_true", help="Show what would be updated without installing"
+    )
+
+    # update rollback [backup_id]
+    update_rollback_parser = update_subs.add_parser("rollback", help="Rollback to previous version")
+    update_rollback_parser.add_argument(
+        "backup_id", nargs="?", help="Backup ID or version to restore (default: most recent)"
+    )
+
+    # update list
+    update_subs.add_parser("list", help="List available versions")
+
+    # update backups
+    update_subs.add_parser("backups", help="List available backups for rollback")
+    # --------------------------
+
+    # WiFi/Bluetooth Driver Matcher
+    wifi_parser = subparsers.add_parser("wifi", help="WiFi/Bluetooth driver auto-matcher")
+    wifi_parser.add_argument(
+        "action",
+        nargs="?",
+        default="status",
+        choices=["status", "detect", "recommend", "install", "connectivity"],
+        help="Action to perform (default: status)",
+    )
+    wifi_parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose output",
+    )
+
+    # Stdin Piping Support
+    stdin_parser = subparsers.add_parser("stdin", help="Process piped stdin data")
+    stdin_parser.add_argument(
+        "action",
+        nargs="?",
+        default="info",
+        choices=["info", "analyze", "passthrough", "stats"],
+        help="Action to perform (default: info)",
+    )
+    stdin_parser.add_argument(
+        "--max-lines",
+        type=int,
+        default=1000,
+        help="Maximum lines to process (default: 1000)",
+    )
+    stdin_parser.add_argument(
+        "--truncation",
+        choices=["head", "tail", "middle", "sample"],
+        default="middle",
+        help="Truncation mode for large input (default: middle)",
+    )
+    stdin_parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose output",
+    )
+
+    # Semantic Version Resolver
+    deps_parser = subparsers.add_parser("deps", help="Dependency version resolver")
+    deps_parser.add_argument(
+        "action",
+        nargs="?",
+        default="analyze",
+        choices=["analyze", "parse", "check", "compare"],
+        help="Action to perform (default: analyze)",
+    )
+    deps_parser.add_argument(
+        "packages",
+        nargs="*",
+        help="Package constraints (format: pkg:constraint:source)",
+    )
+    deps_parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose output",
+    )
+
+    # System Health Score
+    health_parser = subparsers.add_parser("health", help="System health score and recommendations")
+    health_parser.add_argument(
+        "action",
+        nargs="?",
+        default="check",
+        choices=["check", "history", "factors", "quick"],
+        help="Action to perform (default: check)",
+    )
+    health_parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose output",
+    )
+
     args = parser.parse_args()
 
     # The Guard: Check for empty commands before starting the CLI
@@ -2749,6 +3198,25 @@ def main():
             return cli.wizard()
         elif args.command == "status":
             return cli.status()
+        elif args.command == "benchmark":
+            return cli.benchmark(verbose=getattr(args, "verbose", False))
+        elif args.command == "systemd":
+            return cli.systemd(
+                args.service,
+                action=getattr(args, "action", "status"),
+                verbose=getattr(args, "verbose", False)
+            )
+        elif args.command == "gpu":
+            return cli.gpu(
+                action=getattr(args, "action", "status"),
+                mode=getattr(args, "mode", None),
+                verbose=getattr(args, "verbose", False)
+            )
+        elif args.command == "printer":
+            return cli.printer(
+                action=getattr(args, "action", "status"),
+                verbose=getattr(args, "verbose", False)
+            )
         elif args.command == "ask":
             return cli.ask(args.question)
         elif args.command == "install":
@@ -2784,6 +3252,46 @@ def main():
             return 1
         elif args.command == "env":
             return cli.env(args)
+        elif args.command == "upgrade":
+            from cortex.licensing import open_upgrade_page
+            open_upgrade_page()
+            return 0
+        elif args.command == "license":
+            from cortex.licensing import show_license_status
+            show_license_status()
+            return 0
+        elif args.command == "activate":
+            from cortex.licensing import activate_license
+            return 0 if activate_license(args.license_key) else 1
+        elif args.command == "update":
+            return cli.update(args)
+        elif args.command == "wifi":
+            from cortex.wifi_driver import run_wifi_driver
+            return run_wifi_driver(
+                action=getattr(args, "action", "status"),
+                verbose=getattr(args, "verbose", False),
+            )
+        elif args.command == "stdin":
+            from cortex.stdin_handler import run_stdin_handler
+            return run_stdin_handler(
+                action=getattr(args, "action", "info"),
+                max_lines=getattr(args, "max_lines", 1000),
+                truncation=getattr(args, "truncation", "middle"),
+                verbose=getattr(args, "verbose", False),
+            )
+        elif args.command == "deps":
+            from cortex.semver_resolver import run_semver_resolver
+            return run_semver_resolver(
+                action=getattr(args, "action", "analyze"),
+                packages=getattr(args, "packages", None),
+                verbose=getattr(args, "verbose", False),
+            )
+        elif args.command == "health":
+            from cortex.health_score import run_health_check
+            return run_health_check(
+                action=getattr(args, "action", "check"),
+                verbose=getattr(args, "verbose", False),
+            )
         else:
             parser.print_help()
             return 1
