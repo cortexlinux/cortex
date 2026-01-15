@@ -2998,6 +2998,7 @@ def main():
     )
     # --------------------------
 
+<<<<<<< HEAD
     # License and upgrade commands
     subparsers.add_parser("upgrade", help="Upgrade to Cortex Pro")
     subparsers.add_parser("license", help="Show license status")
@@ -3078,6 +3079,26 @@ def main():
         help="Truncation mode for large input (default: middle)",
     )
     stdin_parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose output",
+    )
+
+    # Semantic Version Resolver
+    deps_parser = subparsers.add_parser("deps", help="Dependency version resolver")
+    deps_parser.add_argument(
+        "action",
+        nargs="?",
+        default="analyze",
+        choices=["analyze", "parse", "check", "compare"],
+        help="Action to perform (default: analyze)",
+    )
+    deps_parser.add_argument(
+        "packages",
+        nargs="*",
+        help="Package constraints (format: pkg:constraint:source)",
+    )
+    deps_parser.add_argument(
         "-v", "--verbose",
         action="store_true",
         help="Enable verbose output",
@@ -3181,6 +3202,13 @@ def main():
                 action=getattr(args, "action", "info"),
                 max_lines=getattr(args, "max_lines", 1000),
                 truncation=getattr(args, "truncation", "middle"),
+                verbose=getattr(args, "verbose", False),
+            )
+        elif args.command == "deps":
+            from cortex.semver_resolver import run_semver_resolver
+            return run_semver_resolver(
+                action=getattr(args, "action", "analyze"),
+                packages=getattr(args, "packages", None),
                 verbose=getattr(args, "verbose", False),
             )
         else:
