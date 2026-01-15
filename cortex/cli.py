@@ -2998,7 +2998,6 @@ def main():
     )
     # --------------------------
 
-<<<<<<< HEAD
     # License and upgrade commands
     subparsers.add_parser("upgrade", help="Upgrade to Cortex Pro")
     subparsers.add_parser("license", help="Show license status")
@@ -3099,6 +3098,21 @@ def main():
         help="Package constraints (format: pkg:constraint:source)",
     )
     deps_parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose output",
+    )
+
+    # System Health Score
+    health_parser = subparsers.add_parser("health", help="System health score and recommendations")
+    health_parser.add_argument(
+        "action",
+        nargs="?",
+        default="check",
+        choices=["check", "history", "factors", "quick"],
+        help="Action to perform (default: check)",
+    )
+    health_parser.add_argument(
         "-v", "--verbose",
         action="store_true",
         help="Enable verbose output",
@@ -3209,6 +3223,12 @@ def main():
             return run_semver_resolver(
                 action=getattr(args, "action", "analyze"),
                 packages=getattr(args, "packages", None),
+                verbose=getattr(args, "verbose", False),
+            )
+        elif args.command == "health":
+            from cortex.health_score import run_health_check
+            return run_health_check(
+                action=getattr(args, "action", "check"),
                 verbose=getattr(args, "verbose", False),
             )
         else:
