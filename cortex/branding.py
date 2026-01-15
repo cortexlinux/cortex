@@ -11,8 +11,6 @@ Enhanced with rich output formatting (Issue #242):
 - Consistent visual language
 """
 
-from typing import List, Optional, Tuple
-
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
@@ -318,7 +316,9 @@ def cx_error(message: str) -> None:
 
 def cx_warning(message: str) -> None:
     """Print a warning message with warning icon."""
-    console.print(f"[{CORTEX_WARNING}]⚠[/{CORTEX_WARNING}] [{CORTEX_WARNING}]{message}[/{CORTEX_WARNING}]")
+    console.print(
+        f"[{CORTEX_WARNING}]⚠[/{CORTEX_WARNING}] [{CORTEX_WARNING}]{message}[/{CORTEX_WARNING}]"
+    )
 
 
 def cx_info(message: str) -> None:
