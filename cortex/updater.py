@@ -12,23 +12,16 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 import requests
 
 from cortex.update_checker import ReleaseInfo, UpdateCheckResult, check_for_updates
-from cortex.version_manager import (
-    SemanticVersion,
-    UpdateChannel,
-    get_current_version,
-    get_version_string,
-)
+from cortex.version_manager import SemanticVersion, UpdateChannel, get_version_string
 
 logger = logging.getLogger(__name__)
 

@@ -11,8 +11,6 @@ Enhanced with rich output formatting (Issue #242):
 - Consistent visual language
 """
 
-from typing import Optional
-
 from rich import box
 from rich.console import Console
 from rich.panel import Panel

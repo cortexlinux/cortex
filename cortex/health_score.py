@@ -7,15 +7,11 @@ Calculates overall system health score with actionable recommendations.
 """
 
 import json
-import os
 import subprocess
-import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 from rich.console import Console
 from rich.panel import Panel

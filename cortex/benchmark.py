@@ -15,15 +15,14 @@ import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from rich import box
-from rich.console import Console
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.table import Table
 
-from cortex.branding import CORTEX_CYAN, console, cx_header, cx_print
+from cortex.branding import console, cx_header, cx_print
 
 # Model recommendations based on system capabilities
 MODEL_REQUIREMENTS = {

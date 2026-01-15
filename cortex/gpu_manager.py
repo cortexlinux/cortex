@@ -7,16 +7,13 @@ Shows GPU state, per-app assignment, easy switching, battery estimates.
 Issue: #454
 """
 
-import os
 import re
 import subprocess
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
 
 from rich import box
-from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
