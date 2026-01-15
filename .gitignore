@@ -118,6 +118,7 @@ dmypy.json
 # ==============================
 .vscode/
 .idea/
+.cursor/
 .spyproject/
 .ropeproject/
 .sublime-project
