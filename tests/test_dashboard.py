@@ -53,16 +53,20 @@ class TestSystemMonitor(unittest.TestCase):
         self.assertTrue(monitor._monitoring_enabled)
 
     def test_update_metrics_when_enabled(self):
-        """Metrics should be populated after enabling and updating."""
+        """Metrics should be populated after enabling and updating with actual system values."""
         monitor = SystemMonitor()
         monitor.enable_monitoring()
         monitor.update_metrics()
         metrics = monitor.get_metrics()
 
+        # Verify metrics are populated with real system values
         self.assertGreaterEqual(metrics.cpu_percent, 0)
         self.assertGreaterEqual(metrics.ram_percent, 0)
         self.assertGreater(metrics.ram_used_gb, 0)
         self.assertGreater(metrics.ram_total_gb, 0)
+        
+        # Verify RAM values are reasonable
+        self.assertLess(metrics.ram_used_gb, metrics.ram_total_gb)
 
     def test_update_metrics_when_disabled(self):
         """Metrics should not update when monitoring is disabled."""
