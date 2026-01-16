@@ -412,5 +412,5 @@ Apache 2.0 - See [LICENSE](../LICENSE)
 
 ## Support
 
-- Issues: [Github Issues](https://github.com/cortexlinux/cortex/issues)
+- Issues: [GitHub Issues](https://github.com/cortexlinux/cortex/issues)
 - Discord: [Discord](https://discord.gg/uCqHvxjU83)

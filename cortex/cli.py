@@ -2881,6 +2881,23 @@ class CortexCLI:
             Tuple of (success: bool, response: DaemonResponse | None)
             On error, response is None and an error message is printed.
         """
+        # Initialize audit logging
+        history = InstallationHistory()
+        start_time = datetime.now(timezone.utc)
+        install_id = None
+
+        try:
+            # Record operation start
+            install_id = history.record_installation(
+                InstallationType.CONFIG,
+                ["cortexd"],
+                [f"daemon.{operation_name}"],
+                start_time,
+            )
+        except Exception:
+            # Continue even if audit logging fails
+            pass
+
         try:
             from cortex.daemon_client import (
                 DaemonClient,
@@ -2890,19 +2907,59 @@ class CortexCLI:
 
             client = DaemonClient()
             response = ipc_func(client)
+
+            # Update history with success/failure
+            if install_id:
+                try:
+                    if response and response.success:
+                        history.update_installation(install_id, InstallationStatus.SUCCESS)
+                    else:
+                        error_msg = (
+                            response.error if response and response.error else "IPC call failed"
+                        )
+                        history.update_installation(
+                            install_id, InstallationStatus.FAILED, error_msg
+                        )
+                except Exception:
+                    pass
+
             return True, response
 
         except DaemonNotInstalledError as e:
-            cx_print(f"{e}", "error")
+            error_msg = str(e)
+            cx_print(f"{error_msg}", "error")
+            if install_id:
+                try:
+                    history.update_installation(install_id, InstallationStatus.FAILED, error_msg)
+                except Exception:
+                    pass
             return False, None
         except DaemonConnectionError as e:
-            cx_print(f"{e}", "error")
+            error_msg = str(e)
+            cx_print(f"{error_msg}", "error")
+            if install_id:
+                try:
+                    history.update_installation(install_id, InstallationStatus.FAILED, error_msg)
+                except Exception:
+                    pass
             return False, None
         except ImportError:
-            cx_print("Daemon client not available.", "error")
+            error_msg = "Daemon client not available."
+            cx_print(error_msg, "error")
+            if install_id:
+                try:
+                    history.update_installation(install_id, InstallationStatus.FAILED, error_msg)
+                except Exception:
+                    pass
             return False, None
         except Exception as e:
-            cx_print(f"Unexpected error during {operation_name}: {e}", "error")
+            error_msg = f"Unexpected error during {operation_name}: {e}"
+            cx_print(error_msg, "error")
+            if install_id:
+                try:
+                    history.update_installation(install_id, InstallationStatus.FAILED, error_msg)
+                except Exception:
+                    pass
             return False, None
 
     def _daemon_install(self, args: argparse.Namespace) -> int:
@@ -3130,6 +3187,9 @@ class CortexCLI:
             ]
 
             try:
+                any_failed = False
+                error_messages = []
+
                 for cmd in commands:
                     cmd_str = " ".join(cmd)
                     cx_print(f"  Running: {cmd_str}", "dim")
@@ -3148,30 +3208,38 @@ class CortexCLI:
 
                     result = subprocess.run(cmd, check=False, capture_output=True, text=True)
 
-                    # Log after execution if there was an error
-                    if result.returncode != 0 and install_id:
+                    # Track failures
+                    if result.returncode != 0:
+                        any_failed = True
+                        error_msg = (
+                            f"Command '{cmd_str}' failed with return code {result.returncode}"
+                        )
+                        if result.stderr:
+                            error_msg += f": {result.stderr[:500]}"
+                        error_messages.append(error_msg)
+                        cx_print(f"  Failed: {error_msg}", "error")
+
+                # Update history and return based on overall success
+                if any_failed:
+                    combined_error = "; ".join(error_messages)
+                    cx_print("Daemon uninstall failed.", "error")
+                    if install_id:
                         try:
-                            error_msg = (
-                                f"Command '{cmd_str}' failed with return code {result.returncode}"
-                            )
-                            if result.stderr:
-                                error_msg += f": {result.stderr[:500]}"
                             history.update_installation(
-                                install_id, InstallationStatus.FAILED, error_msg
+                                install_id, InstallationStatus.FAILED, combined_error
                             )
                         except Exception:
                             pass
-
-                cx_print("Daemon uninstalled.", "success")
-
-                # Record success
-                if install_id:
-                    try:
-                        history.update_installation(install_id, InstallationStatus.SUCCESS)
-                    except Exception:
-                        pass
-
-                return 0
+                    return 1
+                else:
+                    cx_print("Daemon uninstalled.", "success")
+                    # Record success
+                    if install_id:
+                        try:
+                            history.update_installation(install_id, InstallationStatus.SUCCESS)
+                        except Exception:
+                            pass
+                    return 0
             except subprocess.SubprocessError as e:
                 error_msg = f"Subprocess error during manual uninstall: {str(e)}"
                 cx_print(error_msg, "error")
@@ -3278,6 +3346,23 @@ class CortexCLI:
 
         cx_header("Daemon Tests")
 
+        # Initialize audit logging
+        history = InstallationHistory()
+        start_time = datetime.now(timezone.utc)
+        install_id = None
+
+        try:
+            # Record operation start
+            install_id = history.record_installation(
+                InstallationType.CONFIG,
+                ["cortexd"],
+                ["daemon.run-tests"],
+                start_time,
+            )
+        except Exception:
+            # Continue even if audit logging fails
+            pass
+
         # Find daemon directory
         daemon_dir = Path(__file__).parent.parent / "daemon"
         build_dir = daemon_dir / "build"
@@ -3306,7 +3391,8 @@ class CortexCLI:
         tests_built, existing_tests = check_tests_built()
 
         if not tests_built:
-            cx_print("Tests are not built.", "warning")
+            error_msg = "Tests are not built."
+            cx_print(error_msg, "warning")
             cx_print("", "info")
             cx_print("To build tests, run the setup wizard with test building enabled:", "info")
             cx_print("", "info")
@@ -3316,6 +3402,11 @@ class CortexCLI:
             cx_print("", "info")
             cx_print("Or build manually:", "info")
             cx_print("  cd daemon && ./scripts/build.sh Release --with-tests", "dim")
+            if install_id:
+                try:
+                    history.update_installation(install_id, InstallationStatus.FAILED, error_msg)
+                except Exception:
+                    pass
             return 1
 
         # Determine which tests to run
@@ -3333,21 +3424,45 @@ class CortexCLI:
             if test_name in existing_tests:
                 tests_to_run = [test_name]
             else:
-                cx_print(f"Test '{test_filter}' not found or not built.", "error")
+                error_msg = f"Test '{test_filter}' not found or not built."
+                cx_print(error_msg, "error")
                 cx_print("", "info")
                 cx_print("Available tests:", "info")
                 for t in existing_tests:
                     cx_print(f"  • {t}", "info")
+                if install_id:
+                    try:
+                        history.update_installation(
+                            install_id, InstallationStatus.FAILED, error_msg
+                        )
+                    except Exception:
+                        pass
                 return 1
         elif run_unit and not run_integration:
             tests_to_run = [t for t in unit_tests if t in existing_tests]
             if not tests_to_run:
-                cx_print("No unit tests built.", "warning")
+                error_msg = "No unit tests built."
+                cx_print(error_msg, "warning")
+                if install_id:
+                    try:
+                        history.update_installation(
+                            install_id, InstallationStatus.FAILED, error_msg
+                        )
+                    except Exception:
+                        pass
                 return 1
         elif run_integration and not run_unit:
             tests_to_run = [t for t in integration_tests if t in existing_tests]
             if not tests_to_run:
-                cx_print("No integration tests built.", "warning")
+                error_msg = "No integration tests built."
+                cx_print(error_msg, "warning")
+                if install_id:
+                    try:
+                        history.update_installation(
+                            install_id, InstallationStatus.FAILED, error_msg
+                        )
+                    except Exception:
+                        pass
                 return 1
         else:
             # Run all available tests
@@ -3378,10 +3493,21 @@ class CortexCLI:
         if result.returncode == 0:
             cx_print("", "info")
             cx_print("All tests passed!", "success")
+            if install_id:
+                try:
+                    history.update_installation(install_id, InstallationStatus.SUCCESS)
+                except Exception:
+                    pass
             return 0
         else:
+            error_msg = f"Test execution failed with return code {result.returncode}"
             cx_print("", "info")
             cx_print("Some tests failed.", "error")
+            if install_id:
+                try:
+                    history.update_installation(install_id, InstallationStatus.FAILED, error_msg)
+                except Exception:
+                    pass
             return 1
 
 
