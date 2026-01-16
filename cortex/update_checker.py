@@ -16,12 +16,7 @@ from typing import Optional
 
 import requests
 
-from cortex.version_manager import (
-    SemanticVersion,
-    UpdateChannel,
-    get_current_version,
-    is_newer,
-)
+from cortex.version_manager import SemanticVersion, UpdateChannel, get_current_version, is_newer
 
 logger = logging.getLogger(__name__)
 
@@ -228,8 +223,8 @@ class UpdateChecker:
             if cached:
                 # Update current version in case we've upgraded
                 cached.current_version = current
-                cached.update_available = (
-                    cached.latest_version is not None and is_newer(cached.latest_version, current)
+                cached.update_available = cached.latest_version is not None and is_newer(
+                    cached.latest_version, current
                 )
                 return cached
 
@@ -327,7 +322,11 @@ class UpdateChecker:
 
         if self.channel == UpdateChannel.BETA:
             # Stable + beta releases
-            return [r for r in releases if r.version.channel in (UpdateChannel.STABLE, UpdateChannel.BETA)]
+            return [
+                r
+                for r in releases
+                if r.version.channel in (UpdateChannel.STABLE, UpdateChannel.BETA)
+            ]
 
         # DEV channel - all releases
         return releases

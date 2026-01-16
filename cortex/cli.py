@@ -1789,9 +1789,7 @@ class CortexCLI:
                             "success",
                         )
                         if result.duration_seconds:
-                            console.print(
-                                f"[dim]Completed in {result.duration_seconds:.1f}s[/dim]"
-                            )
+                            console.print(f"[dim]Completed in {result.duration_seconds:.1f}s[/dim]")
                 elif result.status == UpdateStatus.PENDING:
                     # Dry run
                     cx_print(
@@ -3197,9 +3195,7 @@ def main():
                     f"[cyan]🔔 Cortex update available:[/cyan] "
                     f"[green]{update_release.version}[/green]"
                 )
-                console.print(
-                    "   [dim]Run 'cortex update' to upgrade[/dim]"
-                )
+                console.print("   [dim]Run 'cortex update' to upgrade[/dim]")
                 console.print()
     except Exception:
         pass  # Don't block CLI on update check failures
@@ -3260,7 +3256,7 @@ def main():
         nargs="?",
         default="status",
         choices=["status", "diagnose", "deps"],
-        help="Action: status (default), diagnose, deps"
+        help="Action: status (default), diagnose, deps",
     )
     systemd_parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 
@@ -3271,9 +3267,11 @@ def main():
         nargs="?",
         default="status",
         choices=["status", "modes", "switch", "apps"],
-        help="Action: status (default), modes, switch, apps"
+        help="Action: status (default), modes, switch, apps",
     )
-    gpu_parser.add_argument("mode", nargs="?", help="Mode for switch action (integrated/hybrid/nvidia)")
+    gpu_parser.add_argument(
+        "mode", nargs="?", help="Mode for switch action (integrated/hybrid/nvidia)"
+    )
     gpu_parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 
     # Printer/Scanner setup command
@@ -3283,7 +3281,7 @@ def main():
         nargs="?",
         default="status",
         choices=["status", "detect"],
-        help="Action: status (default), detect"
+        help="Action: status (default), detect",
     )
     printer_parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 
@@ -3771,7 +3769,8 @@ def main():
         help="Action to perform (default: status)",
     )
     wifi_parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose output",
     )
@@ -3798,7 +3797,8 @@ def main():
         help="Truncation mode for large input (default: middle)",
     )
     stdin_parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose output",
     )
@@ -3818,7 +3818,8 @@ def main():
         help="Package constraints (format: pkg:constraint:source)",
     )
     deps_parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose output",
     )
@@ -3833,7 +3834,8 @@ def main():
         help="Action to perform (default: check)",
     )
     health_parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose output",
     )
@@ -3880,18 +3882,17 @@ def main():
             return cli.systemd(
                 args.service,
                 action=getattr(args, "action", "status"),
-                verbose=getattr(args, "verbose", False)
+                verbose=getattr(args, "verbose", False),
             )
         elif args.command == "gpu":
             return cli.gpu(
                 action=getattr(args, "action", "status"),
                 mode=getattr(args, "mode", None),
-                verbose=getattr(args, "verbose", False)
+                verbose=getattr(args, "verbose", False),
             )
         elif args.command == "printer":
             return cli.printer(
-                action=getattr(args, "action", "status"),
-                verbose=getattr(args, "verbose", False)
+                action=getattr(args, "action", "status"), verbose=getattr(args, "verbose", False)
             )
         elif args.command == "ask":
             return cli.ask(args.question)
@@ -3932,25 +3933,30 @@ def main():
             return cli.config(args)
         elif args.command == "upgrade":
             from cortex.licensing import open_upgrade_page
+
             open_upgrade_page()
             return 0
         elif args.command == "license":
             from cortex.licensing import show_license_status
+
             show_license_status()
             return 0
         elif args.command == "activate":
             from cortex.licensing import activate_license
+
             return 0 if activate_license(args.license_key) else 1
         elif args.command == "update":
             return cli.update(args)
         elif args.command == "wifi":
             from cortex.wifi_driver import run_wifi_driver
+
             return run_wifi_driver(
                 action=getattr(args, "action", "status"),
                 verbose=getattr(args, "verbose", False),
             )
         elif args.command == "stdin":
             from cortex.stdin_handler import run_stdin_handler
+
             return run_stdin_handler(
                 action=getattr(args, "action", "info"),
                 max_lines=getattr(args, "max_lines", 1000),
@@ -3959,6 +3965,7 @@ def main():
             )
         elif args.command == "deps":
             from cortex.semver_resolver import run_semver_resolver
+
             return run_semver_resolver(
                 action=getattr(args, "action", "analyze"),
                 packages=getattr(args, "packages", None),
@@ -3966,6 +3973,7 @@ def main():
             )
         elif args.command == "health":
             from cortex.health_score import run_health_check
+
             return run_health_check(
                 action=getattr(args, "action", "check"),
                 verbose=getattr(args, "verbose", False),
