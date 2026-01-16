@@ -3,7 +3,6 @@
 > **Interactive package education system powered by Claude AI**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Test Coverage](https://img.shields.io/badge/coverage->80%25-brightgreen.svg)](https://github.com/cortexlinux/cortex)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)](https://opensource.org/licenses/Apache-2.0)
 
 ---
@@ -452,16 +451,8 @@ cortex/tutor/
 │   ├── lesson_context.py       # Lesson data structure
 │   └── progress_context.py     # Progress data structure
 │
-├── memory/                     # Persistence layer
-│   └── sqlite_store.py         # SQLite operations
-│
-└── tests/                      # Test suite (74% coverage)
-    ├── test_cli.py
-    ├── test_tools.py
-    ├── test_progress_tracker.py
-    ├── test_integration.py
-    ├── test_interactive_tutor.py
-    └── test_validators.py
+└── memory/                     # Persistence layer
+    └── sqlite_store.py         # SQLite operations
 ```
 
 ### Database Schema
@@ -646,27 +637,14 @@ tutor:
 
 ```bash
 # Run all tutor tests
-pytest cortex/tutor/tests/ -v
+pytest tests/tutor/ -v
 
 # Run with coverage
-pytest cortex/tutor/tests/ -v --cov=cortex.tutor --cov-report=term-missing
+pytest tests/tutor/ -v --cov=cortex.tutor --cov-report=term-missing
 
 # Run specific test file
-pytest cortex/tutor/tests/test_tutor_agent.py -v
+pytest tests/tutor/test_tutor_agent.py -v
 ```
-
-### Test Coverage
-
-Current coverage: **>80%** (172 tests)
-
-| Module | Coverage |
-|--------|----------|
-| `llm.py` | 100% |
-| `memory/sqlite_store.py` | 92% |
-| `tools/deterministic/validators.py` | 92% |
-| `cli.py` | 91% |
-| `tools/deterministic/progress_tracker.py` | 81% |
-| `tools/deterministic/lesson_loader.py` | 72% |
 
 ---
 
@@ -747,7 +725,7 @@ source venv/bin/activate
 pip install -e ".[dev]"
 
 # Run tutor tests
-pytest cortex/tutor/tests/ -v --cov=cortex.tutor
+pytest tests/tutor/ -v
 ```
 
 ---
