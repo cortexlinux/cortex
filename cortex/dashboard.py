@@ -1627,7 +1627,8 @@ class UIRenderer:
                     # Extract generated commands if available
                     commands_header = "Generated commands:"
                     has_commands_header = any(
-                        line.strip().startswith(commands_header) for line in stdout_output.splitlines()
+                        line.strip().startswith(commands_header)
+                        for line in stdout_output.splitlines()
                     )
                     if has_commands_header:
                         progress.success_message = (
@@ -1651,11 +1652,15 @@ class UIRenderer:
                     clean_msg = clean_msg.strip()
 
                     if "doesn't look valid" in clean_msg or "wizard" in clean_msg.lower():
-                        progress.error_message = "API key invalid. Run 'cortex wizard' to configure."
+                        progress.error_message = (
+                            "API key invalid. Run 'cortex wizard' to configure."
+                        )
                     elif "not installed" in clean_msg.lower() and "openai" in clean_msg.lower():
                         progress.error_message = "OpenAI not installed. Run: pip install openai"
                     elif "not installed" in clean_msg.lower() and "anthropic" in clean_msg.lower():
-                        progress.error_message = "Anthropic not installed. Run: pip install anthropic"
+                        progress.error_message = (
+                            "Anthropic not installed. Run: pip install anthropic"
+                        )
                     elif "API key" in error_msg or "api_key" in error_msg.lower():
                         progress.error_message = "API key not configured. Run 'cortex wizard'"
                     elif clean_msg:

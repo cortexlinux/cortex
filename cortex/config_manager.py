@@ -816,7 +816,7 @@ class ConfigManager:
                 # Sandboxed installs are the default. Only allow direct installs
                 # if user has explicitly opted in (check CORTEX_ALLOW_DIRECT_INSTALL env var)
                 allow_direct = os.environ.get("CORTEX_ALLOW_DIRECT_INSTALL", "").lower() == "true"
-                
+
                 # Log audit entry for this attempt
                 self._log_install_audit(
                     package_name=name,
@@ -826,13 +826,13 @@ class ConfigManager:
                     is_sandboxed=False,
                     is_direct=allow_direct,
                     escalation_consent=allow_direct,
-                    error="Sandbox executor unavailable"
+                    error="Sandbox executor unavailable",
                 )
-                
+
                 if not allow_direct:
                     # Refuse direct install unless explicitly opted in
                     return False
-                
+
                 # User opted in, proceed with direct install
                 return self._install_direct(name=name, version=version, source=source)
 

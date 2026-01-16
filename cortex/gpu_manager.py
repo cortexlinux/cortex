@@ -276,15 +276,15 @@ class HybridGPUManager:
             GPUMode.NVIDIA: {GPUVendor.NVIDIA},
             GPUMode.INTEGRATED: {GPUVendor.INTEL, GPUVendor.AMD},
         }
-        
+
         preferred_vendors = mode_vendor_map.get(state.mode, set())
-        
+
         # First pass: find vendor-matching device
         for device in state.devices:
             if device.vendor in preferred_vendors:
                 state.active_gpu = device
                 break
-        
+
         # Second pass: if no vendor match, fall back to any active device
         if state.active_gpu is None:
             for device in state.devices:
