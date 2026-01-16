@@ -57,6 +57,8 @@ dependencies = [
     "rich>=13.0.0",
     # Type hints for older Python versions
     "typing-extensions>=4.0.0",
+    # System resource monitoring
+    "psutil>=5.9.0",
 ]
 
 [project.optional-dependencies]

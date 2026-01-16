@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import psutil
 from rich.markdown import Markdown
 
 from cortex.api_key_detector import auto_detect_api_key, setup_api_key
@@ -24,6 +25,8 @@ from cortex.dependency_importer import (
 from cortex.env_manager import EnvironmentManager, get_env_manager
 from cortex.installation_history import InstallationHistory, InstallationStatus, InstallationType
 from cortex.llm.interpreter import CommandInterpreter
+from cortex.monitor.live_monitor_ui import MonitorUI
+from cortex.monitor.resource_monitor import ResourceMonitor
 from cortex.network_config import NetworkConfig
 from cortex.notification_manager import NotificationManager
 from cortex.role_manager import RoleManager
@@ -57,6 +60,83 @@ class CortexCLI:
         self.spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         self.spinner_idx = 0
         self.verbose = verbose
+
+    def monitor(self, args: argparse.Namespace) -> int:
+        """Show current system resource usage."""
+        resource_monitor = ResourceMonitor(interval=1.0)
+        duration = getattr(args, "duration", None)
+        console.print("System Health:")
+
+        if duration:
+            # Run monitoring loop for the given duration
+            resource_monitor.monitor(duration)
+
+            # Show final snapshot after monitoring
+            summary = resource_monitor.get_summary()
+            if summary:
+                metrics = summary["current"]
+                console.print(MonitorUI.format_system_health(metrics))
+            else:
+                console.print("[yellow]No monitoring data collected.[/yellow]")
+
+        else:
+            metrics = resource_monitor.sample()
+            console.print(MonitorUI.format_system_health(metrics))
+
+        # Display alerts
+        if resource_monitor.history:
+            latest = resource_monitor.history[-1]
+            alerts = metrics.get("alerts", [])
+            if alerts:
+                console.print("\n[bold yellow]⚠️  Alerts:[/bold yellow]")
+                for alert in alerts:
+                    console.print(f"  • {alert}")
+
+        # Export if requested
+        if getattr(args, "export", None):
+            success = self._export_monitor_data(
+                monitor=resource_monitor,
+                export=args.export,
+                output=args.output,
+            )
+            if success:
+                cx_print("✓ Monitoring data exported", "success")
+            else:
+                self._print_error("Failed to export monitoring data")
+                return 1
+
+        # Show recommendations
+        if resource_monitor.history and len(resource_monitor.history) > 1:
+            recommendations = resource_monitor.get_recommendations()
+            if recommendations:
+                console.print("\n[bold cyan]⚡ Performance Recommendations:[/bold cyan]")
+                for rec in recommendations:
+                    console.print(f"  • {rec}")
+
+        return 0
+
+    # MONITOR HELPERS
+    def _get_latest_metrics(self, monitor: ResourceMonitor) -> dict:
+        """Return latest collected metrics or take a fresh sample."""
+        return monitor.history[-1] if monitor.history else monitor.sample()
+
+    def _export_monitor_data(
+        self,
+        monitor: ResourceMonitor,
+        export: str,
+        output: str | None,
+        software: str | None = None,
+    ) -> bool:
+        """Export monitoring data safely."""
+        from cortex.monitor import export_monitoring_data
+
+        if output:
+            filename = f"{output}.{export}"
+        else:
+            safe_name = "".join(c if c.isalnum() else "_" for c in (software or "monitor"))
+            filename = f"{safe_name}_monitoring.{export}"
+
+        return export_monitoring_data(monitor, export, filename)
 
     # Define a method to handle Docker-specific permission repairs
     def docker_permissions(self, args: argparse.Namespace) -> int:
@@ -817,7 +897,23 @@ class CortexCLI:
         execute: bool = False,
         dry_run: bool = False,
         parallel: bool = False,
+        monitor: bool = False,
+        export: str = None,
+        output: str = None,
     ):
+
+        # If --monitor is used, automatically enable execution and initialize the resource monitor.
+        resource_monitor = None
+        if monitor and not execute and not dry_run:
+            print(f"📊 Monitoring enabled for: {software}")
+            print("Note: Monitoring requires execution. Auto-enabling --execute flag.")
+            execute = True
+
+        if monitor:
+            resource_monitor = ResourceMonitor(interval=1.0)
+            console.print(f"Installing {software}...")  # Simple print
+            console.print("📊 Monitoring system resources during installation...", "info")
+
         # Validate input first
         is_valid, error = validate_install_request(software)
         if not is_valid:
@@ -899,6 +995,22 @@ class CortexCLI:
                         status_emoji = "❌"
                     print(f"\n[{current}/{total}] {status_emoji} {step.description}")
                     print(f"  Command: {step.command}")
+
+                    # Samples current system resources during each install step and displays live metrics.
+                    if resource_monitor:
+                        metrics = self._get_latest_metrics(resource_monitor)
+                        if current == 1 or "compil" in step.description.lower():
+                            from cortex.monitor.live_monitor_ui import MonitorUI
+
+                            installation_display = MonitorUI.format_installation_metrics(metrics)
+                            console.print("\n" + installation_display)
+
+                        # Display alerts if any
+                        alerts = metrics.get("alerts", [])
+                        if alerts:
+                            console.print("\n[yellow]⚠️  Resource Alert:[/yellow]")
+                            for alert in alerts:
+                                console.print(f"  • {alert}")
 
                 print("\nExecuting commands...")
 
@@ -1002,6 +1114,40 @@ class CortexCLI:
                 if result.success:
                     self._print_success(f"{software} installed successfully!")
                     print(f"\nCompleted in {result.total_duration:.2f} seconds")
+
+                    # Displays the highest CPU and memory usage recorded during the installation.
+                    if monitor and resource_monitor:
+                        summary = resource_monitor.get_summary()
+                        peak = summary.get("peak", {})
+
+                        from cortex.monitor.live_monitor_ui import MonitorUI
+
+                        peak_display = MonitorUI.format_peak_usage(peak)
+                        console.print("\n" + peak_display)
+
+                        # Display performance recommendation
+                        recommendations = resource_monitor.get_recommendations()
+                        if recommendations:
+                            console.print(
+                                "\n[bold cyan]⚡ Performance Recommendations:[/bold cyan]"
+                            )
+                            for rec in recommendations:
+                                console.print(f"  • {rec}")
+
+                        # Export if requested
+                        if export:
+                            from cortex.monitor import export_monitoring_data
+
+                            if output:
+                                filename = f"{output}.{export}"
+                            else:
+                                # Sanitize software name for filename
+                                safe_name = "".join(c if c.isalnum() else "_" for c in software)
+                                filename = f"{safe_name}_monitoring.{export}"
+                            if export_monitoring_data(resource_monitor, export, filename):
+                                cx_print(f"✓ Monitoring data exported to {filename}", "success")
+                            else:
+                                self._print_error("Failed to export monitoring data")
 
                     # Record successful installation
                     if install_id:
@@ -2965,6 +3111,30 @@ def main():
     # Demo command
     demo_parser = subparsers.add_parser("demo", help="See Cortex in action")
 
+    # Monitor command
+    monitor_parser = subparsers.add_parser(
+        "monitor",
+        help="Show real-time system resource usage",
+    )
+
+    monitor_parser.add_argument(
+        "--export",
+        choices=["json", "csv"],
+        help="Export monitoring data to a file",
+    )
+
+    monitor_parser.add_argument(
+        "--output",
+        default="monitoring_data",
+        help="Output filename (without extension)",
+    )
+
+    monitor_parser.add_argument(
+        "--duration",
+        type=float,
+        help="Monitor for specified duration in seconds",
+    )
+
     # Wizard command
     wizard_parser = subparsers.add_parser("wizard", help="Configure API key interactively")
 
@@ -3066,6 +3236,21 @@ def main():
         "--json",
         action="store_true",
         help="Output impact analysis as JSON",
+    )
+    install_parser.add_argument(
+        "--monitor",
+        action="store_true",
+        help="Monitor system resources during installation",
+    )
+    install_parser.add_argument(
+        "--export",
+        choices=["json", "csv"],
+        help="Export monitoring data to a file (requires --monitor)",
+    )
+    install_parser.add_argument(
+        "--output",
+        default="installation_monitoring",
+        help="Output filename (without extension, used with --export)",
     )
 
     # Import command - import dependencies from package manager files
@@ -3566,6 +3751,8 @@ def main():
 
         if args.command == "demo":
             return cli.demo()
+        elif args.command == "monitor":
+            return cli.monitor(args)
         elif args.command == "wizard":
             return cli.wizard()
         elif args.command == "status":
@@ -3596,6 +3783,9 @@ def main():
                 execute=args.execute,
                 dry_run=args.dry_run,
                 parallel=args.parallel,
+                monitor=args.monitor,
+                export=args.export,
+                output=args.output,
             )
         elif args.command == "remove":
             # Handle --execute flag to override default dry-run
