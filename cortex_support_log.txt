@@ -1,0 +1,5 @@
+Cortex Troubleshooting Log
+==========================
+
+Issue Summary:
+The user reported that Docker won't start. The assistant asked the user to check the status of the Docker service using the `systemctl status docker` command. However, the user encountered an error indicating that they don't have execute permissions for the `/usr/bin/systemctl` file. The assistant then suggested to change the permissions of the file to include execute permissions using the `sudo chmod +x /usr/bin/systemctl` command.

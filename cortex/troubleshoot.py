@@ -178,16 +178,21 @@ class Troubleshooter:
                                 )
                                 # Simple parsing (robustness can be improved)
                                 import json
+                                import re
 
-                                # Clean up potential markdown code blocks
-                                clean_json = (
-                                    extraction.replace("```json", "").replace("```", "").strip()
-                                )
-                                data = json.loads(clean_json)
+                                # Use regex to find the JSON block
+                                match = re.search(r"\{.*\}", extraction, re.DOTALL)
+                                if match:
+                                    clean_json = match.group(0)
+                                    data = json.loads(clean_json)
 
-                                if "issue" in data and "fix" in data:
-                                    self.resolutions.save(data["issue"], data["fix"])
-                                    console.print("[bold green]✓ Knowledge saved![/bold green]")
+                                    if "issue" in data and "fix" in data:
+                                        self.resolutions.save(data["issue"], data["fix"])
+                                        console.print("[bold green]✓ Knowledge saved![/bold green]")
+                                    else:
+                                        self.logger.warning(f"Incomplete resolution data: {data}")
+                                else:
+                                    self.logger.warning(f"No JSON found in response: {extraction}")
                             except Exception as e:
                                 self.logger.warning(f"Failed to learn resolution: {e}")
 
