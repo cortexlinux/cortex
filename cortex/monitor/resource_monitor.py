@@ -1,6 +1,10 @@
 """
 Core resource monitoring system.
 Collects and tracks CPU, memory, disk, and network usage.
+
+This module provides real-time system resource monitoring capabilities
+for Cortex Linux, enabling users to track performance during operations
+like software installations.
 """
 
 import logging
@@ -13,14 +17,34 @@ import psutil
 DEFAULT_CPU_ALERT_THRESHOLD = 85.0
 DEFAULT_MEMORY_ALERT_THRESHOLD = 90.0
 DEFAULT_DISK_ALERT_THRESHOLD = 95.0
-DEFAULT_MAX_HISTORY_SIZE = 1000  # Optional: prevent unbounded growth
+DEFAULT_MAX_HISTORY_SIZE = 1000
 
-# Set up logging
 logger = logging.getLogger(__name__)
 
 
 class ResourceMonitor:
-    """Collects and tracks system resource usage."""
+    """
+    Collects and tracks system resource usage.
+    This class provides comprehensive system monitoring capabilities,
+    tracking CPU, memory, disk, and network metrics over time. It includes
+    alerting mechanisms for resource thresholds and generates performance
+    recommendations based on usage patterns.
+    Attributes:
+        interval (float): Sampling interval in seconds (default: 1.0)
+        cpu_threshold (float): CPU usage alert threshold percentage
+        memory_threshold (float): Memory usage alert threshold percentage
+        disk_threshold (float): Disk usage alert threshold percentage
+        max_history_size (int | None): Maximum number of samples to store
+        history (list[dict[str, Any]]): Collected metric samples
+        peak_usage (dict[str, float]): Peak values for each metric
+    Example:
+        >>> from cortex.monitor import ResourceMonitor
+        >>> monitor = ResourceMonitor(interval=0.5)
+        >>> monitor.monitor(duration=5.0)
+        >>> recommendations = monitor.get_recommendations()
+        >>> for rec in recommendations:
+        ...     print(rec)
+    """
 
     def __init__(
         self,
@@ -31,21 +55,41 @@ class ResourceMonitor:
         max_history_size: int | None = DEFAULT_MAX_HISTORY_SIZE,
     ) -> None:
         """
-        Initialize the resource monitor.
-
+        Initialize a ResourceMonitor instance.
         Args:
-            interval: Time interval (in seconds) between measurements.
-            cpu_threshold: CPU usage percentage threshold for alerts.
-            memory_threshold: Memory usage percentage threshold for alerts.
-            disk_threshold: Disk usage percentage threshold for alerts.
-            max_history_size: Maximum number of samples to keep in history.
-                              None means unlimited (not recommended for long runs).
+            interval: Sampling interval in seconds (must be > 0)
+            cpu_threshold: CPU usage percentage that triggers alerts
+            memory_threshold: Memory usage percentage that triggers alerts
+            disk_threshold: Disk usage percentage that triggers alerts
+            max_history_size: Maximum number of samples to store (None = unlimited)
+        Raises:
+            ValueError: If interval <= 0 or thresholds are not in valid range (0-100)
+        Note:
+            Thresholds are expressed as percentages (0-100). Values outside
+            this range will be clamped to valid percentage bounds.
         """
+        if interval <= 0:
+            raise ValueError(f"Interval must be positive, got {interval}")
+
+        # Validate thresholds are within reasonable bounds
+        for name, value in [
+            ("cpu_threshold", cpu_threshold),
+            ("memory_threshold", memory_threshold),
+            ("disk_threshold", disk_threshold),
+        ]:
+            if not 0 <= value <= 100:
+                logger.warning(
+                    "%s %.1f%% is outside recommended range 0-100%%, " "consider adjusting",
+                    name,
+                    value,
+                )
+
         self.interval = interval
         self.cpu_threshold = cpu_threshold
         self.memory_threshold = memory_threshold
         self.disk_threshold = disk_threshold
         self.max_history_size = max_history_size
+
         self.history: list[dict[str, Any]] = []
 
         self.peak_usage: dict[str, float] = {
@@ -60,110 +104,142 @@ class ResourceMonitor:
             "network_down_mb": 0.0,
         }
 
-        # Avoid private psutil types using Any
         self._disk_before: Any = None
         self._net_before: Any = None
 
+    # Metric Collection
+
     def collect_metrics(self) -> dict[str, Any]:
-        """Collect a single snapshot of system metrics."""
-        timestamp = time.time()
+        """
+        Collect a single snapshot of system metrics.
+        Gathers comprehensive system metrics including:
+        - CPU usage and core count
+        - Memory usage (used, total, percentage)
+        - Disk usage (used, total, percentage) and I/O rates
+        - Network I/O rates
+        Returns:
+            dict: Dictionary containing all collected metrics with keys:
+                - timestamp: Unix timestamp of collection
+                - cpu_percent: CPU usage percentage (0-100)
+                - cpu_cores: Number of logical CPU cores
+                - memory_used_gb: Used memory in GB
+                - memory_total_gb: Total memory in GB
+                - memory_percent: Memory usage percentage (0-100)
+                - disk_used_gb: Used disk space in GB
+                - disk_total_gb: Total disk space in GB
+                - disk_percent: Disk usage percentage (0-100)
+                - disk_read_mb: Disk read rate in MB/s
+                - disk_write_mb: Disk write rate in MB/s
+                - network_up_mb: Network upload rate in MB/s
+                - network_down_mb: Network download rate in MB/s
+        Raises:
+            OSError: If system metrics cannot be accessed
+            RuntimeError: If metric calculation fails
+        Note:
+            Disk and network rates are calculated relative to previous
+            sample. First call returns 0.0 for rates.
+        """
+        try:
+            timestamp = time.time()
 
-        # CPU Usage
-        cpu_percent = psutil.cpu_percent(interval=None)
+            cpu_percent = psutil.cpu_percent(interval=None)
+            cpu_cores = psutil.cpu_count(logical=True)
 
-        # Memory Usage
-        memory = psutil.virtual_memory()
-        memory_used_gb = memory.used / (1024**3)
-        memory_total_gb = memory.total / (1024**3)
-        memory_percent = memory.percent
+            memory = psutil.virtual_memory()
+            disk_space = psutil.disk_usage("/")
+            disk_io = psutil.disk_io_counters()
+            net_io = psutil.net_io_counters()
 
-        # Disk Usage (space)
-        disk_space = psutil.disk_usage("/")
-        disk_used_gb = disk_space.used / (1024**3)
-        disk_total_gb = disk_space.total / (1024**3)
-        disk_percent = disk_space.percent
+            memory_used_gb = memory.used / (1024**3)
+            memory_total_gb = memory.total / (1024**3)
 
-        # Disk I/O (activity)
-        disk_io = psutil.disk_io_counters()
+            disk_used_gb = disk_space.used / (1024**3)
+            disk_total_gb = disk_space.total / (1024**3)
 
-        # Network I/O
-        net_io = psutil.net_io_counters()
+            disk_read_mb = disk_write_mb = 0.0
+            network_up_mb = network_down_mb = 0.0
 
-        # Calculate rates (divide by interval for MB/s)
-        disk_read_mb = 0.0
-        disk_write_mb = 0.0
-        network_up_mb = 0.0
-        network_down_mb = 0.0
+            if self._disk_before:
+                disk_read_mb = (
+                    (disk_io.read_bytes - self._disk_before.read_bytes) / (1024**2) / self.interval
+                )
+                disk_write_mb = (
+                    (disk_io.write_bytes - self._disk_before.write_bytes)
+                    / (1024**2)
+                    / self.interval
+                )
 
-        if self._disk_before:
-            disk_read_mb = (
-                (disk_io.read_bytes - self._disk_before.read_bytes) / (1024**2) / self.interval
-            )
-            disk_write_mb = (
-                (disk_io.write_bytes - self._disk_before.write_bytes) / (1024**2) / self.interval
-            )
+            if self._net_before:
+                network_up_mb = (
+                    (net_io.bytes_sent - self._net_before.bytes_sent) / (1024**2) / self.interval
+                )
+                network_down_mb = (
+                    (net_io.bytes_recv - self._net_before.bytes_recv) / (1024**2) / self.interval
+                )
 
-        if self._net_before:
-            network_up_mb = (
-                (net_io.bytes_sent - self._net_before.bytes_sent) / (1024**2) / self.interval
-            )
-            network_down_mb = (
-                (net_io.bytes_recv - self._net_before.bytes_recv) / (1024**2) / self.interval
-            )
+            self._disk_before = disk_io
+            self._net_before = net_io
 
-        # Store current for next calculation
-        self._disk_before = disk_io
-        self._net_before = net_io
+            return {
+                "timestamp": timestamp,
+                "cpu_percent": cpu_percent,
+                "cpu_cores": cpu_cores,
+                "memory_used_gb": memory_used_gb,
+                "memory_total_gb": memory_total_gb,
+                "memory_percent": memory.percent,
+                "disk_used_gb": disk_used_gb,
+                "disk_total_gb": disk_total_gb,
+                "disk_percent": disk_space.percent,
+                "disk_read_mb": disk_read_mb,
+                "disk_write_mb": disk_write_mb,
+                "network_up_mb": network_up_mb,
+                "network_down_mb": network_down_mb,
+            }
+        except OSError as exc:
+            logger.error("Failed to collect system metrics: %s", exc)
+            raise
+        except (AttributeError, TypeError, ZeroDivisionError) as exc:
+            logger.error("Error calculating metrics: %s", exc)
+            raise RuntimeError(f"Metric calculation failed: {exc}") from exc
 
-        return {
-            "timestamp": timestamp,
-            "cpu_percent": cpu_percent,
-            "memory_used_gb": memory_used_gb,
-            "memory_total_gb": memory_total_gb,
-            "memory_percent": memory_percent,
-            "disk_used_gb": disk_used_gb,
-            "disk_total_gb": disk_total_gb,
-            "disk_percent": disk_percent,
-            "disk_read_mb": disk_read_mb,
-            "disk_write_mb": disk_write_mb,
-            "network_up_mb": network_up_mb,
-            "network_down_mb": network_down_mb,
-        }
+    # Alerts & Storage
 
     def check_alerts(self, metrics: dict[str, Any]) -> list[str]:
         """
-        Check resource usage against alert thresholds.
-
+        Check metrics against configured thresholds and generate alerts.
         Args:
-            metrics: Dictionary of collected metrics
-
+            metrics: Dictionary of collected metrics from collect_metrics()
         Returns:
-            List of alert messages (empty if no alerts)
+            list[str]: List of alert messages for threshold violations.
+                      Empty list if no thresholds exceeded.
+        Note:
+            Only checks CPU, memory, and disk thresholds. Network and
+            disk I/O alerts are handled in recommendations.
         """
-        alerts = []
+        alerts: list[str] = []
 
-        if metrics.get("cpu_percent", 0) >= self.cpu_threshold:
-            alerts.append(
-                f"⚠ High CPU usage detected ({metrics['cpu_percent']:.1f}% > {self.cpu_threshold}%)"
-            )
+        if metrics["cpu_percent"] >= self.cpu_threshold:
+            alerts.append(f"High CPU usage detected ({metrics['cpu_percent']:.1f}%)")
 
-        if metrics.get("memory_percent", 0) >= self.memory_threshold:
-            alerts.append(
-                f"⚠ High memory usage detected ({metrics['memory_percent']:.1f}% > {self.memory_threshold}%)"
-            )
+        if metrics["memory_percent"] >= self.memory_threshold:
+            alerts.append(f"High memory usage detected ({metrics['memory_percent']:.1f}%)")
 
-        if metrics.get("disk_percent", 0) >= self.disk_threshold:
-            alerts.append(
-                f"⚠ Low disk space detected ({metrics['disk_percent']:.1f}% > {self.disk_threshold}%)"
-            )
+        if metrics["disk_percent"] >= self.disk_threshold:
+            alerts.append(f"Low disk space detected ({metrics['disk_percent']:.1f}%)")
 
         return alerts
 
     def update(self, metrics: dict[str, Any]) -> None:
-        """Store metrics and update peak usage."""
-        # Apply history size limit if configured
+        """
+        Update history and peak usage with new metrics.
+        Args:
+            metrics: Dictionary of metrics to store
+        Note:
+            Maintains history size within max_history_size limit.
+            Updates peak_usage dictionary with maximum values seen.
+        """
         if self.max_history_size and len(self.history) >= self.max_history_size:
-            self.history.pop(0)  # Remove oldest sample
+            self.history.pop(0)
 
         self.history.append(metrics)
 
@@ -172,22 +248,39 @@ class ResourceMonitor:
                 self.peak_usage[key] = max(self.peak_usage[key], metrics[key])
 
     def sample(self) -> dict[str, Any]:
-        """Collect and store one monitoring sample with alerts."""
+        """
+        Collect, check, and store a single sample of system metrics.
+        Returns:
+            dict: Metrics dictionary with added 'alerts' key containing
+                  any threshold violation alerts.
+        Example:
+            >>> monitor = ResourceMonitor()
+            >>> sample = monitor.sample()
+            >>> if sample.get('alerts'):
+            ...     for alert in sample['alerts']:
+            ...         print(f"ALERT: {alert}")
+        """
         metrics = self.collect_metrics()
-        alerts = self.check_alerts(metrics)
-        metrics["alerts"] = alerts
+        metrics["alerts"] = self.check_alerts(metrics)
         self.update(metrics)
         return metrics
 
-    def monitor(self, duration: float | None = None) -> dict[str, Any]:
+    # Monitoring Loop
+
+    def monitor(self, duration: float | None = None) -> None:
         """
-        Continuously monitor system resources.
-
+        Run continuous monitoring for specified duration.
         Args:
-            duration: Time in seconds to monitor. If None, runs until interrupted.
-
-        Returns:
-            Summary of the monitoring session
+            duration: Monitoring duration in seconds. If None, runs until
+                    interrupted (typically by KeyboardInterrupt).
+        Raises:
+            KeyboardInterrupt: If monitoring interrupted by user
+            OSError: If system metrics cannot be accessed
+            RuntimeError: If monitoring loop encounters fatal error
+        Note:
+            Use Ctrl+C to interrupt monitoring when duration is None.
+            First sample may have 0.0 for disk/network rates as they
+            require a previous sample for calculation.
         """
         start_time = time.time()
 
@@ -195,52 +288,42 @@ class ResourceMonitor:
             while True:
                 if duration and (time.time() - start_time) >= duration:
                     break
-
                 self.sample()
                 time.sleep(self.interval)
 
         except KeyboardInterrupt:
             logger.info("Monitoring interrupted by user")
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError) as exc:
             logger.error("Monitoring error: %s", exc)
             raise
 
-        return self.get_summary()
+    # Data Accessors (NO UI FORMATTING)
 
     def get_summary(self) -> dict[str, Any]:
-        """Get a summary of current and peak usage (with both raw and formatted data)."""
+        """
+        Get comprehensive summary of monitoring session.
+        Returns:
+            dict: Summary containing:
+                - current: Latest metrics sample (including alerts)
+                - peak: Peak values for all tracked metrics
+                - samples: Number of samples collected
+                - duration: Total monitoring duration in seconds
+                - thresholds: Configured alert thresholds
+        Returns empty dict if no history available.
+        """
         if not self.history:
             return {}
 
         latest = self.history[-1]
 
-        # Create the summary with raw data
-        summary = {
-            "current": {
-                # Raw numeric values (for calculations)
-                "cpu_percent": latest["cpu_percent"],
-                "memory_used_gb": latest["memory_used_gb"],
-                "memory_total_gb": latest["memory_total_gb"],
-                "memory_percent": latest["memory_percent"],
-                "disk_used_gb": latest["disk_used_gb"],
-                "disk_total_gb": latest["disk_total_gb"],
-                "disk_percent": latest["disk_percent"],
-                "network_down_mb": latest["network_down_mb"],
-                "network_up_mb": latest["network_up_mb"],
-                "disk_read_mb": latest["disk_read_mb"],
-                "disk_write_mb": latest["disk_write_mb"],
-                # Formatted strings (for display)
-                "cpu": f"{latest['cpu_percent']:.0f}%",
-                "memory": f"{latest['memory_used_gb']:.1f}/{latest['memory_total_gb']:.1f} GB ({latest['memory_percent']:.0f}%)",
-                "disk": f"{latest['disk_used_gb']:.0f}/{latest['disk_total_gb']:.0f} GB ({latest['disk_percent']:.0f}%)",
-                "network": f"{latest['network_down_mb']:.1f} MB/s ↓  {latest['network_up_mb']:.1f} MB/s ↑",
-            },
+        return {
+            "current": latest.copy(),
             "peak": self.peak_usage.copy(),
             "samples": len(self.history),
             "duration": (
                 self.history[-1]["timestamp"] - self.history[0]["timestamp"]
                 if len(self.history) > 1
-                else 0
+                else 0.0
             ),
             "thresholds": {
                 "cpu": self.cpu_threshold,
@@ -249,155 +332,115 @@ class ResourceMonitor:
             },
         }
 
-        return summary
-
-    def get_formatted_summary(self) -> dict[str, Any]:
-        """
-        Get a formatted summary for display purposes.
-        This should be moved to UI layer eventually.
-        """
-        summary = self.get_summary()
-        if not summary:
-            return {}
-
-        return {
-            "current": {
-                "cpu": summary["current"]["cpu"],
-                "memory": summary["current"]["memory"],
-                "disk": summary["current"]["disk"],
-                "network": summary["current"]["network"],
-            },
-            "peak": summary["peak"],
-            "samples": summary["samples"],
-            "thresholds": summary["thresholds"],
-        }
-
-    def get_peak_usage(self) -> dict[str, float]:
-        """Return peak resource usage."""
-        return self.peak_usage.copy()
-
     def get_history(self, limit: int | None = None) -> list[dict[str, Any]]:
         """
-        Return collected resource history.
-
+        Get monitoring history with optional limit.
         Args:
-            limit: Maximum number of recent samples to return. If None, return all.
-
+            limit: Maximum number of recent samples to return.
+                   If None, returns entire history.
         Returns:
-            List of monitoring samples
+            list: List of metric dictionaries. Returns copy to prevent
+                  modification of internal history.
         """
         if limit and limit < len(self.history):
             return self.history[-limit:].copy()
         return self.history.copy()
 
+    def get_recent_alerts(self, last_n_samples: int = 10) -> list[dict[str, Any]]:
+        """
+        Get recent samples that contain alerts.
+        Args:
+            last_n_samples: Number of most recent samples to inspect.
+        Returns:
+            list[dict[str, Any]]: List of metric samples that include alerts.
+        """
+        if last_n_samples <= 0:
+            return []
+
+        recent = self.get_history(limit=last_n_samples)
+        return [sample for sample in recent if sample.get("alerts")]
+
+    def get_stats(self) -> dict[str, Any]:
+        """
+        Compute basic statistics from monitoring history.
+        Returns:
+            dict: Dictionary containing:
+                - averages: Average values for numeric metrics
+                - samples: Total number of samples collected
+        """
+        if not self.history:
+            return {}
+
+        numeric_keys = [
+            "cpu_percent",
+            "memory_percent",
+            "disk_percent",
+        ]
+
+        totals: dict[str, float] = dict.fromkeys(numeric_keys, 0.0)
+        count = 0
+
+        for sample in self.history:
+            for key in numeric_keys:
+                if key in sample:
+                    totals[key] += sample[key]
+            count += 1
+
+        averages = {key: totals[key] / count for key in totals}
+
+        return {
+            "averages": averages,
+            "samples": count,
+        }
+
+    def get_peak_usage(self) -> dict[str, float]:
+        """
+        Get peak usage values for all tracked metrics.
+        Returns:
+            dict: Copy of peak_usage dictionary
+        """
+        return self.peak_usage.copy()
+
     def clear_history(self) -> None:
-        """Clear monitoring history and reset peak values."""
+        """
+        Clear all stored history and reset peak usage.
+        Resets:
+            - history list (emptied)
+            - peak_usage dictionary (all values set to 0.0)
+            - internal disk/net counters (set to None)
+        """
         self.history.clear()
         self.peak_usage = dict.fromkeys(self.peak_usage, 0.0)
         self._disk_before = None
         self._net_before = None
 
-    def get_recent_alerts(self, last_n_samples: int = 10) -> list[dict[str, Any]]:
-        """
-        Get recent samples that triggered alerts.
-
-        Args:
-            last_n_samples: Number of recent samples to check (default: 10)
-
-        Returns:
-            List of samples with alerts, each containing timestamp and alert messages
-        """
-        if not self.history:
-            return []
-
-        recent_samples = self.history[-last_n_samples:]
-        return [
-            {
-                "timestamp": sample["timestamp"],
-                "alerts": sample.get("alerts", []),
-                "cpu_percent": sample.get("cpu_percent", 0),
-                "memory_percent": sample.get("memory_percent", 0),
-                "disk_percent": sample.get("disk_percent", 0),
-            }
-            for sample in recent_samples
-            if sample.get("alerts")
-        ]
+    # Recommendations
 
     def get_recommendations(self) -> list[str]:
         """
-        Generate performance recommendations based on peak resource usage.
-
+        Generate performance recommendations based on usage patterns.
+        Analyzes peak usage to provide actionable suggestions for
+        improving system performance and stability.
         Returns:
-            List of human-readable performance recommendations
+            list[str]: List of recommendation messages. If no issues
+                      detected, returns a single positive message.
+        Note:
+            Recommendations are based on peak usage during monitoring,
+            not current values. Run monitor() or multiple sample() calls
+            before calling for meaningful recommendations.
         """
-        recommendations = []
+        recs: list[str] = []
 
-        cpu_peak = self.peak_usage.get("cpu_percent", 0)
-        memory_peak = self.peak_usage.get("memory_percent", 0)
-        disk_peak = self.peak_usage.get("disk_percent", 0)
+        if self.peak_usage["cpu_percent"] >= self.cpu_threshold:
+            recs.append("High CPU usage detected — consider lowering system load.")
 
-        if cpu_peak >= self.cpu_threshold:
-            recommendations.append(
-                f"High CPU usage detected ({cpu_peak:.1f}%) — consider running installations during lower system load."
-            )
+        if self.peak_usage["memory_percent"] >= self.memory_threshold:
+            recs.append("High memory usage detected — consider closing applications.")
 
-        if memory_peak >= self.memory_threshold:
-            recommendations.append(
-                f"High memory usage detected ({memory_peak:.1f}%) — consider closing background applications or increasing RAM."
-            )
+        if self.peak_usage["disk_percent"] >= self.disk_threshold:
+            recs.append("Disk usage was very high — ensure sufficient free space.")
 
-        if disk_peak >= self.disk_threshold:
-            recommendations.append(
-                f"Disk usage was very high ({disk_peak:.1f}%) — ensure sufficient free disk space before installation."
-            )
+        if self.peak_usage["network_up_mb"] > 50 or self.peak_usage["network_down_mb"] > 50:
+            recs.append("High network usage detected — downloads may slow the system.")
 
-        # Network recommendations
-        network_up_peak = self.peak_usage.get("network_up_mb", 0)
-        network_down_peak = self.peak_usage.get("network_down_mb", 0)
-
-        if network_up_peak > 50 or network_down_peak > 50:
-            recommendations.append(
-                f"High network usage detected (↑{network_up_peak:.1f} MB/s, ↓{network_down_peak:.1f} MB/s) — "
-                "large downloads/uploads may slow other network operations."
-            )
-
-        if not recommendations:
-            recommendations.append(
-                "System resources were within optimal limits during installation."
-            )
-
-        return recommendations
-
-    def get_stats(self) -> dict[str, Any]:
-        """
-        Get comprehensive monitoring statistics.
-
-        Returns:
-            Dictionary with various statistics about the monitoring session
-        """
-        if not self.history:
-            return {}
-
-        cpu_values = [sample["cpu_percent"] for sample in self.history]
-        memory_values = [sample["memory_percent"] for sample in self.history]
-        disk_values = [sample["disk_percent"] for sample in self.history]
-
-        def safe_average(values: list[float]) -> float:
-            return sum(values) / len(values) if values else 0.0
-
-        return {
-            "averages": {
-                "cpu_percent": safe_average(cpu_values),
-                "memory_percent": safe_average(memory_values),
-                "disk_percent": safe_average(disk_values),
-            },
-            "samples": len(self.history),
-            "duration_seconds": (
-                self.history[-1]["timestamp"] - self.history[0]["timestamp"]
-                if len(self.history) > 1
-                else 0
-            ),
-            "interval_seconds": self.interval,
-            "history_size": len(self.history),
-            "max_history_size": self.max_history_size,
-        }
+        return recs or ["System resources remained within optimal limits."]

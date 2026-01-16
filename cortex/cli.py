@@ -65,7 +65,37 @@ class CortexCLI:
         """Show current system resource usage."""
         resource_monitor = ResourceMonitor(interval=1.0)
         duration = getattr(args, "duration", None)
+
         console.print("System Health:")
+
+        metrics = self._collect_monitoring_metrics(resource_monitor, duration)
+        if metrics:
+            console.print(MonitorUI.format_system_health(metrics))
+
+        self._display_alerts(metrics)
+
+        export_result = self._handle_monitor_export(resource_monitor, args)
+        if export_result != 0:
+            return export_result
+
+        self._display_recommendations(resource_monitor)
+        return 0
+
+    def _display_recommendations(self, resource_monitor: ResourceMonitor) -> None:
+        """Display performance recommendations."""
+        if not resource_monitor.history or len(resource_monitor.history) <= 1:
+            return
+
+        recommendations = resource_monitor.get_recommendations()
+        if recommendations:
+            console.print("\n[bold cyan]⚡ Performance Recommendations:[/bold cyan]")
+            for rec in recommendations:
+                console.print(f"  • {rec}")
+
+    def _collect_monitoring_metrics(
+        self, resource_monitor: ResourceMonitor, duration: float | None
+    ) -> dict[str, Any] | None:
+        """Collect monitoring metrics based on duration."""
 
         if duration:
             # Run monitoring loop for the given duration
@@ -74,46 +104,54 @@ class CortexCLI:
             # Show final snapshot after monitoring
             summary = resource_monitor.get_summary()
             if summary:
-                metrics = summary["current"]
-                console.print(MonitorUI.format_system_health(metrics))
+                return summary["current"]
             else:
                 console.print("[yellow]No monitoring data collected.[/yellow]")
-
+                return None
         else:
-            metrics = resource_monitor.sample()
-            console.print(MonitorUI.format_system_health(metrics))
+            return resource_monitor.sample()
 
-        # Display alerts
-        if resource_monitor.history:
-            latest = resource_monitor.history[-1]
-            alerts = metrics.get("alerts", [])
-            if alerts:
-                console.print("\n[bold yellow]⚠️  Alerts:[/bold yellow]")
-                for alert in alerts:
-                    console.print(f"  • {alert}")
+    def _display_alerts(self, metrics: dict[str, Any] | None) -> None:
+        """Display alerts from metrics."""
+        if not metrics:
+            return
 
-        # Export if requested
-        if getattr(args, "export", None):
-            success = self._export_monitor_data(
-                monitor=resource_monitor,
-                export=args.export,
-                output=args.output,
-            )
-            if success:
-                cx_print("✓ Monitoring data exported", "success")
-            else:
-                self._print_error("Failed to export monitoring data")
-                return 1
+        alerts = metrics.get("alerts", [])
+        if alerts:
+            console.print("\n[bold yellow]⚠️  Alerts:[/bold yellow]")
+            for alert in alerts:
+                console.print(f"  • {alert}")
 
-        # Show recommendations
-        if resource_monitor.history and len(resource_monitor.history) > 1:
-            recommendations = resource_monitor.get_recommendations()
-            if recommendations:
-                console.print("\n[bold cyan]⚡ Performance Recommendations:[/bold cyan]")
-                for rec in recommendations:
-                    console.print(f"  • {rec}")
+    def _handle_monitor_export(
+        self, resource_monitor: ResourceMonitor, args: argparse.Namespace
+    ) -> int:
+        """Handle export of monitoring data."""
+        if not getattr(args, "export", None):
+            return 0
 
-        return 0
+        filename = self._export_monitor_data(
+            monitor=resource_monitor,
+            export=args.export,
+            output=args.output,
+        )
+
+        if filename:
+            cx_print(f"✓ Monitoring data exported to {filename}", "success")
+            return 0
+        else:
+            self._print_error("Failed to export monitoring data")
+            return 1
+
+    def _display_recommendations(self, resource_monitor: ResourceMonitor) -> None:
+        """Display performance recommendations."""
+        if not resource_monitor.history or len(resource_monitor.history) <= 1:
+            return
+
+        recommendations = resource_monitor.get_recommendations()
+        if recommendations:
+            console.print("\n[bold cyan]⚡ Performance Recommendations:[/bold cyan]")
+            for rec in recommendations:
+                console.print(f"  • {rec}")
 
     # MONITOR HELPERS
     def _get_latest_metrics(self, monitor: ResourceMonitor) -> dict:
@@ -126,7 +164,7 @@ class CortexCLI:
         export: str,
         output: str | None,
         software: str | None = None,
-    ) -> bool:
+    ) -> str | None:
         """Export monitoring data safely."""
         from cortex.monitor import export_monitoring_data
 
@@ -136,7 +174,9 @@ class CortexCLI:
             safe_name = "".join(c if c.isalnum() else "_" for c in (software or "monitor"))
             filename = f"{safe_name}_monitoring.{export}"
 
-        return export_monitoring_data(monitor, export, filename)
+        if export_monitoring_data(monitor, export, filename):  # Check if successful
+            return filename  # Return filename on success
+        return None  # Return None on failure
 
     # Define a method to handle Docker-specific permission repairs
     def docker_permissions(self, args: argparse.Namespace) -> int:
@@ -898,8 +938,8 @@ class CortexCLI:
         dry_run: bool = False,
         parallel: bool = False,
         monitor: bool = False,
-        export: str = None,
-        output: str = None,
+        export: str | None = None,
+        output: str | None = None,
     ):
 
         # If --monitor is used, automatically enable execution and initialize the resource monitor.
@@ -912,7 +952,7 @@ class CortexCLI:
         if monitor:
             resource_monitor = ResourceMonitor(interval=1.0)
             console.print(f"Installing {software}...")  # Simple print
-            console.print("📊 Monitoring system resources during installation...", "info")
+            cx_print("📊 Monitoring system resources during installation...", "info")
 
         # Validate input first
         is_valid, error = validate_install_request(software)
@@ -1136,15 +1176,14 @@ class CortexCLI:
 
                         # Export if requested
                         if export:
-                            from cortex.monitor import export_monitoring_data
+                            filename = self._export_monitor_data(
+                                monitor=resource_monitor,
+                                export=export,
+                                output=output,
+                                software=software,
+                            )
 
-                            if output:
-                                filename = f"{output}.{export}"
-                            else:
-                                # Sanitize software name for filename
-                                safe_name = "".join(c if c.isalnum() else "_" for c in software)
-                                filename = f"{safe_name}_monitoring.{export}"
-                            if export_monitoring_data(resource_monitor, export, filename):
+                            if filename:
                                 cx_print(f"✓ Monitoring data exported to {filename}", "success")
                             else:
                                 self._print_error("Failed to export monitoring data")
@@ -1416,13 +1455,6 @@ class CortexCLI:
         summary_table.add_row("Severity", f"[{style}]{result.severity.value.upper()}[/{style}]")
         console.print("\n[bold]📊 Impact Summary:[/bold]")
         console.print(summary_table)
-
-    def _display_recommendations(self, recommendations: list) -> None:
-        """Display recommendations."""
-        if recommendations:
-            console.print("\n[bold green]💡 Recommendations:[/bold green]")
-            for rec in recommendations:
-                console.print(f"   • {rec}")
 
     def _execute_removal(self, package: str, purge: bool = False) -> int:
         """Execute the actual package removal with audit logging"""
