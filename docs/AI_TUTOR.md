@@ -612,6 +612,9 @@ export TUTOR_DEBUG=true
 
 # Optional: Custom data directory (default: ~/.cortex)
 export TUTOR_DATA_DIR=~/.cortex
+
+# Optional: Force offline fallback mode (use pre-built lessons)
+export TUTOR_OFFLINE=true
 ```
 
 ### Config File
@@ -623,6 +626,7 @@ tutor:
   cache_ttl_hours: 24
   max_retries: 3
   debug: false
+  offline: false
 ```
 
 ---
@@ -653,10 +657,10 @@ pytest tests/tutor/test_tutor_agent.py -v
 
 ```bash
 # Set the API key
-export ANTHROPIC_API_KEY=sk-ant-your-key-here
+export ANTHROPIC_API_KEY=your-api-key-here
 
 # Or add to ~/.cortex/.env
-echo 'ANTHROPIC_API_KEY=sk-ant-...' >> ~/.cortex/.env
+echo 'ANTHROPIC_API_KEY=your-api-key-here' >> ~/.cortex/.env
 ```
 </details>
 
