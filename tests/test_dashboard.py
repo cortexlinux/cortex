@@ -64,7 +64,7 @@ class TestSystemMonitor(unittest.TestCase):
         self.assertGreaterEqual(metrics.ram_percent, 0)
         self.assertGreater(metrics.ram_used_gb, 0)
         self.assertGreater(metrics.ram_total_gb, 0)
-        
+
         # Verify RAM values are reasonable
         self.assertLess(metrics.ram_used_gb, metrics.ram_total_gb)
 
