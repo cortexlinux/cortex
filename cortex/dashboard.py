@@ -1313,38 +1313,42 @@ class UIRenderer:
 
         from cortex.cli import CortexCLI
 
-        progress = self.installation_progress
-        package_name = progress.package
-
-        progress.state = InstallationState.IN_PROGRESS
-        progress.start_time = time.time()
-        progress.total_steps = 3  # Check, Parse, Confirm
-        progress.libraries = []
+        with self.state_lock:
+            progress = self.installation_progress
+            package_name = progress.package
+            progress.state = InstallationState.IN_PROGRESS
+            progress.start_time = time.time()
+            progress.total_steps = 3  # Check, Parse, Confirm
+            progress.libraries = []
 
         try:
             # Step 1: Check prerequisites
-            progress.current_step = 1
-            progress.current_library = "Checking prerequisites..."
-            progress.update_elapsed()
+            with self.state_lock:
+                progress.current_step = 1
+                progress.current_library = "Checking prerequisites..."
+                progress.update_elapsed()
 
             # Check for API key first
             api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY")
             if not api_key:
-                progress.state = InstallationState.FAILED
-                progress.error_message = (
-                    "No API key found!\n"
-                    "Set ANTHROPIC_API_KEY or OPENAI_API_KEY in your environment.\n"
-                    "Run 'cortex wizard' to configure."
-                )
+                with self.state_lock:
+                    progress.state = InstallationState.FAILED
+                    progress.error_message = (
+                        "No API key found!\n"
+                        "Set ANTHROPIC_API_KEY or OPENAI_API_KEY in your environment.\n"
+                        "Run 'cortex wizard' to configure."
+                    )
                 return
 
-            if self.stop_event.is_set() or progress.state == InstallationState.FAILED:
-                return
+            with self.state_lock:
+                if self.stop_event.is_set() or progress.state == InstallationState.FAILED:
+                    return
 
             # Step 2: Initialize CLI and get commands
-            progress.current_step = 2
-            progress.current_library = "Planning installation..."
-            progress.update_elapsed()
+            with self.state_lock:
+                progress.current_step = 2
+                progress.current_library = "Planning installation..."
+                progress.update_elapsed()
 
             cli = CortexCLI()
 
@@ -1363,30 +1367,33 @@ class UIRenderer:
                 stdout_output = stdout_capture.getvalue()
                 stderr_output = stderr_capture.getvalue()
 
-            if self.stop_event.is_set() or progress.state == InstallationState.FAILED:
-                return
+            with self.state_lock:
+                if self.stop_event.is_set() or progress.state == InstallationState.FAILED:
+                    return
 
             if result != 0:
-                progress.state = InstallationState.FAILED
-                error_msg = stderr_output.strip() or stdout_output.strip()
-                import re
+                with self.state_lock:
+                    progress.state = InstallationState.FAILED
+                    error_msg = stderr_output.strip() or stdout_output.strip()
+                    import re
 
-                clean_msg = re.sub(r"\[.*?\]", "", error_msg)
-                clean_msg = clean_msg.strip()
-                if clean_msg:
-                    lines = clean_msg.split("\n")
-                    first_line = lines[0].strip()[:80]
-                    progress.error_message = (
-                        first_line or f"Failed to plan install for '{package_name}'"
-                    )
-                else:
-                    progress.error_message = f"Failed to plan install for '{package_name}'"
+                    clean_msg = re.sub(r"\[.*?\]", "", error_msg)
+                    clean_msg = clean_msg.strip()
+                    if clean_msg:
+                        lines = clean_msg.split("\n")
+                        first_line = lines[0].strip()[:80]
+                        progress.error_message = (
+                            first_line or f"Failed to plan install for '{package_name}'"
+                        )
+                    else:
+                        progress.error_message = f"Failed to plan install for '{package_name}'"
                 return
 
             # Step 3: Extract commands and show confirmation
-            progress.current_step = 3
-            progress.current_library = "Ready for confirmation..."
-            progress.update_elapsed()
+            with self.state_lock:
+                progress.current_step = 3
+                progress.current_library = "Ready for confirmation..."
+                progress.update_elapsed()
 
             # Parse commands from output
             commands = []
@@ -1406,21 +1413,24 @@ class UIRenderer:
                         # End of commands section (dry run mode message)
                         break
 
-            self._pending_commands = commands
-            progress.libraries = [f"Package: {package_name}"]
-            if commands:
-                progress.libraries.append(f"Commands: {len(commands)}")
+            with self.state_lock:
+                self._pending_commands = commands
+                progress.libraries = [f"Package: {package_name}"]
+                if commands:
+                    progress.libraries.append(f"Commands: {len(commands)}")
 
-            # Show confirmation dialog
-            progress.state = InstallationState.WAITING_CONFIRMATION
-            progress.current_library = ""
+                # Show confirmation dialog
+                progress.state = InstallationState.WAITING_CONFIRMATION
+                progress.current_library = ""
 
         except ImportError as e:
-            progress.state = InstallationState.FAILED
-            progress.error_message = f"Missing package: {e}"
+            with self.state_lock:
+                progress.state = InstallationState.FAILED
+                progress.error_message = f"Missing package: {e}"
         except Exception as e:
-            progress.state = InstallationState.FAILED
-            progress.error_message = f"Error: {str(e)[:80]}"
+            with self.state_lock:
+                progress.state = InstallationState.FAILED
+                progress.error_message = f"Error: {str(e)[:80]}"
 
     def _confirm_installation(self) -> None:
         """User confirmed installation - execute with --execute flag"""
@@ -1537,49 +1547,55 @@ class UIRenderer:
 
         from cortex.cli import CortexCLI
 
-        progress = self.installation_progress
-        package_name = progress.package
-
-        progress.state = InstallationState.IN_PROGRESS
-        progress.start_time = time.time()
-        progress.total_steps = 4  # Check, Parse, Plan, Complete
-        progress.libraries = []
+        with self.state_lock:
+            progress = self.installation_progress
+            package_name = progress.package
+            progress.state = InstallationState.IN_PROGRESS
+            progress.start_time = time.time()
+            progress.total_steps = 4  # Check, Parse, Plan, Complete
+            progress.libraries = []
 
         try:
             # Step 1: Check prerequisites
-            progress.current_step = 1
-            progress.current_library = "Checking prerequisites..."
-            progress.update_elapsed()
+            with self.state_lock:
+                progress.current_step = 1
+                progress.current_library = "Checking prerequisites..."
+                progress.update_elapsed()
 
             # Check for API key first
             api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY")
             if not api_key:
-                progress.state = InstallationState.FAILED
-                progress.error_message = (
-                    "No API key found!\n"
-                    "Set ANTHROPIC_API_KEY or OPENAI_API_KEY in your environment.\n"
-                    "Run 'cortex wizard' to configure."
-                )
+                with self.state_lock:
+                    progress.state = InstallationState.FAILED
+                    progress.error_message = (
+                        "No API key found!\n"
+                        "Set ANTHROPIC_API_KEY or OPENAI_API_KEY in your environment.\n"
+                        "Run 'cortex wizard' to configure."
+                    )
                 return
 
-            if self.stop_event.is_set() or progress.state == InstallationState.FAILED:
-                return
+            with self.state_lock:
+                if self.stop_event.is_set() or progress.state == InstallationState.FAILED:
+                    return
 
             # Step 2: Initialize CLI
-            progress.current_step = 2
-            progress.current_library = "Initializing Cortex CLI..."
-            progress.update_elapsed()
+            with self.state_lock:
+                progress.current_step = 2
+                progress.current_library = "Initializing Cortex CLI..."
+                progress.update_elapsed()
 
             cli = CortexCLI()
 
-            if self.stop_event.is_set() or progress.state == InstallationState.FAILED:
-                return
+            with self.state_lock:
+                if self.stop_event.is_set() or progress.state == InstallationState.FAILED:
+                    return
 
             # Step 3: Run installation (capture output)
-            progress.current_step = 3
-            progress.current_library = f"Planning install for: {package_name}"
-            progress.libraries.append(f"Package: {package_name}")
-            progress.update_elapsed()
+            with self.state_lock:
+                progress.current_step = 3
+                progress.current_library = f"Planning install for: {package_name}"
+                progress.libraries.append(f"Package: {package_name}")
+                progress.update_elapsed()
 
             # Capture CLI output
             with io.StringIO() as stdout_capture, io.StringIO() as stderr_capture:
@@ -1596,66 +1612,71 @@ class UIRenderer:
                 stdout_output = stdout_capture.getvalue()
                 stderr_output = stderr_capture.getvalue()
 
-            if self.stop_event.is_set() or progress.state == InstallationState.FAILED:
-                return
+            with self.state_lock:
+                if self.stop_event.is_set() or progress.state == InstallationState.FAILED:
+                    return
 
             # Step 4: Complete
-            progress.current_step = 4
-            progress.current_library = "Finalizing..."
-            progress.update_elapsed()
+            with self.state_lock:
+                progress.current_step = 4
+                progress.current_library = "Finalizing..."
+                progress.update_elapsed()
 
-            if result == 0:
-                progress.state = InstallationState.COMPLETED
-                # Extract generated commands if available
-                commands_header = "Generated commands:"
-                has_commands_header = any(
-                    line.strip().startswith(commands_header) for line in stdout_output.splitlines()
-                )
-                if has_commands_header:
-                    progress.success_message = (
-                        f"✓ Plan ready for '{package_name}'!\n"
-                        "Run in terminal: cortex install " + package_name + " --execute"
+                if result == 0:
+                    progress.state = InstallationState.COMPLETED
+                    # Extract generated commands if available
+                    commands_header = "Generated commands:"
+                    has_commands_header = any(
+                        line.strip().startswith(commands_header) for line in stdout_output.splitlines()
                     )
+                    if has_commands_header:
+                        progress.success_message = (
+                            f"✓ Plan ready for '{package_name}'!\n"
+                            "Run in terminal: cortex install " + package_name + " --execute"
+                        )
+                    else:
+                        progress.success_message = (
+                            f"Dry-run complete for '{package_name}'!\n"
+                            "Run 'cortex install <pkg> --execute' in terminal to apply."
+                        )
                 else:
-                    progress.success_message = (
-                        f"Dry-run complete for '{package_name}'!\n"
-                        "Run 'cortex install <pkg> --execute' in terminal to apply."
-                    )
-            else:
-                progress.state = InstallationState.FAILED
-                # Try to extract meaningful error from output
-                error_msg = stderr_output.strip() or stdout_output.strip()
-                # Remove Rich formatting characters for cleaner display
-                import re
+                    progress.state = InstallationState.FAILED
+                    # Try to extract meaningful error from output
+                    error_msg = stderr_output.strip() or stdout_output.strip()
+                    # Remove Rich formatting characters for cleaner display
+                    import re
 
-                clean_msg = re.sub(r"\[.*?\]", "", error_msg)  # Remove [color] tags
-                clean_msg = re.sub(r" CX.*?[│✗✓⠋]", "", clean_msg)  # Remove CX prefix
-                clean_msg = clean_msg.strip()
+                    clean_msg = re.sub(r"\[.*?\]", "", error_msg)  # Remove [color] tags
+                    clean_msg = re.sub(r" CX.*?[│✗✓⠋]", "", clean_msg)  # Remove CX prefix
+                    clean_msg = clean_msg.strip()
 
-                if "doesn't look valid" in clean_msg or "wizard" in clean_msg.lower():
-                    progress.error_message = "API key invalid. Run 'cortex wizard' to configure."
-                elif "not installed" in clean_msg.lower() and "openai" in clean_msg.lower():
-                    progress.error_message = "OpenAI not installed. Run: pip install openai"
-                elif "not installed" in clean_msg.lower() and "anthropic" in clean_msg.lower():
-                    progress.error_message = "Anthropic not installed. Run: pip install anthropic"
-                elif "API key" in error_msg or "api_key" in error_msg.lower():
-                    progress.error_message = "API key not configured. Run 'cortex wizard'"
-                elif clean_msg:
-                    # Show cleaned error, truncated
-                    lines = clean_msg.split("\n")
-                    first_line = lines[0].strip()[:80]
-                    progress.error_message = first_line or f"Failed to install '{package_name}'"
-                else:
-                    progress.error_message = f"Failed to plan install for '{package_name}'"
+                    if "doesn't look valid" in clean_msg or "wizard" in clean_msg.lower():
+                        progress.error_message = "API key invalid. Run 'cortex wizard' to configure."
+                    elif "not installed" in clean_msg.lower() and "openai" in clean_msg.lower():
+                        progress.error_message = "OpenAI not installed. Run: pip install openai"
+                    elif "not installed" in clean_msg.lower() and "anthropic" in clean_msg.lower():
+                        progress.error_message = "Anthropic not installed. Run: pip install anthropic"
+                    elif "API key" in error_msg or "api_key" in error_msg.lower():
+                        progress.error_message = "API key not configured. Run 'cortex wizard'"
+                    elif clean_msg:
+                        # Show cleaned error, truncated
+                        lines = clean_msg.split("\n")
+                        first_line = lines[0].strip()[:80]
+                        progress.error_message = first_line or f"Failed to install '{package_name}'"
+                    else:
+                        progress.error_message = f"Failed to plan install for '{package_name}'"
 
         except ImportError as e:
-            progress.state = InstallationState.FAILED
-            progress.error_message = f"Missing package: {e}"
+            with self.state_lock:
+                progress.state = InstallationState.FAILED
+                progress.error_message = f"Missing package: {e}"
         except Exception as e:
-            progress.state = InstallationState.FAILED
-            progress.error_message = f"Error: {str(e)[:80]}"
+            with self.state_lock:
+                progress.state = InstallationState.FAILED
+                progress.error_message = f"Error: {str(e)[:80]}"
         finally:
-            progress.current_library = ""
+            with self.state_lock:
+                progress.current_library = ""
 
     def _run_installation(self) -> None:
         """Run simulated installation in background thread (for testing)"""

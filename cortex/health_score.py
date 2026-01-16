@@ -489,6 +489,44 @@ class HealthChecker:
                 json.dump(history, f, indent=2)
         except OSError:
             pass
+        
+        # Also write to audit database
+        try:
+            import sqlite3
+            from pathlib import Path
+            
+            audit_db_path = Path.home() / ".cortex" / "history.db"
+            audit_db_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with sqlite3.connect(str(audit_db_path)) as conn:
+                cursor = conn.cursor()
+                
+                # Create health_checks table if it doesn't exist
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS health_checks (
+                        timestamp TEXT NOT NULL,
+                        overall_score INTEGER NOT NULL,
+                        factors TEXT NOT NULL
+                    )
+                """
+                )
+                
+                # Insert health check record
+                cursor.execute(
+                    """
+                    INSERT INTO health_checks VALUES (?, ?, ?)
+                """,
+                    (
+                        entry["timestamp"],
+                        entry["overall_score"],
+                        json.dumps(entry["factors"]),
+                    ),
+                )
+                
+                conn.commit()
+        except OSError:
+            pass
 
     def load_history(self) -> list[dict]:
         """Load health history."""

@@ -813,6 +813,27 @@ class ConfigManager:
         """
         try:
             if self.sandbox_executor is None:
+                # Sandboxed installs are the default. Only allow direct installs
+                # if user has explicitly opted in (check CORTEX_ALLOW_DIRECT_INSTALL env var)
+                allow_direct = os.environ.get("CORTEX_ALLOW_DIRECT_INSTALL", "").lower() == "true"
+                
+                # Log audit entry for this attempt
+                self._log_install_audit(
+                    package_name=name,
+                    version=version,
+                    source=source,
+                    is_dry_run=True,
+                    is_sandboxed=False,
+                    is_direct=allow_direct,
+                    escalation_consent=allow_direct,
+                    error="Sandbox executor unavailable"
+                )
+                
+                if not allow_direct:
+                    # Refuse direct install unless explicitly opted in
+                    return False
+                
+                # User opted in, proceed with direct install
                 return self._install_direct(name=name, version=version, source=source)
 
             if source == self.SOURCE_APT:
@@ -835,6 +856,81 @@ class ConfigManager:
         except Exception:
             return False
 
+    def _log_install_audit(
+        self,
+        package_name: str,
+        version: str | None,
+        source: str,
+        is_dry_run: bool,
+        is_sandboxed: bool,
+        is_direct: bool,
+        escalation_consent: bool,
+        error: str | None = None,
+    ) -> None:
+        """
+        Log install attempt to audit database.
+
+        Args:
+            package_name: Package name
+            version: Package version
+            source: Package source
+            is_dry_run: Whether this was a dry-run
+            is_sandboxed: Whether sandboxed install was used
+            is_direct: Whether direct install was used
+            escalation_consent: Whether user consented to privilege escalation
+            error: Error message if any
+        """
+        try:
+            import sqlite3
+            from datetime import datetime
+
+            # Use ~/.cortex/history.db for audit logging
+            audit_db_path = Path.home() / ".cortex" / "history.db"
+            audit_db_path.parent.mkdir(parents=True, exist_ok=True)
+
+            with sqlite3.connect(str(audit_db_path)) as conn:
+                cursor = conn.cursor()
+
+                # Create audit table if it doesn't exist
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS install_audit (
+                        timestamp TEXT NOT NULL,
+                        package_name TEXT NOT NULL,
+                        version TEXT,
+                        source TEXT NOT NULL,
+                        is_dry_run INTEGER NOT NULL,
+                        is_sandboxed INTEGER NOT NULL,
+                        is_direct INTEGER NOT NULL,
+                        escalation_consent INTEGER NOT NULL,
+                        error TEXT
+                    )
+                """
+                )
+
+                # Insert audit record
+                cursor.execute(
+                    """
+                    INSERT INTO install_audit VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                    (
+                        datetime.now().isoformat(),
+                        package_name,
+                        version,
+                        source,
+                        1 if is_dry_run else 0,
+                        1 if is_sandboxed else 0,
+                        1 if is_direct else 0,
+                        1 if escalation_consent else 0,
+                        error,
+                    ),
+                )
+
+                conn.commit()
+        except Exception as e:
+            # Don't fail the install if audit logging fails
+            pass
+
     def _install_direct(self, name: str, version: str | None, source: str) -> bool:
         """
         Install package directly using subprocess (not recommended in production).
@@ -848,6 +944,16 @@ class ConfigManager:
             True if successful, False otherwise
         """
         try:
+            # Log audit entry for direct install
+            self._log_install_audit(
+                package_name=name,
+                version=version,
+                source=source,
+                is_dry_run=False,
+                is_sandboxed=False,
+                is_direct=True,
+                escalation_consent=True,
+            )
             if source == self.SOURCE_APT:
                 cmd = ["sudo", "apt-get", "install", "-y", f"{name}={version}" if version else name]
             elif source == self.SOURCE_PIP:
