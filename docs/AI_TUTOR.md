@@ -278,7 +278,7 @@ cortex tutor --reset docker
 │  Deterministic  │ │   LLM Layer     │ │    Memory       │
 │     Tools       │ │  (llm.py)       │ │    Layer        │
 │                 │ │                 │ │                 │
-│ • validators    │ │ • llm_router    │ │ • SQLite store  │
+│ • validators    │ │ • Anthropic API │ │ • SQLite store  │
 │ • lesson_loader │ │ • generate_lesson│ │ • Cache mgmt    │
 │ • progress_trk  │ │ • answer_question│ │ • Progress DB   │
 └─────────────────┘ └─────────────────┘ └─────────────────┘
@@ -323,8 +323,8 @@ The tutor uses a simple cache-first pattern to minimize API costs:
 │                      GENERATE CONTENT                            │
 │                                                                  │
 │   ┌────────────────────────┐    ┌────────────────────────┐      │
-│   │  cortex.llm_router     │───▶│    Claude API          │      │
-│   │                        │    │                        │      │
+│   │  cortex.tutor.llm      │───▶│    Claude API          │      │
+│   │  (tool_use + Pydantic) │    │                        │      │
 │   │  • generate_lesson()   │    │  • Lesson content      │      │
 │   │  • answer_question()   │    │  • Q&A responses       │      │
 │   └────────────────────────┘    └────────────────────────┘      │
@@ -337,7 +337,7 @@ The tutor uses a simple cache-first pattern to minimize API costs:
 │                      CACHE & RETURN                              │
 │                                                                  │
 │   ┌──────────────┐    ┌──────────────┐    ┌──────────────┐      │
-│   │ Parse JSON   │───▶│ Cache Result │───▶│   Return     │      │
+│   │   Validate   │───▶│ Cache Result │───▶│   Return     │      │
 │   │   Response   │    │  (24h TTL)   │    │   to User    │      │
 │   └──────────────┘    └──────────────┘    └──────────────┘      │
 └─────────────────────────────────────────────────────────────────┘
@@ -378,7 +378,8 @@ The tutor uses a simple cache-first pattern to minimize API costs:
 │  │ • Best practices            │  │ • Confidence score      │   │
 │  └─────────────────────────────┘  └─────────────────────────┘   │
 │                                                                  │
-│  Uses cortex.llm_router for task-aware routing                  │
+│  Uses Anthropic tool_use with Pydantic models for structured    │
+│  outputs (LessonResponse, QAResponse)                           │
 │  Speed: 2-5s | Cost: ~$0.01-0.02 | Reliability: 95%+            │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
@@ -405,8 +406,8 @@ User Input                Processing                    Output
         │ Cache Miss                                        │
         ▼                                                   │
 ┌───────────────┐     ┌───────────────┐                    │
-│  llm_router   │────▶│  Claude API   │                    │
-│               │     └───────────────┘                    │
+│    llm.py     │────▶│  Claude API   │                    │
+│  (tool_use)   │     └───────────────┘                    │
 └───────────────┘                                          │
         │                                                   │
         │ Generated Content                                 │
