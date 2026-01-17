@@ -2881,6 +2881,8 @@ def show_rich_help():
     table.add_row("docker permissions", "Fix Docker bind-mount permissions")
     table.add_row("sandbox <cmd>", "Test packages in Docker sandbox")
     table.add_row("update", "Check for and install updates")
+    table.add_row("doctor", "System health check")
+    table.add_row("troubleshoot", "Interactive system troubleshooter")
 
     console.print(table)
     console.print()

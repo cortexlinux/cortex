@@ -14,6 +14,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 from typing import Optional
 
 from rich.console import Console
@@ -212,20 +213,31 @@ class Troubleshooter:
                             system_prompt="Create a concise summary of the issue with user's POV",
                         )
 
-                    log_file = os.path.expanduser("~/.cortex/cortex_support_log.txt")
-                    os.makedirs(os.path.dirname(log_file), exist_ok=True)
+                    # Try to create log in ~/.cortex, fall back to tempdir if not writable
+                    try:
+                        log_file = os.path.expanduser("~/.cortex/cortex_support_log.txt")
+                        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+                    except (PermissionError, OSError) as e:
+                        self.logger.warning(f"Cannot write to ~/.cortex: {e}")
+                        log_file = os.path.join(tempfile.gettempdir(), "cortex_support_log.txt")
+                        console.print(f"[dim]Using fallback location: {log_file}[/dim]")
+
                     log_path = os.path.abspath(log_file)
 
-                    with open(log_file, "w") as f:
-                        f.write("Cortex Troubleshooting Log\n")
-                        f.write("==========================\n\n")
-                        f.write("Issue Summary:\n")
-                        f.write(summary)
+                    try:
+                        with open(log_file, "w") as f:
+                            f.write("Cortex Troubleshooting Log\n")
+                            f.write("==========================\n\n")
+                            f.write("Issue Summary:\n")
+                            f.write(summary)
 
-                    console.print(
-                        f"\n[bold green]✓ Diagnostic log saved to {log_path}[/bold green]"
-                    )
-                    console.print(f"Please open a new issue and attach the {log_path} file.")
+                        console.print(
+                            f"\n[bold green]✓ Diagnostic log saved to {log_path}[/bold green]"
+                        )
+                        console.print(f"Please open a new issue and attach the {log_path} file.")
+                    except (PermissionError, OSError) as e:
+                        self.logger.error(f"Failed to write support log: {e}")
+                        console.print(f"[red]Error: Could not write support log ({e})[/red]")
                     continue
 
                 self.messages.append({"role": "user", "content": user_input})
