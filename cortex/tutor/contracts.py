@@ -7,7 +7,7 @@ Defines structured output schemas for lesson generation, progress tracking, and 
 from datetime import datetime, timezone
 from typing import Any
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, computed_field, conlist
 
 # ==============================================================================
 # Lesson Context Models
@@ -57,25 +57,21 @@ class LessonContext(BaseModel):
         description="Detailed explanation of the package functionality",
         max_length=5000,
     )
-    use_cases: list[str] = Field(
+    use_cases: conlist(str, max_length=10) = Field(
         default_factory=list,
         description="Common use cases for this package",
-        max_length=10,
     )
-    best_practices: list[str] = Field(
+    best_practices: conlist(str, max_length=10) = Field(
         default_factory=list,
         description="Best practices when using this package",
-        max_length=10,
     )
-    code_examples: list[CodeExample] = Field(
+    code_examples: conlist(CodeExample, max_length=5) = Field(
         default_factory=list,
         description="Code examples demonstrating package usage",
-        max_length=5,
     )
-    tutorial_steps: list[TutorialStep] = Field(
+    tutorial_steps: conlist(TutorialStep, max_length=10) = Field(
         default_factory=list,
         description="Step-by-step tutorial for hands-on learning",
-        max_length=10,
     )
 
     # Package metadata
@@ -83,10 +79,9 @@ class LessonContext(BaseModel):
         ..., description="Command to install the package (apt, pip, etc.)"
     )
     official_docs_url: str | None = Field(default=None, description="URL to official documentation")
-    related_packages: list[str] = Field(
+    related_packages: conlist(str, max_length=5) = Field(
         default_factory=list,
         description="Related packages the user might want to learn",
-        max_length=5,
     )
 
     # Metadata
