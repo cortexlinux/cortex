@@ -164,6 +164,8 @@ install:
 # =============================================================================
 stack:
   available: "可用堆栈"
+  unnamed: "未命名堆栈"
+  no_description: "无描述"
   not_found: "未找到堆栈'{name}'。使用--list查看可用堆栈。"
   no_packages: "堆栈'{name}'没有配置软件包。"
   installing: "正在安装堆栈: {name}"

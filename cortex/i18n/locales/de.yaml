@@ -124,6 +124,8 @@ install:
 # =============================================================================
 stack:
   available: "Verfügbare Stacks"
+  unnamed: "Unbenannter Stack"
+  no_description: "Keine Beschreibung"
   not_found: "Stack '{name}' nicht gefunden. Verwenden Sie --list, um verfügbare Stacks zu sehen."
   no_packages: "Stack '{name}' hat keine konfigurierten Pakete."
   installing: "Stack wird installiert: {name}"

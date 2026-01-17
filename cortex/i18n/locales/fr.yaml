@@ -134,6 +134,8 @@ install:
 # =============================================================================
 stack:
   available: "Piles Disponibles"
+  unnamed: "Pile Sans Nom"
+  no_description: "Aucune description"
   not_found: "Pile '{name}' non trouvée. Utilisez --list pour voir les piles disponibles."
   no_packages: "La pile '{name}' n'a pas de paquets configurés."
   installing: "Installation de la pile: {name}"

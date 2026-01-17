@@ -497,8 +497,8 @@ class CortexCLI:
         for stack in stacks:
             pkg_count = len(stack.get("packages", []))
             console.print(f"  [green]{stack.get('id', 'unknown')}[/green]")
-            console.print(f"    {stack.get('name', 'Unnamed Stack')}")
-            console.print(f"    {stack.get('description', 'No description')}")
+            console.print(f"    {stack.get('name', t('stack.unnamed'))}")
+            console.print(f"    {stack.get('description', t('stack.no_description'))}")
             console.print(f"    [dim]({pkg_count} packages)[/dim]\n")
         cx_print(t("stack.use_command"), "info")
         return 0

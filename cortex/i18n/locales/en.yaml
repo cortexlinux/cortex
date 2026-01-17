@@ -212,6 +212,8 @@ install:
 # =============================================================================
 stack:
   available: "Available Stacks"
+  unnamed: "Unnamed Stack"
+  no_description: "No description"
   # {name} - stack name
   not_found: "Stack '{name}' not found. Use --list to see available stacks."
   no_packages: "Stack '{name}' has no packages configured."
