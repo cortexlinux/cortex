@@ -23,6 +23,13 @@ from cortex.dependency_importer import (
     format_package_list,
 )
 from cortex.env_manager import EnvironmentManager, get_env_manager
+from cortex.i18n import (
+    SUPPORTED_LANGUAGES,
+    LanguageConfig,
+    get_language,
+    set_language,
+    t,
+)
 from cortex.installation_history import InstallationHistory, InstallationStatus, InstallationType
 from cortex.llm.interpreter import CommandInterpreter
 from cortex.network_config import NetworkConfig
@@ -161,9 +168,9 @@ class CortexCLI:
             return key
 
         # Still no key
-        self._print_error("No API key found or provided")
-        cx_print("Run [bold]cortex wizard[/bold] to configure your API key.", "info")
-        cx_print("Or use [bold]CORTEX_PROVIDER=ollama[/bold] for offline mode.", "info")
+        self._print_error(t("api_key.not_found"))
+        cx_print(t("api_key.configure_prompt"), "info")
+        cx_print(t("api_key.ollama_hint"), "info")
         return None
 
     def _get_provider(self) -> str:
@@ -200,7 +207,7 @@ class CortexCLI:
         cx_print(message, status)
 
     def _print_error(self, message: str):
-        cx_print(f"Error: {message}", "error")
+        cx_print(f"{t('ui.error_prefix')}: {message}", "error")
 
     def _print_success(self, message: str):
         cx_print(message, "success")
@@ -487,21 +494,21 @@ class CortexCLI:
     def _handle_stack_list(self, manager: StackManager) -> int:
         """List all available stacks."""
         stacks = manager.list_stacks()
-        cx_print("\n📦 Available Stacks:\n", "info")
+        cx_print(f"\n📦 {t('stack.available')}:\n", "info")
         for stack in stacks:
             pkg_count = len(stack.get("packages", []))
             console.print(f"  [green]{stack.get('id', 'unknown')}[/green]")
-            console.print(f"    {stack.get('name', 'Unnamed Stack')}")
-            console.print(f"    {stack.get('description', 'No description')}")
+            console.print(f"    {stack.get('name', t('stack.unnamed'))}")
+            console.print(f"    {stack.get('description', t('stack.no_description'))}")
             console.print(f"    [dim]({pkg_count} packages)[/dim]\n")
-        cx_print("Use: cortex stack <name> to install a stack", "info")
+        cx_print(t("stack.use_command"), "info")
         return 0
 
     def _handle_stack_describe(self, manager: StackManager, stack_id: str) -> int:
         """Describe a specific stack."""
         stack = manager.find_stack(stack_id)
         if not stack:
-            self._print_error(f"Stack '{stack_id}' not found. Use --list to see available stacks.")
+            self._print_error(t("stack.not_found", name=stack_id))
             return 1
         description = manager.describe_stack(stack_id)
         console.print(description)
@@ -514,20 +521,18 @@ class CortexCLI:
 
         if suggested_name != original_name:
             cx_print(
-                f"💡 No GPU detected, using '{suggested_name}' instead of '{original_name}'",
+                f"💡 {t('stack.gpu_fallback', original=original_name, suggested=suggested_name)}",
                 "info",
             )
 
         stack = manager.find_stack(suggested_name)
         if not stack:
-            self._print_error(
-                f"Stack '{suggested_name}' not found. Use --list to see available stacks."
-            )
+            self._print_error(t("stack.not_found", name=suggested_name))
             return 1
 
         packages = stack.get("packages", [])
         if not packages:
-            self._print_error(f"Stack '{suggested_name}' has no packages configured.")
+            self._print_error(t("stack.no_packages", name=suggested_name))
             return 1
 
         if args.dry_run:
@@ -537,28 +542,28 @@ class CortexCLI:
 
     def _handle_stack_dry_run(self, stack: dict[str, Any], packages: list[str]) -> int:
         """Preview packages that would be installed without executing."""
-        cx_print(f"\n📋 Stack: {stack['name']}", "info")
-        console.print("\nPackages that would be installed:")
+        cx_print(f"\n📋 {t('stack.installing', name=stack['name'])}", "info")
+        console.print(f"\n{t('stack.dry_run_preview')}:")
         for pkg in packages:
             console.print(f"  • {pkg}")
-        console.print(f"\nTotal: {len(packages)} packages")
-        cx_print("\nDry run only - no commands executed", "warning")
+        console.print(f"\n{t('stack.packages_total', count=len(packages))}")
+        cx_print(f"\n{t('stack.dry_run_note')}", "warning")
         return 0
 
     def _handle_stack_real_install(self, stack: dict[str, Any], packages: list[str]) -> int:
         """Install all packages in the stack."""
-        cx_print(f"\n🚀 Installing stack: {stack['name']}\n", "success")
+        cx_print(f"\n🚀 {t('stack.installing', name=stack['name'])}\n", "success")
 
         # Batch into a single LLM request
         packages_str = " ".join(packages)
         result = self.install(software=packages_str, execute=True, dry_run=False)
 
         if result != 0:
-            self._print_error(f"Failed to install stack '{stack['name']}'")
+            self._print_error(t("stack.failed", name=stack["name"]))
             return 1
 
-        self._print_success(f"\n✅ Stack '{stack['name']}' installed successfully!")
-        console.print(f"Installed {len(packages)} packages")
+        self._print_success(f"\n✅ {t('stack.installed', name=stack['name'])}")
+        console.print(t("stack.packages_installed", count=len(packages)))
         return 0
 
     # --- Sandbox Commands (Docker-based package testing) ---
@@ -575,17 +580,17 @@ class CortexCLI:
         action = getattr(args, "sandbox_action", None)
 
         if not action:
-            cx_print("\n🐳 Docker Sandbox - Test packages safely before installing\n", "info")
-            console.print("Usage: cortex sandbox <command> [options]")
-            console.print("\nCommands:")
-            console.print("  create <name>              Create a sandbox environment")
-            console.print("  install <name> <package>   Install package in sandbox")
-            console.print("  test <name> [package]      Run tests in sandbox")
-            console.print("  promote <name> <package>   Install tested package on main system")
-            console.print("  cleanup <name>             Remove sandbox environment")
-            console.print("  list                       List all sandboxes")
-            console.print("  exec <name> <cmd...>       Execute command in sandbox")
-            console.print("\nExample workflow:")
+            cx_print(f"\n🐳 {t('sandbox.header')}\n", "info")
+            console.print(t("sandbox.usage"))
+            console.print(f"\n{t('sandbox.commands_header')}:")
+            console.print(f"  create <name>              {t('sandbox.cmd_create')}")
+            console.print(f"  install <name> <package>   {t('sandbox.cmd_install')}")
+            console.print(f"  test <name> [package]      {t('sandbox.cmd_test')}")
+            console.print(f"  promote <name> <package>   {t('sandbox.cmd_promote')}")
+            console.print(f"  cleanup <name>             {t('sandbox.cmd_cleanup')}")
+            console.print(f"  list                       {t('sandbox.cmd_list')}")
+            console.print(f"  exec <name> <cmd...>       {t('sandbox.cmd_exec')}")
+            console.print(f"\n{t('sandbox.example_workflow')}:")
             console.print("  cortex sandbox create test-env")
             console.print("  cortex sandbox install test-env nginx")
             console.print("  cortex sandbox test test-env")
@@ -890,9 +895,7 @@ class CortexCLI:
             commands = interpreter.parse(f"install {software}")
 
             if not commands:
-                self._print_error(
-                    "No commands generated. Please try again with a different request."
-                )
+                self._print_error(t("install.no_commands"))
                 return 1
 
             # Extract packages from commands for tracking
@@ -922,7 +925,7 @@ class CortexCLI:
                 print(f"  {i}. {cmd}")
 
             if dry_run:
-                print("\n(Dry run mode - commands not executed)")
+                print(f"\n({t('install.dry_run_message')})")
                 if install_id:
                     history.update_installation(install_id, InstallationStatus.SUCCESS)
                 return 0
@@ -938,7 +941,7 @@ class CortexCLI:
                     print(f"\n[{current}/{total}] {status_emoji} {step.description}")
                     print(f"  Command: {step.command}")
 
-                print("\nExecuting commands...")
+                print(f"\n{t('install.executing')}")
 
                 if parallel:
                     import asyncio
@@ -978,8 +981,10 @@ class CortexCLI:
                                 total_duration = max_end - min_start
 
                         if success:
-                            self._print_success(f"{software} installed successfully!")
-                            print(f"\nCompleted in {total_duration:.2f} seconds (parallel mode)")
+                            self._print_success(t("install.package_installed", package=software))
+                            print(
+                                f"\n{t('progress.completed_in', seconds=f'{total_duration:.2f}')}"
+                            )
 
                             if install_id:
                                 history.update_installation(install_id, InstallationStatus.SUCCESS)
@@ -1000,9 +1005,9 @@ class CortexCLI:
                                 error_msg,
                             )
 
-                        self._print_error("Installation failed")
+                        self._print_error(t("install.failed"))
                         if error_msg:
-                            print(f"  Error: {error_msg}", file=sys.stderr)
+                            print(f"  {t('common.error')}: {error_msg}", file=sys.stderr)
                         if install_id:
                             print(f"\n📝 Installation recorded (ID: {install_id})")
                             print(f"   View details: cortex history {install_id}")
@@ -1038,8 +1043,8 @@ class CortexCLI:
                 result = coordinator.execute()
 
                 if result.success:
-                    self._print_success(f"{software} installed successfully!")
-                    print(f"\nCompleted in {result.total_duration:.2f} seconds")
+                    self._print_success(t("install.package_installed", package=software))
+                    print(f"\n{t('progress.completed_in', seconds=f'{result.total_duration:.2f}')}")
 
                     # Record successful installation
                     if install_id:
@@ -1492,24 +1497,172 @@ class CortexCLI:
 
             cache = SemanticCache()
             stats = cache.stats()
-            hit_rate = f"{stats.hit_rate * 100:.1f}%" if stats.total else "0.0%"
+            hit_rate_value = f"{stats.hit_rate * 100:.1f}" if stats.total else "0.0"
 
-            cx_header("Cache Stats")
-            cx_print(f"Hits: {stats.hits}", "info")
-            cx_print(f"Misses: {stats.misses}", "info")
-            cx_print(f"Hit rate: {hit_rate}", "info")
-            cx_print(f"Saved calls (approx): {stats.hits}", "info")
+            cx_header(t("cache.stats_header"))
+            cx_print(f"{t('cache.hits')}: {stats.hits}", "info")
+            cx_print(f"{t('cache.misses')}: {stats.misses}", "info")
+            cx_print(t("cache.hit_rate", rate=hit_rate_value), "info")
+            cx_print(f"{t('cache.saved_calls')}: {stats.saved_calls}", "info")
             return 0
         except (ImportError, OSError) as e:
-            self._print_error(f"Unable to read cache stats: {e}")
+            self._print_error(t("cache.read_error", error=str(e)))
             return 1
         except Exception as e:
-            self._print_error(f"Unexpected error reading cache stats: {e}")
+            self._print_error(t("cache.unexpected_error", error=str(e)))
             if self.verbose:
                 import traceback
 
                 traceback.print_exc()
             return 1
+
+    def config(self, args: argparse.Namespace) -> int:
+        """Handle configuration commands including language settings."""
+        action = getattr(args, "config_action", None)
+
+        if not action:
+            cx_print(t("config.missing_subcommand"), "error")
+            return 1
+
+        if action == "language":
+            return self._config_language(args)
+        elif action == "show":
+            return self._config_show()
+        else:
+            self._print_error(t("config.unknown_action", action=action))
+            return 1
+
+    def _config_language(self, args: argparse.Namespace) -> int:
+        """Handle language configuration."""
+        lang_config = LanguageConfig()
+
+        # List available languages
+        if getattr(args, "list", False):
+            cx_header(t("language.available"))
+            for code, info in SUPPORTED_LANGUAGES.items():
+                current_marker = " ✓" if code == get_language() else ""
+                console.print(
+                    f"  [green]{code}[/green] - {info['name']} ({info['native']}){current_marker}"
+                )
+            return 0
+
+        # Show language info
+        if getattr(args, "info", False):
+            info = lang_config.get_language_info()
+            cx_header(t("language.current"))
+            console.print(f"  [bold]{info['name']}[/bold] ({info['native_name']})")
+            console.print(f"  [dim]{t('config.code_label')}: {info['language']}[/dim]")
+            # Translate the source value using proper key mapping
+            source_translation_keys = {
+                "environment": "language.set_from_env",
+                "config": "language.set_from_config",
+                "auto-detected": "language.auto_detected",
+                "default": "language.default",
+            }
+            source = info.get("source", "")
+            source_key = source_translation_keys.get(source)
+            source_display = t(source_key) if source_key else source
+            console.print(f"  [dim]{t('config.source_label')}: {source_display}[/dim]")
+
+            if info.get("env_override"):
+                console.print(f"  [dim]{t('language.set_from_env')}: {info['env_override']}[/dim]")
+            if info.get("detected_language"):
+                console.print(
+                    f"  [dim]{t('language.auto_detected')}: {info['detected_language']}[/dim]"
+                )
+            return 0
+
+        # Set language
+        code = getattr(args, "code", None)
+        if not code:
+            # No code provided, show current language and list
+            current = get_language()
+            current_info = SUPPORTED_LANGUAGES.get(current, {})
+            cx_print(
+                f"{t('language.current')}: {current_info.get('name', current)} "
+                f"({current_info.get('native', '')})",
+                "info",
+            )
+            console.print()
+            console.print(
+                f"[dim]{t('language.supported_codes')}: {', '.join(SUPPORTED_LANGUAGES.keys())}[/dim]"
+            )
+            console.print(f"[dim]{t('config.use_command_hint')}[/dim]")
+            console.print(f"[dim]{t('config.list_hint')}[/dim]")
+            return 0
+
+        # Handle 'auto' to clear saved preference
+        if code.lower() == "auto":
+            lang_config.clear_language()
+            from cortex.i18n.translator import reset_translator
+
+            reset_translator()
+            new_lang = get_language()
+            new_info = SUPPORTED_LANGUAGES.get(new_lang, {})
+            cx_print(t("language.changed", language=new_info.get("native", new_lang)), "success")
+            console.print(f"[dim]({t('language.auto_detected')})[/dim]")
+            return 0
+
+        # Validate and set language
+        code = code.lower()
+        if code not in SUPPORTED_LANGUAGES:
+            self._print_error(t("language.invalid_code", code=code))
+            console.print(
+                f"[dim]{t('language.supported_codes')}: {', '.join(SUPPORTED_LANGUAGES.keys())}[/dim]"
+            )
+            return 1
+
+        try:
+            lang_config.set_language(code)
+            # Reset the global translator to pick up the new language
+            from cortex.i18n.translator import reset_translator
+
+            reset_translator()
+            set_language(code)
+
+            lang_info = SUPPORTED_LANGUAGES[code]
+            cx_print(t("language.changed", language=lang_info["native"]), "success")
+            return 0
+        except (ValueError, RuntimeError) as e:
+            self._print_error(t("language.set_failed", error=str(e)))
+            return 1
+
+    def _config_show(self) -> int:
+        """Show all current configuration."""
+        cx_header(t("config.header"))
+
+        # Language
+        lang_config = LanguageConfig()
+        lang_info = lang_config.get_language_info()
+        console.print(f"[bold]{t('config.language_label')}:[/bold]")
+        console.print(
+            f"  {lang_info['name']} ({lang_info['native_name']}) "
+            f"[dim][{lang_info['language']}][/dim]"
+        )
+        # Translate the source identifier to user-friendly text
+        source_translations = {
+            "environment": t("language.set_from_env"),
+            "config": t("language.set_from_config"),
+            "auto-detected": t("language.auto_detected"),
+            "default": t("language.default"),
+        }
+        source_display = source_translations.get(lang_info["source"], lang_info["source"])
+        console.print(f"  [dim]{t('config.source_label')}: {source_display}[/dim]")
+        console.print()
+
+        # API Provider
+        provider = self._get_provider()
+        console.print(f"[bold]{t('config.llm_provider_label')}:[/bold]")
+        console.print(f"  {provider}")
+        console.print()
+
+        # Config paths
+        console.print(f"[bold]{t('config.config_paths_label')}:[/bold]")
+        console.print(f"  {t('config.preferences_path')}: ~/.cortex/preferences.yaml")
+        console.print(f"  {t('config.history_path')}: ~/.cortex/history.db")
+        console.print()
+
+        return 0
 
     def history(self, limit: int = 20, status: str | None = None, show_id: str | None = None):
         """Show installation history"""
@@ -2876,706 +3029,148 @@ class CortexCLI:
             return 1
 
     # --------------------------
-    # Daemon Commands
-    # --------------------------
 
-    def daemon(self, args: argparse.Namespace) -> int:
-        """Handle daemon commands: install, uninstall, config, reload-config, version, ping, shutdown.
 
-        PR1 available commands:
-        - install/uninstall: Manage systemd service files (Python-side)
-        - config: Get daemon configuration via IPC
-        - reload-config: Reload daemon configuration via IPC
-        - version: Get daemon version via IPC
-        - ping: Test daemon connectivity via IPC
-        - shutdown: Request daemon shutdown via IPC
-        """
-        action = getattr(args, "daemon_action", None)
+def _is_ascii(s: str) -> bool:
+    """Check if a string contains only ASCII characters."""
+    try:
+        s.encode("ascii")
+        return True
+    except UnicodeEncodeError:
+        return False
 
-        if action == "install":
-            return self._daemon_install(args)
-        elif action == "uninstall":
-            return self._daemon_uninstall(args)
-        elif action == "config":
-            return self._daemon_config()
-        elif action == "reload-config":
-            return self._daemon_reload_config()
-        elif action == "version":
-            return self._daemon_version()
-        elif action == "ping":
-            return self._daemon_ping()
-        elif action == "shutdown":
-            return self._daemon_shutdown()
-        elif action == "run-tests":
-            return self._daemon_run_tests(args)
-        else:
-            cx_print("Usage: cortex daemon <command>", "info")
-            cx_print("", "info")
-            cx_print("Available commands:", "info")
-            cx_print("  install        Install and enable the daemon service", "info")
-            cx_print("  uninstall      Remove the daemon service", "info")
-            cx_print("  config         Show daemon configuration", "info")
-            cx_print("  reload-config  Reload daemon configuration", "info")
-            cx_print("  version        Show daemon version", "info")
-            cx_print("  ping           Test daemon connectivity", "info")
-            cx_print("  shutdown       Request daemon shutdown", "info")
-            cx_print("  run-tests      Run daemon test suite", "info")
-            return 0
 
-    def _daemon_ipc_call(self, operation_name: str, ipc_func):
-        """
-        Helper method for daemon IPC calls with centralized error handling.
+def _normalize_for_lookup(s: str) -> str:
+    """
+    Normalize a string for lookup, handling Latin and non-Latin scripts differently.
 
-        Args:
-            operation_name: Human-readable name of the operation for error messages.
-            ipc_func: A callable that takes a DaemonClient and returns a DaemonResponse.
+    For ASCII/Latin text: casefold for case-insensitive matching (handles accented chars)
+    For non-Latin text (e.g., 中文): keep unchanged to preserve meaning
 
-        Returns:
-            Tuple of (success: bool, response: DaemonResponse | None)
-            On error, response is None and an error message is printed.
-        """
-        # Initialize audit logging
-        history = InstallationHistory()
-        start_time = datetime.now(timezone.utc)
-        install_id = None
+    Uses casefold() instead of lower() because:
+    - casefold() handles accented Latin characters better (e.g., "Español", "Français")
+    - casefold() is more aggressive and handles edge cases like German ß -> ss
 
-        try:
-            # Record operation start
-            install_id = history.record_installation(
-                InstallationType.CONFIG,
-                ["cortexd"],
-                [f"daemon.{operation_name}"],
-                start_time,
-            )
-        except Exception:
-            # Continue even if audit logging fails
-            pass
+    This prevents issues like:
+    - "中文".lower() producing the same string but creating duplicate keys
+    - Meaningless normalization of non-Latin scripts
+    """
+    if _is_ascii(s):
+        return s.casefold()
+    # For non-ASCII Latin scripts (accented chars like é, ñ, ü), use casefold
+    # Only keep unchanged for truly non-Latin scripts (CJK, Arabic, etc.)
+    try:
+        # Check if string contains any Latin characters (a-z, A-Z, or accented)
+        # If it does, it's likely a Latin-based language name
+        import unicodedata
 
-        try:
-            from cortex.daemon_client import (
-                DaemonClient,
-                DaemonConnectionError,
-                DaemonNotInstalledError,
-            )
+        has_latin = any(unicodedata.category(c).startswith("L") and ord(c) < 0x3000 for c in s)
+        if has_latin:
+            return s.casefold()
+    except Exception:
+        pass
+    return s
 
-            client = DaemonClient()
-            response = ipc_func(client)
 
-            # Update history with success/failure
-            if install_id:
-                try:
-                    if response and response.success:
-                        history.update_installation(install_id, InstallationStatus.SUCCESS)
-                    else:
-                        error_msg = (
-                            response.error if response and response.error else "IPC call failed"
-                        )
-                        history.update_installation(
-                            install_id, InstallationStatus.FAILED, error_msg
-                        )
-                except Exception:
-                    pass
+def _resolve_language_name(name: str) -> str | None:
+    """
+    Resolve a language name or code to a supported language code.
 
-            return True, response
+    Accepts:
+    - Language codes: en, es, fr, de, zh
+    - English names: English, Spanish, French, German, Chinese
+    - Native names: Español, Français, Deutsch, 中文
 
-        except DaemonNotInstalledError as e:
-            error_msg = str(e)
-            cx_print(f"{error_msg}", "error")
-            if install_id:
-                try:
-                    history.update_installation(install_id, InstallationStatus.FAILED, error_msg)
-                except Exception:
-                    pass
-            return False, None
-        except DaemonConnectionError as e:
-            error_msg = str(e)
-            cx_print(f"{error_msg}", "error")
-            if install_id:
-                try:
-                    history.update_installation(install_id, InstallationStatus.FAILED, error_msg)
-                except Exception:
-                    pass
-            return False, None
-        except ImportError:
-            error_msg = "Daemon client not available."
-            cx_print(error_msg, "error")
-            if install_id:
-                try:
-                    history.update_installation(install_id, InstallationStatus.FAILED, error_msg)
-                except Exception:
-                    pass
-            return False, None
-        except Exception as e:
-            error_msg = f"Unexpected error during {operation_name}: {e}"
-            cx_print(error_msg, "error")
-            if install_id:
-                try:
-                    history.update_installation(install_id, InstallationStatus.FAILED, error_msg)
-                except Exception:
-                    pass
-            return False, None
+    Args:
+        name: Language name or code (case-insensitive for Latin scripts)
 
-    def _daemon_install(self, args: argparse.Namespace) -> int:
-        """Install the cortexd daemon using setup_daemon.py."""
-        import subprocess
-        from pathlib import Path
+    Returns:
+        Language code if found, None otherwise
 
-        cx_header("Installing Cortex Daemon")
+    Note:
+        Non-Latin scripts (e.g., Chinese 中文) are matched exactly without
+        case normalization, since .lower() is meaningless for these scripts
+        and could create key collisions.
+    """
+    name = name.strip()
+    name_normalized = _normalize_for_lookup(name)
 
-        # Initialize audit logging
-        history = InstallationHistory()
-        start_time = datetime.now(timezone.utc)
-        install_id = None
+    # Direct code match (codes are always ASCII/lowercase)
+    if name_normalized in SUPPORTED_LANGUAGES:
+        return name_normalized
 
-        try:
-            # Record operation start
-            install_id = history.record_installation(
-                InstallationType.CONFIG,
-                ["cortexd"],
-                ["cortex daemon install"],
-                start_time,
-            )
-        except Exception as e:
-            cx_print(f"Warning: Could not initialize audit logging: {e}", "warning")
+    # Build lookup tables for names
+    # Using a list of tuples to handle potential key collisions properly
+    name_to_code: dict[str, str] = {}
 
-        # Find setup_daemon.py
-        daemon_dir = Path(__file__).parent.parent / "daemon"
-        setup_script = daemon_dir / "scripts" / "setup_daemon.py"
+    for code, info in SUPPORTED_LANGUAGES.items():
+        english_name = info["name"]
+        native_name = info["native"]
 
-        if not setup_script.exists():
-            error_msg = f"Setup script not found at {setup_script}"
-            cx_print(error_msg, "error")
-            cx_print("Please ensure the daemon directory is present.", "error")
-            if install_id:
-                try:
-                    history.update_installation(install_id, InstallationStatus.FAILED, error_msg)
-                except Exception:
-                    pass
-            return 1
+        # English names are always ASCII, use casefold for case-insensitive matching
+        name_to_code[english_name.casefold()] = code
 
-        execute = getattr(args, "execute", False)
+        # Native names: normalize using _normalize_for_lookup
+        # - Latin scripts (Español, Français): casefold for case-insensitive matching
+        # - Non-Latin scripts (中文): store as-is only
+        native_normalized = _normalize_for_lookup(native_name)
+        name_to_code[native_normalized] = code
 
-        if not execute:
-            cx_print("This will build and install the cortexd daemon.", "info")
-            cx_print("", "info")
-            cx_print("The setup wizard will:", "info")
-            cx_print("  1. Check and install build dependencies", "info")
-            cx_print("  2. Build the daemon from source", "info")
-            cx_print("  3. Install systemd service files", "info")
-            cx_print("  4. Enable and start the service", "info")
-            cx_print("", "info")
-            cx_print("Run with --execute to proceed:", "info")
-            cx_print("  cortex daemon install --execute", "dim")
-            if install_id:
-                try:
-                    history.update_installation(
-                        install_id,
-                        InstallationStatus.FAILED,
-                        "Operation cancelled (no --execute flag)",
-                    )
-                except Exception:
-                    pass
-            return 0
+        # Also store original native name for exact match
+        # (handles case where user types exactly "Español" with correct accent)
+        if native_name != native_normalized:
+            name_to_code[native_name] = code
 
-        # Run setup_daemon.py
-        cx_print("Running daemon setup wizard...", "info")
-        try:
-            result = subprocess.run(
-                [sys.executable, str(setup_script)],
-                check=False,
-            )
+    # Try to find a match using normalized input
+    if name_normalized in name_to_code:
+        return name_to_code[name_normalized]
 
-            # Record completion
-            if install_id:
-                try:
-                    if result.returncode == 0:
-                        history.update_installation(install_id, InstallationStatus.SUCCESS)
-                    else:
-                        error_msg = f"Setup script returned exit code {result.returncode}"
-                        history.update_installation(
-                            install_id, InstallationStatus.FAILED, error_msg
-                        )
-                except Exception:
-                    pass
+    # Try exact match for non-ASCII input
+    if name in name_to_code:
+        return name_to_code[name]
 
-            return result.returncode
-        except subprocess.SubprocessError as e:
-            error_msg = f"Subprocess error during daemon install: {str(e)}"
-            cx_print(error_msg, "error")
-            if install_id:
-                try:
-                    history.update_installation(install_id, InstallationStatus.FAILED, error_msg)
-                except Exception:
-                    pass
-            return 1
-        except Exception as e:
-            error_msg = f"Unexpected error during daemon install: {str(e)}"
-            cx_print(error_msg, "error")
-            if install_id:
-                try:
-                    history.update_installation(install_id, InstallationStatus.FAILED, error_msg)
-                except Exception:
-                    pass
-            return 1
+    return None
 
-    def _daemon_uninstall(self, args: argparse.Namespace) -> int:
-        """Uninstall the cortexd daemon."""
-        import subprocess
-        from pathlib import Path
 
-        cx_header("Uninstalling Cortex Daemon")
+def _handle_set_language(language_input: str) -> int:
+    """
+    Handle the --set-language global flag.
 
-        # Initialize audit logging
-        history = InstallationHistory()
-        start_time = datetime.now(timezone.utc)
-        install_id = None
+    Args:
+        language_input: Language name or code from user
 
-        try:
-            # Record operation start
-            install_id = history.record_installation(
-                InstallationType.CONFIG,
-                ["cortexd"],
-                ["cortex daemon uninstall"],
-                start_time,
-            )
-        except Exception as e:
-            cx_print(f"Warning: Could not initialize audit logging: {e}", "warning")
+    Returns:
+        Exit code (0 for success, 1 for error)
+    """
+    # Resolve the language name to a code
+    lang_code = _resolve_language_name(language_input)
 
-        execute = getattr(args, "execute", False)
-
-        if not execute:
-            cx_print("This will stop and remove the cortexd daemon.", "warning")
-            cx_print("", "info")
-            cx_print("This will:", "info")
-            cx_print("  1. Stop the cortexd service", "info")
-            cx_print("  2. Disable the service", "info")
-            cx_print("  3. Remove systemd unit files", "info")
-            cx_print("  4. Remove the daemon binary", "info")
-            cx_print("", "info")
-            cx_print("Run with --execute to proceed:", "info")
-            cx_print("  cortex daemon uninstall --execute", "dim")
-            if install_id:
-                try:
-                    history.update_installation(
-                        install_id,
-                        InstallationStatus.FAILED,
-                        "Operation cancelled (no --execute flag)",
-                    )
-                except Exception:
-                    pass
-            return 0
-
-        # Find uninstall script
-        daemon_dir = Path(__file__).parent.parent / "daemon"
-        uninstall_script = daemon_dir / "scripts" / "uninstall.sh"
-
-        if uninstall_script.exists():
-            cx_print("Running uninstall script...", "info")
-            try:
-                # Log the uninstall script command
-                if install_id:
-                    try:
-                        history.record_installation(
-                            InstallationType.CONFIG,
-                            ["cortexd"],
-                            [f"sudo bash {uninstall_script}"],
-                            datetime.now(timezone.utc),
-                        )
-                    except Exception:
-                        pass
-
-                result = subprocess.run(
-                    ["sudo", "bash", str(uninstall_script)],
-                    check=False,
-                )
-
-                # Record completion
-                if install_id:
-                    try:
-                        if result.returncode == 0:
-                            history.update_installation(install_id, InstallationStatus.SUCCESS)
-                        else:
-                            error_msg = f"Uninstall script returned exit code {result.returncode}"
-                            if result.stderr:
-                                error_msg += f": {result.stderr[:500]}"
-                            history.update_installation(
-                                install_id, InstallationStatus.FAILED, error_msg
-                            )
-                    except Exception:
-                        pass
-
-                return result.returncode
-            except subprocess.SubprocessError as e:
-                error_msg = f"Subprocess error during daemon uninstall: {str(e)}"
-                cx_print(error_msg, "error")
-                if install_id:
-                    try:
-                        history.update_installation(
-                            install_id, InstallationStatus.FAILED, error_msg
-                        )
-                    except Exception:
-                        pass
-                return 1
-            except Exception as e:
-                error_msg = f"Unexpected error during daemon uninstall: {str(e)}"
-                cx_print(error_msg, "error")
-                if install_id:
-                    try:
-                        history.update_installation(
-                            install_id, InstallationStatus.FAILED, error_msg
-                        )
-                    except Exception:
-                        pass
-                return 1
-        else:
-            # Manual uninstall
-            cx_print("Running manual uninstall...", "info")
-            commands = [
-                ["sudo", "systemctl", "stop", "cortexd"],
-                ["sudo", "systemctl", "disable", "cortexd"],
-                ["sudo", "rm", "-f", "/etc/systemd/system/cortexd.service"],
-                ["sudo", "rm", "-f", "/etc/systemd/system/cortexd.socket"],
-                ["sudo", "rm", "-f", "/usr/local/bin/cortexd"],
-                ["sudo", "systemctl", "daemon-reload"],
-            ]
-
-            try:
-                any_failed = False
-                error_messages = []
-
-                for cmd in commands:
-                    cmd_str = " ".join(cmd)
-                    cx_print(f"  Running: {cmd_str}", "dim")
-
-                    # Log each critical command before execution
-                    if install_id:
-                        try:
-                            history.record_installation(
-                                InstallationType.CONFIG,
-                                ["cortexd"],
-                                [cmd_str],
-                                datetime.now(timezone.utc),
-                            )
-                        except Exception:
-                            pass
-
-                    result = subprocess.run(cmd, check=False, capture_output=True, text=True)
-
-                    # Track failures
-                    if result.returncode != 0:
-                        any_failed = True
-                        error_msg = (
-                            f"Command '{cmd_str}' failed with return code {result.returncode}"
-                        )
-                        if result.stderr:
-                            error_msg += f": {result.stderr[:500]}"
-                        error_messages.append(error_msg)
-                        cx_print(f"  Failed: {error_msg}", "error")
-
-                # Update history and return based on overall success
-                if any_failed:
-                    combined_error = "; ".join(error_messages)
-                    cx_print("Daemon uninstall failed.", "error")
-                    if install_id:
-                        try:
-                            history.update_installation(
-                                install_id, InstallationStatus.FAILED, combined_error
-                            )
-                        except Exception:
-                            pass
-                    return 1
-                else:
-                    cx_print("Daemon uninstalled.", "success")
-                    # Record success
-                    if install_id:
-                        try:
-                            history.update_installation(install_id, InstallationStatus.SUCCESS)
-                        except Exception:
-                            pass
-                    return 0
-            except subprocess.SubprocessError as e:
-                error_msg = f"Subprocess error during manual uninstall: {str(e)}"
-                cx_print(error_msg, "error")
-                if install_id:
-                    try:
-                        history.update_installation(
-                            install_id, InstallationStatus.FAILED, error_msg
-                        )
-                    except Exception:
-                        pass
-                return 1
-            except Exception as e:
-                error_msg = f"Unexpected error during manual uninstall: {str(e)}"
-                cx_print(error_msg, "error")
-                if install_id:
-                    try:
-                        history.update_installation(
-                            install_id, InstallationStatus.FAILED, error_msg
-                        )
-                    except Exception:
-                        pass
-                return 1
-
-    def _daemon_config(self) -> int:
-        """Get daemon configuration via IPC."""
-        from rich.table import Table
-
-        cx_header("Daemon Configuration")
-
-        success, response = self._daemon_ipc_call("config.get", lambda c: c.config_get())
-        if not success:
-            return 1
-
-        if response.success and response.result:
-            table = Table(title="Current Configuration", show_header=True)
-            table.add_column("Setting", style="cyan")
-            table.add_column("Value", style="green")
-
-            for key, value in response.result.items():
-                table.add_row(key, str(value))
-
-            console.print(table)
-            return 0
-        else:
-            cx_print(f"Failed to get config: {response.error}", "error")
-            return 1
-
-    def _daemon_reload_config(self) -> int:
-        """Reload daemon configuration via IPC."""
-        cx_header("Reloading Daemon Configuration")
-
-        success, response = self._daemon_ipc_call("config.reload", lambda c: c.config_reload())
-        if not success:
-            return 1
-
-        if response.success:
-            cx_print("Configuration reloaded successfully!", "success")
-            return 0
-        else:
-            cx_print(f"Failed to reload config: {response.error}", "error")
-            return 1
-
-    def _daemon_version(self) -> int:
-        """Get daemon version via IPC."""
-        cx_header("Daemon Version")
-
-        success, response = self._daemon_ipc_call("version", lambda c: c.version())
-        if not success:
-            return 1
-
-        if response.success and response.result:
-            name = response.result.get("name", "cortexd")
-            version = response.result.get("version", "unknown")
-            cx_print(f"{name} version {version}", "success")
-            return 0
-        else:
-            cx_print(f"Failed to get version: {response.error}", "error")
-            return 1
-
-    def _daemon_ping(self) -> int:
-        """Test daemon connectivity via IPC."""
-        import time
-
-        cx_header("Daemon Ping")
-
-        start = time.time()
-        success, response = self._daemon_ipc_call("ping", lambda c: c.ping())
-        elapsed = (time.time() - start) * 1000  # ms
-
-        if not success:
-            return 1
-
-        if response.success:
-            cx_print(f"Pong! Response time: {elapsed:.1f}ms", "success")
-            return 0
-        else:
-            cx_print(f"Ping failed: {response.error}", "error")
-            return 1
-
-    def _daemon_shutdown(self) -> int:
-        """Request daemon shutdown via IPC."""
-        cx_header("Requesting Daemon Shutdown")
-
-        success, response = self._daemon_ipc_call("shutdown", lambda c: c.shutdown())
-        if not success:
-            return 1
-
-        if response.success:
-            cx_print("Daemon shutdown requested successfully!", "success")
-            return 0
-        cx_print(f"Failed to request shutdown: {response.error}", "error")
+    if not lang_code:
+        # Show error with available options
+        cx_print(t("language.invalid_code", code=language_input), "error")
+        console.print()
+        console.print(f"[bold]{t('language.supported_languages_header')}[/bold]")
+        for code, info in SUPPORTED_LANGUAGES.items():
+            console.print(f"  • {info['name']} ({info['native']}) - code: [green]{code}[/green]")
         return 1
 
-    def _daemon_run_tests(self, args: argparse.Namespace) -> int:
-        """Run the daemon test suite."""
-        import subprocess
-        from pathlib import Path
+    # Set the language
+    try:
+        lang_config = LanguageConfig()
+        lang_config.set_language(lang_code)
 
-        cx_header("Daemon Tests")
+        # Reset and update global translator
+        from cortex.i18n.translator import reset_translator
 
-        # Initialize audit logging
-        history = InstallationHistory()
-        start_time = datetime.now(timezone.utc)
-        install_id = None
+        reset_translator()
+        set_language(lang_code)
 
-        try:
-            # Record operation start
-            install_id = history.record_installation(
-                InstallationType.CONFIG,
-                ["cortexd"],
-                ["daemon.run-tests"],
-                start_time,
-            )
-        except Exception:
-            # Continue even if audit logging fails
-            pass
-
-        # Find daemon directory
-        daemon_dir = Path(__file__).parent.parent / "daemon"
-        build_dir = daemon_dir / "build"
-        tests_dir = build_dir / "tests"  # Test binaries are in build/tests/
-
-        # Define test binaries
-        unit_tests = [
-            "test_config",
-            "test_protocol",
-            "test_rate_limiter",
-            "test_logger",
-            "test_common",
-        ]
-        integration_tests = ["test_ipc_server", "test_handlers", "test_daemon"]
-        all_tests = unit_tests + integration_tests
-
-        # Check if tests are built
-        def check_tests_built() -> tuple[bool, list[str]]:
-            """Check which test binaries exist."""
-            existing = []
-            for test in all_tests:
-                if (tests_dir / test).exists():
-                    existing.append(test)
-            return len(existing) > 0, existing
-
-        tests_built, existing_tests = check_tests_built()
-
-        if not tests_built:
-            error_msg = "Tests are not built."
-            cx_print(error_msg, "warning")
-            cx_print("", "info")
-            cx_print("To build tests, run the setup wizard with test building enabled:", "info")
-            cx_print("", "info")
-            cx_print("  [bold]python daemon/scripts/setup_daemon.py[/bold]", "info")
-            cx_print("", "info")
-            cx_print("When prompted, answer 'yes' to build the test suite.", "info")
-            cx_print("", "info")
-            cx_print("Or build manually:", "info")
-            cx_print("  cd daemon && ./scripts/build.sh Release --with-tests", "dim")
-            if install_id:
-                try:
-                    history.update_installation(install_id, InstallationStatus.FAILED, error_msg)
-                except Exception:
-                    pass
-            return 1
-
-        # Determine which tests to run
-        test_filter = getattr(args, "test", None)
-        run_unit = getattr(args, "unit", False)
-        run_integration = getattr(args, "integration", False)
-        verbose = getattr(args, "verbose", False)
-
-        tests_to_run = []
-
-        if test_filter:
-            # Run a specific test
-            # Allow partial matching (e.g., "config" matches "test_config")
-            test_name = test_filter if test_filter.startswith("test_") else f"test_{test_filter}"
-            if test_name in existing_tests:
-                tests_to_run = [test_name]
-            else:
-                error_msg = f"Test '{test_filter}' not found or not built."
-                cx_print(error_msg, "error")
-                cx_print("", "info")
-                cx_print("Available tests:", "info")
-                for t in existing_tests:
-                    cx_print(f"  • {t}", "info")
-                if install_id:
-                    try:
-                        history.update_installation(
-                            install_id, InstallationStatus.FAILED, error_msg
-                        )
-                    except Exception:
-                        pass
-                return 1
-        elif run_unit and not run_integration:
-            tests_to_run = [t for t in unit_tests if t in existing_tests]
-            if not tests_to_run:
-                error_msg = "No unit tests built."
-                cx_print(error_msg, "warning")
-                if install_id:
-                    try:
-                        history.update_installation(
-                            install_id, InstallationStatus.FAILED, error_msg
-                        )
-                    except Exception:
-                        pass
-                return 1
-        elif run_integration and not run_unit:
-            tests_to_run = [t for t in integration_tests if t in existing_tests]
-            if not tests_to_run:
-                error_msg = "No integration tests built."
-                cx_print(error_msg, "warning")
-                if install_id:
-                    try:
-                        history.update_installation(
-                            install_id, InstallationStatus.FAILED, error_msg
-                        )
-                    except Exception:
-                        pass
-                return 1
-        else:
-            # Run all available tests
-            tests_to_run = existing_tests
-
-        # Show what we're running
-        cx_print(f"Running {len(tests_to_run)} test(s)...", "info")
-        cx_print("", "info")
-
-        # Use ctest for running tests
-        ctest_args = ["ctest", "--output-on-failure"]
-
-        if verbose:
-            ctest_args.append("-V")
-
-        # Filter specific tests if not running all
-        if test_filter or run_unit or run_integration:
-            # ctest uses -R for regex filtering
-            test_regex = "|".join(tests_to_run)
-            ctest_args.extend(["-R", test_regex])
-
-        result = subprocess.run(
-            ctest_args,
-            cwd=str(build_dir),
-            check=False,
-        )
-
-        if result.returncode == 0:
-            cx_print("", "info")
-            cx_print("All tests passed!", "success")
-            if install_id:
-                try:
-                    history.update_installation(install_id, InstallationStatus.SUCCESS)
-                except Exception:
-                    pass
-            return 0
-        else:
-            error_msg = f"Test execution failed with return code {result.returncode}"
-            cx_print("", "info")
-            cx_print("Some tests failed.", "error")
-            if install_id:
-                try:
-                    history.update_installation(install_id, InstallationStatus.FAILED, error_msg)
-                except Exception:
-                    pass
-            return 1
+        lang_info = SUPPORTED_LANGUAGES[lang_code]
+        cx_print(t("language.changed", language=lang_info["native"]), "success")
+        return 0
+    except Exception as e:
+        cx_print(t("language.set_failed", error=str(e)), "error")
+        return 1
 
     def dashboard(self) -> int:
         """Launch the real-time system monitoring dashboard"""
@@ -3713,6 +3308,13 @@ def main():
     # Global flags
     parser.add_argument("--version", "-V", action="version", version=f"cortex {VERSION}")
     parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output")
+    parser.add_argument(
+        "--set-language",
+        "--language",
+        dest="set_language",
+        metavar="LANG",
+        help="Set display language (e.g., English, Spanish, Español, es, zh)",
+    )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -3940,6 +3542,27 @@ def main():
     cache_parser = subparsers.add_parser("cache", help="Cache operations")
     cache_subs = cache_parser.add_subparsers(dest="cache_action", help="Cache actions")
     cache_subs.add_parser("stats", help="Show cache statistics")
+
+    # --- Config commands (including language settings) ---
+    config_parser = subparsers.add_parser("config", help="Configure Cortex settings")
+    config_subs = config_parser.add_subparsers(dest="config_action", help="Configuration actions")
+
+    # config language <code> - set language
+    config_lang_parser = config_subs.add_parser("language", help="Set display language")
+    config_lang_parser.add_argument(
+        "code",
+        nargs="?",
+        help="Language code (en, es, fr, de, zh) or 'auto' for auto-detection",
+    )
+    config_lang_parser.add_argument(
+        "--list", "-l", action="store_true", help="List available languages"
+    )
+    config_lang_parser.add_argument(
+        "--info", "-i", action="store_true", help="Show current language configuration"
+    )
+
+    # config show - show all configuration
+    config_subs.add_parser("show", help="Show all current configuration")
 
     # --- Sandbox Commands (Docker-based package testing) ---
     sandbox_parser = subparsers.add_parser(
@@ -4240,62 +3863,6 @@ def main():
     update_subs.add_parser("backups", help="List available backups for rollback")
     # --------------------------
 
-    # --- Daemon Commands ---
-    daemon_parser = subparsers.add_parser("daemon", help="Manage the cortexd background daemon")
-    daemon_subs = daemon_parser.add_subparsers(dest="daemon_action", help="Daemon actions")
-
-    # daemon install [--execute]
-    daemon_install_parser = daemon_subs.add_parser(
-        "install", help="Install and enable the daemon service"
-    )
-    daemon_install_parser.add_argument(
-        "--execute", action="store_true", help="Actually run the installation"
-    )
-
-    # daemon uninstall [--execute]
-    daemon_uninstall_parser = daemon_subs.add_parser(
-        "uninstall", help="Stop and remove the daemon service"
-    )
-    daemon_uninstall_parser.add_argument(
-        "--execute", action="store_true", help="Actually run the uninstallation"
-    )
-
-    # daemon config - uses config.get IPC handler
-    daemon_subs.add_parser("config", help="Show current daemon configuration")
-
-    # daemon reload-config - uses config.reload IPC handler
-    daemon_subs.add_parser("reload-config", help="Reload daemon configuration from disk")
-
-    # daemon version - uses version IPC handler
-    daemon_subs.add_parser("version", help="Show daemon version")
-
-    # daemon ping - uses ping IPC handler
-    daemon_subs.add_parser("ping", help="Test daemon connectivity")
-
-    # daemon shutdown - uses shutdown IPC handler
-    daemon_subs.add_parser("shutdown", help="Request daemon shutdown")
-
-    # daemon run-tests - run daemon test suite
-    daemon_run_tests_parser = daemon_subs.add_parser(
-        "run-tests",
-        help="Run daemon test suite (runs all tests by default when no filters are provided)",
-    )
-    daemon_run_tests_parser.add_argument("--unit", action="store_true", help="Run only unit tests")
-    daemon_run_tests_parser.add_argument(
-        "--integration", action="store_true", help="Run only integration tests"
-    )
-    daemon_run_tests_parser.add_argument(
-        "--test",
-        "-t",
-        type=str,
-        metavar="NAME",
-        help="Run a specific test (e.g., test_config, test_daemon)",
-    )
-    daemon_run_tests_parser.add_argument(
-        "--verbose", "-v", action="store_true", help="Show verbose test output"
-    )
-    # --------------------------
-
     # WiFi/Bluetooth Driver Matcher
     wifi_parser = subparsers.add_parser("wifi", help="WiFi/Bluetooth driver auto-matcher")
     wifi_parser.add_argument(
@@ -4379,6 +3946,18 @@ def main():
 
     args = parser.parse_args()
 
+    # Handle --set-language global flag first (before any command)
+    if getattr(args, "set_language", None):
+        result = _handle_set_language(args.set_language)
+        # Only return early if no command is specified
+        # This allows: cortex --set-language es install nginx
+        if not args.command:
+            return result
+        # If language setting failed, still return the error
+        if result != 0:
+            return result
+        # Otherwise continue with the command execution
+
     # The Guard: Check for empty commands before starting the CLI
     if not args.command:
         show_rich_help()
@@ -4456,6 +4035,8 @@ def main():
             return 1
         elif args.command == "env":
             return cli.env(args)
+        elif args.command == "config":
+            return cli.config(args)
         elif args.command == "upgrade":
             from cortex.licensing import open_upgrade_page
 
@@ -4472,8 +4053,6 @@ def main():
             return 0 if activate_license(args.license_key) else 1
         elif args.command == "update":
             return cli.update(args)
-        elif args.command == "daemon":
-            return cli.daemon(args)
         elif args.command == "wifi":
             from cortex.wifi_driver import run_wifi_driver
 

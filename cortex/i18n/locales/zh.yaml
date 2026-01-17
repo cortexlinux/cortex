@@ -1,0 +1,386 @@
+# Chinese Simplified (zh) - 中文
+# Cortex Linux CLI 消息目录
+#
+# CLI消息的中文翻译。
+# 源文件: en.yaml
+
+# =============================================================================
+# 通用消息
+# =============================================================================
+common:
+  success: "成功"
+  error: "错误"
+  warning: "警告"
+  info: "信息"
+  yes: "是"
+  no: "否"
+  cancel: "取消"
+  confirm: "确认"
+  done: "完成"
+  failed: "失败"
+  loading: "加载中..."
+  processing: "处理中..."
+  please_wait: "请稍候..."
+  operation_cancelled: "操作已取消"
+  unknown_error: "发生未知错误"
+  action_completed: "{action}成功完成"
+  action_failed: "{action}失败: {error}"
+
+# =============================================================================
+# 语言配置
+# =============================================================================
+language:
+  changed: "语言已更改为{language}"
+  current: "当前语言"
+  auto_detected: "从系统自动检测"
+  set_from_env: "从CORTEX_LANGUAGE环境变量设置"
+  set_from_config: "从配置文件设置"
+  default: "默认"
+  available: "可用语言"
+  invalid_code: "无效的语言代码: {code}"
+  supported_codes: "支持的语言代码"
+  select_prompt: "选择语言"
+  switched_to: "已切换到{language}"
+  set_failed: "设置语言失败: {error}"
+  supported_languages_header: "支持的语言："
+  
+# =============================================================================
+# CLI命令
+# =============================================================================
+cli:
+  description: "AI驱动的Linux命令解释器"
+  help_text: "AI驱动的Linux软件包管理器"
+  tagline: "只需告诉Cortex您想安装什么。"
+  learn_more: "了解更多"
+  
+  commands:
+    ask: "询问有关系统的问题"
+    demo: "查看Cortex演示"
+    wizard: "交互式配置API密钥"
+    status: "显示完整的系统状态和健康检查"
+    install: "安装软件"
+    import: "从软件包文件导入依赖项"
+    history: "查看安装历史"
+    rollback: "撤销安装"
+    notify: "管理桌面通知"
+    env: "管理环境变量"
+    cache: "显示LLM缓存统计"
+    stack: "安装预定义堆栈"
+    docker: "Docker和容器工具"
+    sandbox: "在Docker沙箱中测试软件包"
+    doctor: "系统健康检查"
+    config: "配置Cortex设置"
+  
+  args:
+    software: "要安装的软件"
+    question: "自然语言问题"
+    execute: "执行命令"
+    dry_run: "仅显示命令（不执行）"
+    parallel: "启用并行执行"
+    verbose: "显示详细输出"
+    yes: "跳过确认提示"
+
+# =============================================================================
+# Config命令
+# =============================================================================
+config:
+  missing_subcommand: "请指定子命令 (language/show)"
+  unknown_action: "未知的配置操作: {action}"
+  header: "Cortex 配置"
+  language_label: "语言"
+  source_label: "来源"
+  llm_provider_label: "LLM 提供商"
+  config_paths_label: "配置路径"
+  preferences_path: "偏好设置"
+  history_path: "历史记录"
+  use_command_hint: "使用: cortex config language <代码> 更改语言"
+  list_hint: "使用: cortex config language --list 查看详情"
+  code_label: "代码"
+  
+# =============================================================================
+# UI标签（界面中常用的标签）
+# =============================================================================
+ui:
+  operation_cancelled: "操作已取消"
+  error_prefix: "错误"
+  promotion_cancelled: "推广已取消"
+  install_required_sdk: "安装所需的SDK或使用 CORTEX_PROVIDER=ollama"
+  would_run: "将执行"
+  note_add_persist: "注意: 添加 --persist 使其永久生效"
+  install_with_pip: "使用以下命令安装: pip install {package}"
+  no_variables_found: "未找到 '{app}' 的环境变量"
+  no_variables_to_export: "没有可导出的 '{app}' 环境变量"
+  no_variables_imported: "未导入任何变量"
+  no_env_data_found: "未找到 '{app}' 的环境数据"
+  no_applications_found: "没有存储环境的应用程序"
+  no_variables_to_load: "没有可加载的 '{app}' 变量"
+  fix_path_duplicates: "运行 'cortex env path dedupe' 修复PATH重复项"
+  usage_env_import: "用法: cortex env import <应用> <文件>"
+  use_template_details: "使用 'cortex env template show <名称>' 查看详情"
+  scanning_directory: "正在扫描目录..."
+  no_dependency_files: "当前目录未找到依赖文件"
+  no_packages_found: "文件中未找到软件包"
+  no_packages_in_deps: "依赖文件中未找到软件包"
+  no_install_commands: "未生成安装命令"
+  install_with_execute: "要安装所有软件包，请使用 --execute 标志运行"
+  example_import: "示例: cortex import {file_path} --execute"
+  example_import_all: "示例: cortex import --all --execute"
+  installation_cancelled: "安装已取消"
+    
+# =============================================================================
+# 安装
+# =============================================================================
+install:
+  analyzing: "分析系统中..."
+  planning: "规划安装中..."
+  executing: "执行安装中..."
+  verifying: "验证安装中..."
+  
+  success: "安装完成！"
+  failed: "安装失败"
+  package_installed: "{package}安装成功"
+  package_installed_version: "{package} ({version}) 安装成功"
+  packages_installed: "已安装{count}个软件包"
+  
+  dry_run_header: "模拟运行结果"
+  dry_run_message: "模拟运行完成。使用--execute应用更改。"
+  commands_would_run: "将要运行的命令"
+  
+  step_progress: "步骤 {current}/{total}"
+  step_executing: "正在执行步骤 {step}: {description}"
+  step_completed: "步骤完成"
+  step_failed: "步骤失败"
+  
+  no_commands: "未生成命令"
+  invalid_request: "无效的安装请求"
+  api_error: "API错误: {error}"
+  package_not_found: "未找到软件包: {package}"
+  
+  confirm_install: "是否继续安装？"
+  confirm_install_count: "安装{count}个软件包？"
+  
+# =============================================================================
+# 堆栈管理
+# =============================================================================
+stack:
+  available: "可用堆栈"
+  unnamed: "未命名堆栈"
+  no_description: "无描述"
+  not_found: "未找到堆栈'{name}'。使用--list查看可用堆栈。"
+  no_packages: "堆栈'{name}'没有配置软件包。"
+  installing: "正在安装堆栈: {name}"
+  installed: "堆栈'{name}'安装成功！"
+  failed: "安装堆栈'{name}'失败"
+  packages_installed: "已安装{count}个软件包"
+  packages_total: "共{count}个软件包"
+  dry_run_preview: "将要安装的软件包"
+  dry_run_note: "仅模拟运行 - 未执行命令"
+  use_command: "使用: cortex stack <名称> 安装堆栈"
+  gpu_fallback: "未检测到GPU，使用'{suggested}'代替'{original}'"
+  
+# =============================================================================
+# 沙箱
+# =============================================================================
+sandbox:
+  header: "Docker沙箱 - 在安装前安全测试软件包"
+  usage: "用法: cortex sandbox <命令> [选项]"
+  commands_header: "命令"
+  example_workflow: "示例工作流程"
+  
+  # 命令描述（用于帮助文本）
+  cmd_create: "创建沙箱环境"
+  cmd_install: "在沙箱中安装软件包"
+  cmd_test: "在沙箱中运行测试"
+  cmd_promote: "将已测试的软件包安装到主系统"
+  cmd_cleanup: "删除沙箱环境"
+  cmd_list: "列出所有沙箱"
+  cmd_exec: "在沙箱中执行命令"
+  
+  creating: "正在创建沙箱'{name}'..."
+  created: "沙箱环境'{name}'已创建"
+  installing: "正在沙箱'{name}'中安装'{package}'..."
+  installed_in_sandbox: "{package}已在沙箱中安装"
+  testing: "正在沙箱'{name}'中运行测试..."
+  cleaning: "正在删除沙箱'{name}'..."
+  cleaned: "沙箱'{name}'已删除"
+  
+  test_passed: "测试通过"
+  test_failed: "测试失败"
+  all_tests_passed: "所有测试通过"
+  tests_summary: "{passed}/{total}个测试通过"
+  
+  docker_required: "沙箱命令需要Docker"
+  docker_only_for_sandbox: "Docker仅用于沙箱命令。"
+  not_found: "未找到沙箱"
+  already_exists: "沙箱已存在"
+  no_sandboxes: "未找到沙箱环境"
+  create_hint: "使用以下命令创建: cortex sandbox create <名称>"
+  list_hint: "使用 'cortex sandbox list' 查看可用沙箱。"
+  
+  promote_package: "正在主系统上安装 '{package}'..."
+  
+# =============================================================================
+# 历史
+# =============================================================================
+history:
+  title: "安装历史"
+  empty: "未找到安装历史"
+  id: "ID"
+  date: "日期"
+  action: "操作"
+  packages: "软件包"
+  status: "状态"
+  
+  status_success: "成功"
+  status_failed: "失败"
+  status_rolled_back: "已回滚"
+  
+  details_for: "安装#{id}的详细信息"
+  
+# =============================================================================
+# 回滚
+# =============================================================================
+rollback:
+  rolling_back: "正在回滚安装#{id}..."
+  success: "回滚成功完成"
+  failed: "回滚失败"
+  not_found: "未找到安装#{id}"
+  already_rolled_back: "安装#{id}已经被回滚"
+  confirm: "确定要回滚此安装吗？"
+  
+# =============================================================================
+# Doctor / 健康检查
+# =============================================================================
+doctor:
+  running: "正在运行系统健康检查..."
+  checks_complete: "已完成{count}项检查"
+  all_passed: "所有检查通过！"
+  issues_found: "发现{count}个问题"
+  
+  check_api_key: "API密钥配置"
+  check_network: "网络连接"
+  check_disk_space: "磁盘空间"
+  check_permissions: "文件权限"
+  check_dependencies: "系统依赖项"
+  
+  passed: "通过"
+  warning: "警告"
+  failed: "失败"
+  
+# =============================================================================
+# 向导
+# =============================================================================
+wizard:
+  welcome: "欢迎使用Cortex设置向导！"
+  step: "步骤 {step}/{total}"
+  
+  api_key_prompt: "请输入您的API密钥"
+  api_key_saved: "API密钥保存成功"
+  api_key_invalid: "API密钥格式无效"
+  export_api_key_hint: "请在shell配置文件中导出您的API密钥。"
+  
+  select_provider: "选择您的LLM提供商"
+  provider_anthropic: "Anthropic (Claude)"
+  provider_openai: "OpenAI (GPT)"
+  provider_ollama: "Ollama (本地)"
+  
+  setup_complete: "设置完成！"
+  ready_message: "Cortex已准备就绪"
+  
+# =============================================================================
+# Docker
+# =============================================================================
+docker:
+  scanning_permissions: "正在扫描Docker相关权限问题..."
+  operation_cancelled: "操作已取消"
+  permissions_fixed: "权限修复成功！"
+  permission_check_failed: "权限检查失败: {error}"
+
+# =============================================================================
+# 角色
+# =============================================================================
+role:
+  sensing_context: "AI正在感知系统上下文和活动模式..."
+  set_success: "角色已设置为: {role}"
+  persist_failed: "角色持久化失败: {error}"
+  fetching_recommendations: "正在获取针对{role}的定制AI建议..."
+  
+# =============================================================================
+# 通知
+# =============================================================================
+notify:
+  config_header: "当前通知配置"
+  status: "状态"
+  enabled: "已启用"
+  disabled: "已禁用"
+  dnd_window: "免打扰时段"
+  history_file: "历史文件"
+  
+  notifications_enabled: "通知已启用"
+  notifications_disabled: "通知已禁用（重要警告仍会显示）"
+  dnd_updated: "免打扰时段已更新: {start} - {end}"
+  
+  missing_subcommand: "请指定子命令 (config/enable/disable/dnd/send)"
+  invalid_time_format: "时间格式无效。请使用HH:MM格式（如22:00）"
+  message_required: "需要消息内容"
+  
+# =============================================================================
+# 环境管理
+# =============================================================================
+env:
+  audit_header: "环境审计"
+  config_files_scanned: "已扫描的配置文件"
+  variables_found: "找到的环境变量"
+  
+  path_added: "'{path}'已添加到PATH"
+  path_removed: "'{path}'已从PATH删除"
+  path_already_exists: "'{path}'已在PATH中"
+  path_not_found: "PATH中未找到'{path}'"
+  
+  persist_note: "要在当前shell中使用: source {path}"
+  
+# =============================================================================
+# API密钥消息
+# =============================================================================
+api_key:
+  not_found: "未找到API密钥"
+  configure_prompt: "运行'cortex wizard'配置您的API密钥。"
+  ollama_hint: "或使用CORTEX_PROVIDER=ollama进行离线模式。"
+  using_provider: "使用{provider} API密钥"
+  using_ollama: "使用Ollama（无需API密钥）"
+  
+# =============================================================================
+# 缓存
+# =============================================================================
+cache:
+  stats_header: "LLM缓存统计"
+  hits: "缓存命中"
+  misses: "缓存未命中"
+  hit_rate: "命中率: {rate}%"
+  entries: "总条目数"
+  size: "缓存大小"
+  cleared: "缓存已清除"
+  
+# =============================================================================
+# 错误消息
+# =============================================================================
+errors:
+  generic: "发生错误"
+  unexpected: "意外错误: {error}"
+  network_error: "网络错误 - 请检查您的连接"
+  permission_denied: "权限被拒绝"
+  file_not_found: "文件未找到"
+  invalid_input: "输入无效"
+  timeout: "操作超时"
+  
+# =============================================================================
+# 进度指示器
+# =============================================================================
+progress:
+  analyzing_requirements: "正在分析系统需求..."
+  updating_packages: "正在更新软件包列表..."
+  downloading: "下载中..."
+  extracting: "解压中..."
+  configuring: "配置中..."
+  cleaning_up: "清理中..."
+  completed_in: "在{seconds}秒内完成"
