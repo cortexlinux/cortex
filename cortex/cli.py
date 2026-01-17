@@ -823,7 +823,10 @@ class CortexCLI:
         # Validate input first
         is_valid, error = validate_install_request(software)
         if not is_valid:
-            self._print_error(error)
+            if json_output:
+                print(json.dumps({"success": False, "error": error, "error_type": "ValueError"}))
+            else:
+                self._print_error(error)
             return 1
 
         # Special-case the ml-cpu stack:
@@ -841,6 +844,11 @@ class CortexCLI:
 
         api_key = self._get_api_key()
         if not api_key:
+            error_msg = "No API key found. Please configure an API provider."
+            if json_output:
+                print(json.dumps({"success": False, "error": error_msg, "error_type": "RuntimeError"}))
+            else:
+                self._print_error(error_msg)
             return 1
 
         provider = self._get_provider()
@@ -3560,7 +3568,7 @@ class CortexCLI:
 
             app = DashboardApp()
             rc = app.run()
-            return rc
+            return rc if isinstance(rc, int) else 0
         except ImportError as e:
             self._print_error(f"Dashboard dependencies not available: {e}")
             cx_print("Install required packages with:", "info")
