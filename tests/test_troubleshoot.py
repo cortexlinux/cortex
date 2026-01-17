@@ -602,7 +602,9 @@ class TestInteractiveLoop(unittest.TestCase):
     @patch("cortex.troubleshoot.Markdown")
     @patch("cortex.troubleshoot.Syntax")
     @patch("cortex.troubleshoot.Confirm")
-    def test_dangerous_command_blocked(self, mock_confirm, mock_syntax, mock_md, mock_prompt, mock_console):
+    def test_dangerous_command_blocked(
+        self, mock_confirm, mock_syntax, mock_md, mock_prompt, mock_console
+    ):
         """Test that dangerous commands are blocked."""
         mock_prompt.ask.side_effect = ["delete everything", "exit"]
         mock_confirm.ask.return_value = False
