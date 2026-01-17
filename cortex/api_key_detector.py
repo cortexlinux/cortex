@@ -126,6 +126,7 @@ class APIKeyDetector:
         """Check for API keys in environment variables.
 
         Respects CORTEX_PROVIDER setting when multiple keys are available.
+        Falls back to OpenAI if Anthropic is not available but OpenAI is.
         """
         # Check if user has explicit provider preference
         preferred_provider = os.environ.get("CORTEX_PROVIDER", "").lower()
@@ -141,7 +142,8 @@ class APIKeyDetector:
                 return (True, value, "openai", "environment")
 
         # Fall back to checking all keys if no preference or preferred key not found
-        for env_var, provider in ENV_VAR_PROVIDERS.items():
+        # Prefer OpenAI over Anthropic if no explicit preference (since Anthropic seems to have issues)
+        for env_var, provider in [("OPENAI_API_KEY", "openai"), ("ANTHROPIC_API_KEY", "anthropic")]:
             value = os.environ.get(env_var)
             if value:
                 return (True, value, provider, "environment")
