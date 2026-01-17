@@ -309,7 +309,7 @@ class Troubleshooter:
                             console.print("[dim]Output captured.[/dim]")
                             # Feed output back to AI
                             self.messages.append(
-                                {"role": "system", "content": f"Command Output:\n{output}"}
+                                {"role": "user", "content": f"[Command Output]\n{output}"}
                             )
 
                             # Ask AI for analysis of the output
