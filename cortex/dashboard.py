@@ -2132,7 +2132,7 @@ class DashboardApp:
         """Run the app and return exit code"""
         if not PSUTIL_AVAILABLE:
             print("Error: The 'psutil' library is required but not installed.", file=sys.stderr)
-            print("Please install it with: pip install psutil>=5.0.0", file=sys.stderr)
+            print("Please install it with: pip install psutil>=5.9.0", file=sys.stderr)
             return 1
 
         console = Console()
