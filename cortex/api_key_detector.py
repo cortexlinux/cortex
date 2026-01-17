@@ -692,3 +692,34 @@ def setup_api_key() -> tuple[bool, str | None, str | None]:
         return (True, key, provider)
 
     return (False, None, None)
+
+
+# Convenience functions for backward compatibility
+def detect_api_key(provider: str) -> str | None:
+    """
+    Detect API key for a specific provider.
+
+    Args:
+        provider: The provider name ('anthropic', 'openai')
+
+    Returns:
+        The API key or None if not found
+    """
+    found, key, detected_provider, source = auto_detect_api_key()
+    if found and detected_provider == provider:
+        return key
+    return None
+
+
+def get_detected_provider() -> str | None:
+    """
+    Get the detected provider name.
+
+    Returns:
+        The provider name or None if not detected
+    """
+    found, key, provider, source = auto_detect_api_key()
+    return provider if found else None
+
+
+SUPPORTED_PROVIDERS = ["anthropic", "openai", "ollama"]
