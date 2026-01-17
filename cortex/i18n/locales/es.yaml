@@ -254,7 +254,7 @@ role:
   set_success: "Rol establecido a: {role}"
   persist_failed: "Error al persistir rol: {error}"
   fetching_recommendations: "Obteniendo recomendaciones de IA personalizadas para {role}..."
-
+  
 # =============================================================================
 # Notificaciones
 # =============================================================================

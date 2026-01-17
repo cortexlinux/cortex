@@ -254,7 +254,7 @@ role:
   set_success: "Rolle festgelegt auf: {role}"
   persist_failed: "Fehler beim Speichern der Rolle: {error}"
   fetching_recommendations: "Hole maßgeschneiderte KI-Empfehlungen für {role}..."
-
+  
 # =============================================================================
 # Benachrichtigungen
 # =============================================================================
