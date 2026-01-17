@@ -14,7 +14,7 @@
     <img src="https://github.com/cortexlinux/cortex/actions/workflows/ci.yml/badge.svg" alt="CI Status" />
   </a>
   <a href="https://github.com/cortexlinux/cortex/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License" />
+    <img src="https://img.shields.io/badge/License-BSL%201.1-blue.svg" alt="License" />
   </a>
   <a href="https://www.python.org/downloads/">
     <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python 3.10+" />
@@ -193,6 +193,17 @@ cortex role set <slug>
 | `cortex --version` | Show version information |
 | `cortex --help` | Display help message |
 
+#### Daemon Commands
+
+| Command | Description |
+|---------|-------------|
+| `cortex daemon install --execute` | Install and enable the cortexd daemon |
+| `cortex daemon uninstall --execute` | Stop and remove the daemon |
+| `cortex daemon ping` | Test daemon connectivity |
+| `cortex daemon version` | Show daemon version |
+| `cortex daemon config` | Show daemon configuration |
+| `cortex daemon reload-config` | Reload daemon configuration |
+
 ### Configuration
 
 Cortex stores configuration in `~/.cortex/`:
@@ -256,19 +267,44 @@ Cortex stores configuration in `~/.cortex/`:
 
 ```
 cortex/
-├── cortex/                 # Main package
+├── cortex/                 # Main Python package
 │   ├── cli.py              # Command-line interface
 │   ├── coordinator.py      # Installation orchestration
 │   ├── llm_router.py       # Multi-LLM routing
+│   ├── daemon_client.py    # IPC client for cortexd
 │   ├── packages.py         # Package manager wrapper
 │   ├── hardware_detection.py
 │   ├── installation_history.py
 │   └── utils/              # Utility modules
-├── tests/                  # Test suite
+├── daemon/                 # C++ background daemon (cortexd)
+│   ├── src/                # Daemon source code
+│   ├── include/            # Header files
+│   ├── tests/              # Unit & integration tests
+│   ├── scripts/            # Build and setup scripts
+│   └── README.md           # Daemon documentation
+├── tests/                  # Python test suite
 ├── docs/                   # Documentation
 ├── examples/               # Example scripts
 └── scripts/                # Utility scripts
 ```
+
+### Background Daemon (cortexd)
+
+Cortex includes an optional C++ background daemon for system-level operations:
+
+```bash
+# Install the daemon
+cortex daemon install --execute
+
+# Check daemon status
+cortex daemon ping
+cortex daemon version
+
+# Run daemon tests (no installation required)
+cortex daemon run-tests
+```
+
+See [daemon/README.md](daemon/README.md) for full documentation.
 
 ---
 
@@ -433,10 +469,36 @@ pip install -e ".[dev]"
 
 # Install pre-commit hooks
 pre-commit install
-
-# Run tests
-pytest tests/ -v
 ```
+
+### Running Tests
+
+**Python Tests:**
+
+```bash
+# Run all Python tests
+pytest tests/ -v
+
+# Run with coverage
+pytest tests/ -v --cov=cortex
+```
+
+**Daemon Tests (C++):**
+
+```bash
+# Build daemon with tests
+cd daemon && ./scripts/build.sh Release --with-tests
+
+# Run all daemon tests (no daemon installation required)
+cortex daemon run-tests
+
+# Run specific test types
+cortex daemon run-tests --unit         # Unit tests only
+cortex daemon run-tests --integration  # Integration tests only
+cortex daemon run-tests -t config      # Specific test
+```
+
+> **Note:** Daemon tests run against a static library and don't require the daemon to be installed as a systemd service. They test the code directly.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
@@ -459,7 +521,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## License
 
-Apache 2.0 - See [LICENSE](LICENSE) for details.
+BUSL-1.1 (Business Source License 1.1) - Free for personal use on 1 system. See [LICENSE](LICENSE) for details.
 
 ---
 
