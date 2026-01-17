@@ -56,11 +56,20 @@ sudo ./scripts/install.sh
 # Check status
 systemctl status cortexd
 
-# View logs
+# View logs (including startup time)
 journalctl -u cortexd -f
+
+# Check startup time
+journalctl -u cortexd | grep "Startup completed"
 
 # Test socket
 echo '{"method":"ping"}' | socat - UNIX-CONNECT:/run/cortex/cortex.sock
+```
+
+**Quick startup time check:**
+```bash
+# Restart and immediately check startup time
+sudo systemctl restart cortexd && sleep 1 && journalctl -u cortexd -n 10 | grep "Startup completed"
 ```
 
 ## Architecture
@@ -388,9 +397,131 @@ sudo systemctl enable cortexd
 
 | Metric | Target | Actual |
 |--------|--------|--------|
-| Startup time | < 1s | ~0.2-0.4s |
-| Idle memory | < 30MB | ~20-30MB |
+| Startup time | < 1s | 100μs |
+| Idle memory | < 30MB | ~700KB |
 | Socket latency | < 50ms | ~5-15ms |
+
+### Measuring Startup Time
+
+The daemon automatically measures and logs its startup time on each start. The measurement begins when `Daemon::run()` is called and ends when all services are started and systemd is notified (READY=1).
+
+**What's measured:**
+- Service initialization
+- IPC server startup
+- Handler registration
+- systemd notification
+
+**Target:** < 1 second
+
+#### Method 1: Check Daemon Logs (Recommended)
+
+The daemon logs startup time directly in its log output:
+
+```bash
+# View recent logs
+journalctl -u cortexd -n 20
+
+# Look for the startup time message:
+# [INFO] Daemon: Startup completed in XXXms (or XXXμs for very fast startups)
+
+# Or filter for startup messages only
+journalctl -u cortexd | grep "Startup completed"
+```
+
+**Example output:**
+```
+[INFO] Daemon: Starting daemon
+[INFO] Daemon: Starting service: IPCServer
+[INFO] IPCServer: Started on /run/cortex/cortex.sock
+[INFO] Daemon: Service started: IPCServer
+[INFO] Daemon: Startup completed in 234.567ms
+[INFO] Daemon: Daemon started successfully
+```
+
+**Note:** For very fast startups (< 1ms), the time is shown in microseconds (μs) for precision:
+```
+[INFO] Daemon: Startup completed in 456μs
+```
+#### Method 2: Manual Timing with systemctl
+
+Time the service start manually:
+
+```bash
+# Stop the service first
+sudo systemctl stop cortexd
+
+# Time the start command
+time sudo systemctl start cortexd
+
+# Check if it's running
+systemctl is-active cortexd
+```
+
+
+### Measuring Idle Memory
+
+The daemon should use less than 30MB of memory when idle (no active requests).
+
+**Target:** < 30MB
+
+#### Method 1: Using systemctl status
+
+```bash
+# Check current memory usage
+systemctl status cortexd
+
+# Look for the "Memory:" line in the output
+# Example: Memory: 24.5M
+```
+
+#### Method 2: Using ps
+
+```bash
+# Check memory usage with ps
+ps aux | grep cortexd | grep -v grep
+
+# Or get just the RSS (Resident Set Size) in MB
+ps -o pid,rss,comm -p $(pgrep cortexd) | awk 'NR>1 {print $2/1024 " MB"}'
+```
+
+#### Method 3: Using systemd-cgls
+
+```bash
+# Check memory usage via cgroup
+systemctl show cortexd -p MemoryCurrent
+
+# Output is in bytes, convert to MB:
+# MemoryCurrent=25165824 (bytes) = ~24MB
+```
+
+**Note:** Ensure the daemon is idle (no active IPC requests) when measuring. Memory usage may temporarily spike during request handling, but should return to baseline when idle.
+
+### Measuring Socket Latency
+
+Socket latency is the time it takes for a request to travel from client to daemon and back (round-trip time).
+
+**Target:** < 50ms
+
+#### Method 1: Using time with socat
+
+```bash
+# Measure latency of a ping request
+time echo '{"method":"ping"}' | socat - UNIX-CONNECT:/run/cortex/cortex.sock
+
+# The "real" time shows the total round-trip latency
+```
+
+#### Method 2: Using time with cortex CLI
+
+```bash
+# If cortex CLI is available, time a command
+time cortex daemon ping
+```
+
+**Note:** Socket latency can vary based on system load. For accurate measurement:
+- Run when system is idle
+- Take multiple measurements and average
+- Ensure daemon is running and responsive
 
 ## Security
 

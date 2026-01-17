@@ -206,6 +206,50 @@ TEST_F(RateLimiterTest, MultipleWindowCycles) {
     }
 }
 
+// ============================================================================
+// Edge case: Window boundary tests
+// ============================================================================
+
+TEST_F(RateLimiterTest, WindowBoundaryReset) {
+    cortexd::RateLimiter limiter(5);
+    
+    // Use up the limit
+    for (int i = 0; i < 5; ++i) {
+        EXPECT_TRUE(limiter.allow());
+    }
+    EXPECT_FALSE(limiter.allow());
+    
+    // Wait exactly 1 second (window should reset)
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    
+    // Should allow requests again immediately after window reset
+    EXPECT_TRUE(limiter.allow());
+}
+
+TEST_F(RateLimiterTest, RequestsSpanningWindowReset) {
+    cortexd::RateLimiter limiter(3);
+    
+    // Make 2 requests
+    EXPECT_TRUE(limiter.allow());
+    EXPECT_TRUE(limiter.allow());
+    
+    // Wait 600ms (halfway through window)
+    std::this_thread::sleep_for(std::chrono::milliseconds(600));
+    
+    // Should still have 1 remaining
+    EXPECT_TRUE(limiter.allow());
+    EXPECT_FALSE(limiter.allow());
+    
+    // Wait another 500ms to cross the 1-second boundary
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    // Window should have reset, should allow 3 more requests
+    EXPECT_TRUE(limiter.allow());
+    EXPECT_TRUE(limiter.allow());
+    EXPECT_TRUE(limiter.allow());
+    EXPECT_FALSE(limiter.allow());
+}
+
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

@@ -16,11 +16,8 @@
  
  namespace cortexd {
  
- // Forward declarations
- class IPCServer;
- class SystemMonitor;
- class LLMEngine;
- class AlertManager;
+// Forward declarations
+class IPCServer;
  
  /**
   * @brief Main daemon coordinator

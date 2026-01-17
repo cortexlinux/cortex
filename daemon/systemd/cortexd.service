@@ -27,9 +27,6 @@ ProtectControlGroups=yes
 RestrictRealtime=yes
 RestrictSUIDSGID=yes
 
-# Allow memory mapping for llama.cpp
-MemoryDenyWriteExecute=no
-
 # Resource limits
 MemoryMax=256M
 MemoryHigh=200M

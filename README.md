@@ -203,10 +203,6 @@ cortex role set <slug>
 | `cortex daemon version` | Show daemon version |
 | `cortex daemon config` | Show daemon configuration |
 | `cortex daemon reload-config` | Reload daemon configuration |
-| `cortex daemon run-tests` | Run daemon test suite |
-| `cortex daemon run-tests --unit` | Run only unit tests |
-| `cortex daemon run-tests --integration` | Run only integration tests |
-| `cortex daemon run-tests -t <name>` | Run a specific test |
 
 ### Configuration
 

@@ -231,9 +231,10 @@ bool IPCServer::setup_permissions() {
      }
      
      try {
-         // Read request
-         char buffer[MAX_MESSAGE_SIZE];
-         ssize_t bytes = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+         // Read request - use heap allocation for large buffer to avoid stack overflow
+         // if we ever move to threaded handling
+         std::vector<char> buffer(MAX_MESSAGE_SIZE);
+         ssize_t bytes = recv(client_fd, buffer.data(), buffer.size() - 1, 0);
          
          if (bytes <= 0) {
              LOG_DEBUG("IPCServer", "Client disconnected without data");
@@ -247,7 +248,7 @@ bool IPCServer::setup_permissions() {
          }
          
          buffer[bytes] = '\0';
-         std::string raw_request(buffer);
+         std::string raw_request(buffer.data());
          LOG_DEBUG("IPCServer", "Received: " + raw_request);
          
          // Check rate limit
@@ -299,17 +300,25 @@ bool IPCServer::setup_permissions() {
  }
  
  Response IPCServer::dispatch(const Request& request) {
-     std::lock_guard<std::mutex> lock(handlers_mutex_);
-     
-     auto it = handlers_.find(request.method);
-     if (it == handlers_.end()) {
-         LOG_WARN("IPCServer", "Unknown method: " + request.method);
-         return Response::err("Method not found: " + request.method, ErrorCodes::METHOD_NOT_FOUND);
+     RequestHandler handler;
+     {
+         std::lock_guard<std::mutex> lock(handlers_mutex_);
+         
+         auto it = handlers_.find(request.method);
+         if (it == handlers_.end()) {
+             LOG_WARN("IPCServer", "Unknown method: " + request.method);
+             return Response::err("Method not found: " + request.method, ErrorCodes::METHOD_NOT_FOUND);
+         }
+         
+         // Copy handler to execute outside the lock
+         handler = it->second;
      }
      
+     // Execute handler without holding the mutex to prevent deadlock
+     // if handler calls back into server (e.g., registering another handler)
      LOG_INFO("IPCServer", "Handler found, invoking...");
      try {
-         Response resp = it->second(request);
+         Response resp = handler(request);
          LOG_INFO("IPCServer", "Handler completed successfully");
          return resp;
      } catch (const std::exception& e) {

@@ -35,10 +35,29 @@ if(ENABLE_SANITIZERS)
     add_link_options(-fsanitize=address,undefined)
 endif()
 
-# Suppress harmless linker warnings
-if(NOT APPLE)
-    string(APPEND CMAKE_EXE_LINKER_FLAGS " -Wl,--no-warnings")
-endif()
+# Linker warnings documentation
+# ============================
+# We do NOT suppress linker warnings to ensure we catch genuine issues.
+# However, some warnings from third-party libraries are expected and can be ignored:
+#
+# WARNINGS TO IGNORE (harmless, from third-party libraries):
+# - Symbol versioning warnings from systemd/OpenSSL (e.g., "version node not found")
+#   These are due to library ABI versioning and don't affect functionality.
+# - Deprecated symbol warnings from older library versions
+#   These are library-internal and don't affect our code.
+#
+# WARNINGS TO TAKE SERIOUSLY (indicate real problems):
+# - "undefined reference to ..." - Missing library or incorrect linking
+# - "multiple definition of ..." - Duplicate symbol definitions
+# - "cannot find -l..." - Missing library dependency
+# - "relocation R_X86_64_PC32 against symbol ... can not be used" - PIC issues
+# - Any warnings about our own code (src/*.cpp, include/cortexd/*.h)
+#
+# If you see linker warnings, check:
+# 1. Are they from third-party libraries (systemd, OpenSSL, etc.)? → Usually safe to ignore
+# 2. Are they about undefined symbols in our code? → MUST FIX
+# 3. Do they prevent the build from completing? → MUST FIX
+# 4. Do tests pass? → If yes, likely harmless third-party noise
 
 # Find required packages
 find_package(PkgConfig REQUIRED)

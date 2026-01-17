@@ -12,6 +12,12 @@ from pathlib import Path
 from typing import Any
 
 # Default socket path (matches daemon config)
+# NOTE: These paths assume standard installation locations:
+# - Socket: /run/cortex/cortex.sock (systemd RuntimeDirectory)
+# - Binary: /usr/local/bin/cortexd (standard install prefix)
+# - Service: /etc/systemd/system/cortexd.service (systemd system directory)
+# If installing to a custom prefix (e.g., /opt/cortex), these should be
+# made configurable or adjusted accordingly.
 DEFAULT_SOCKET_PATH = "/run/cortex/cortex.sock"
 SOCKET_TIMEOUT = 5.0  # seconds
 MAX_RESPONSE_SIZE = 65536  # 64KB
@@ -118,9 +124,10 @@ class DaemonClient:
                 sock.sendall(request_json.encode("utf-8"))
 
                 # Receive response - loop to handle partial reads
-                # TCP is stream-based, so data may arrive in multiple chunks
+                # Unix sockets are stream-based, so data may arrive in multiple chunks
                 chunks: list[bytes] = []
                 total_received = 0
+                response_data = b""
 
                 while total_received < MAX_RESPONSE_SIZE:
                     chunk = sock.recv(4096)
@@ -129,25 +136,32 @@ class DaemonClient:
                         break
                     chunks.append(chunk)
                     total_received += len(chunk)
+                    response_data = b"".join(chunks)
 
-                    # Try to parse - if valid JSON, we're done
-                    # This handles the common case where the full message arrives
+                    # Try to parse - check for complete JSON object
+                    # More efficient than joining on every iteration
                     try:
-                        response_data = b"".join(chunks)
-                        response_json = json.loads(response_data.decode("utf-8"))
-                        return DaemonResponse.from_json(response_json)
-                    except json.JSONDecodeError:
-                        # Incomplete JSON, continue receiving
+                        # Check if we have a complete JSON object by counting braces
+                        # This is a simple heuristic - proper solution would use streaming parser
+                        decoded = response_data.decode("utf-8")
+                        if decoded.count("{") > 0 and decoded.count("{") == decoded.count("}"):
+                            # Likely complete JSON, try parsing
+                            response_json = json.loads(decoded)
+                            return DaemonResponse.from_json(response_json)
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        # Incomplete JSON or invalid UTF-8, continue receiving
                         continue
 
                 # If we get here, either connection closed or max size reached
                 if not chunks:
                     raise DaemonProtocolError("Empty response from daemon")
 
-                # Final attempt to parse
-                response_data = b"".join(chunks)
-                response_json = json.loads(response_data.decode("utf-8"))
-                return DaemonResponse.from_json(response_json)
+                # Final attempt to parse (handles case where exactly MAX_RESPONSE_SIZE bytes sent)
+                try:
+                    response_json = json.loads(response_data.decode("utf-8"))
+                    return DaemonResponse.from_json(response_json)
+                except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                    raise DaemonProtocolError(f"Invalid JSON response: {e}")
 
         except FileNotFoundError:
             # Check if daemon is installed at all

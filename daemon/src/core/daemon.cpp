@@ -12,9 +12,6 @@
  
  namespace cortexd {
  
- // Global daemon pointer for signal handler
- static Daemon* g_daemon = nullptr;
- 
  // Volatile flags for async-signal-safe signal handling
  // Signal handlers should only set flags, not call complex functions
  static volatile sig_atomic_t g_shutdown_requested = 0;
@@ -41,6 +38,7 @@
      auto& config_mgr = ConfigManager::instance();
      if (!config_mgr.load(config_path)) {
          LOG_WARN("Daemon", "Using default configuration");
+         // Continue with defaults - not a critical failure
      }
      
      // Set log level from config
@@ -57,10 +55,12 @@
      setup_signals();
      
      LOG_INFO("Daemon", "Initialization complete");
+     // Always returns true - config loading failure is non-critical (uses defaults)
      return true;
  }
  
  int Daemon::run() {
+     auto startup_start = std::chrono::steady_clock::now();
      LOG_INFO("Daemon", "Starting daemon");
      start_time_ = std::chrono::steady_clock::now();
      
@@ -74,6 +74,23 @@
      
      // Notify systemd that we're ready
      notify_ready();
+     
+     // Log startup time with microsecond precision
+     auto startup_end = std::chrono::steady_clock::now();
+     auto elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(startup_end - startup_start);
+     auto elapsed_ms = elapsed_us.count() / 1000.0;
+     
+     // Format: show as milliseconds with 3 decimal places, or microseconds if < 1ms
+     std::string time_str;
+     if (elapsed_ms >= 1.0) {
+         char buf[32];
+         snprintf(buf, sizeof(buf), "%.3f", elapsed_ms);
+         time_str = std::string(buf) + "ms";
+     } else {
+         time_str = std::to_string(elapsed_us.count()) + "μs";
+     }
+     
+     LOG_INFO("Daemon", "Startup completed in " + time_str);
      
      LOG_INFO("Daemon", "Daemon started successfully");
      
@@ -150,6 +167,9 @@ bool Daemon::reload_config() {
 void Daemon::reset() {
     // Reset all singleton state for test isolation
     // This ensures each test starts with a clean daemon state
+    // WARNING: This function has no synchronization and should ONLY be called
+    // when the daemon is stopped and no other threads are accessing services_.
+    // For production builds, consider using #ifdef TESTING guards.
     
     // Stop any running services first
     stop_services();
@@ -167,9 +187,7 @@ void Daemon::reset() {
     LOG_DEBUG("Daemon", "Daemon state reset for testing");
 }
 
-void Daemon::setup_signals() {
-     g_daemon = this;
-     
+ void Daemon::setup_signals() {
      struct sigaction sa;
      sa.sa_handler = signal_handler;
      sigemptyset(&sa.sa_mask);

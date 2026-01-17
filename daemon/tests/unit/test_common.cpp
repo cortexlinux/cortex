@@ -3,12 +3,9 @@
  * @brief Unit tests for common.h constants and types (PR1 scope only)
  * 
  * PR1 includes: Core daemon, IPC server, config management
- * PR2 adds: Monitoring, alerts (AlertSeverity, AlertType, HealthSnapshot)
- * PR3 adds: LLM integration
  */
 
 #include <gtest/gtest.h>
-#include <set>
 #include "cortexd/common.h"
 
 class CommonTest : public ::testing::Test {
@@ -55,56 +52,6 @@ TEST_F(CommonTest, MaxMessageSizeIsPositive) {
 }
 
 // ============================================================================
-// CommandType enum tests (PR1 - shutdown and config_reload are available)
-// ============================================================================
-
-TEST_F(CommonTest, CommandTypeEnumValuesAreDistinct) {
-    std::set<int> values;
-    values.insert(static_cast<int>(cortexd::CommandType::STATUS));
-    values.insert(static_cast<int>(cortexd::CommandType::ALERTS));
-    values.insert(static_cast<int>(cortexd::CommandType::SHUTDOWN));
-    values.insert(static_cast<int>(cortexd::CommandType::CONFIG_RELOAD));
-    values.insert(static_cast<int>(cortexd::CommandType::HEALTH));
-    values.insert(static_cast<int>(cortexd::CommandType::UNKNOWN));
-    
-    EXPECT_EQ(values.size(), 6);
-}
-
-TEST_F(CommonTest, CommandTypeUnknownExists) {
-    // UNKNOWN should be a valid enum value for unrecognized commands
-    cortexd::CommandType cmd = cortexd::CommandType::UNKNOWN;
-    EXPECT_EQ(cmd, cortexd::CommandType::UNKNOWN);
-}
-
-TEST_F(CommonTest, CommandTypeShutdownExists) {
-    // SHUTDOWN is available in PR1
-    cortexd::CommandType cmd = cortexd::CommandType::SHUTDOWN;
-    EXPECT_EQ(cmd, cortexd::CommandType::SHUTDOWN);
-}
-
-TEST_F(CommonTest, CommandTypeConfigReloadExists) {
-    // CONFIG_RELOAD is available in PR1
-    cortexd::CommandType cmd = cortexd::CommandType::CONFIG_RELOAD;
-    EXPECT_EQ(cmd, cortexd::CommandType::CONFIG_RELOAD);
-}
-
-// ============================================================================
-// Memory constraints (PR1 - daemon memory footprint targets)
-// ============================================================================
-
-TEST_F(CommonTest, IdleMemoryConstraintIsDefined) {
-    EXPECT_GT(cortexd::IDLE_MEMORY_MB, 0);
-}
-
-TEST_F(CommonTest, ActiveMemoryConstraintIsDefined) {
-    EXPECT_GT(cortexd::ACTIVE_MEMORY_MB, 0);
-}
-
-TEST_F(CommonTest, ActiveMemoryGreaterThanIdle) {
-    EXPECT_GT(cortexd::ACTIVE_MEMORY_MB, cortexd::IDLE_MEMORY_MB);
-}
-
-// ============================================================================
 // Startup time target (PR1 - daemon startup performance)
 // ============================================================================
 
@@ -112,6 +59,16 @@ TEST_F(CommonTest, StartupTimeTargetIsDefined) {
     EXPECT_GT(cortexd::STARTUP_TIME_MS, 0);
     // Should be reasonable (less than 10 seconds)
     EXPECT_LT(cortexd::STARTUP_TIME_MS, 10000);
+}
+
+// ============================================================================
+// Clock type alias (PR1 - used in IPC protocol)
+// ============================================================================
+
+TEST_F(CommonTest, ClockTypeAliasIsDefined) {
+    // Verify Clock is a valid type alias
+    cortexd::Clock::time_point now = cortexd::Clock::now();
+    EXPECT_GT(now.time_since_epoch().count(), 0);
 }
 
 int main(int argc, char** argv) {

@@ -1,8 +1,8 @@
 # Cortexd Daemon Configuration
 # Copy this file to /etc/cortex/daemon.yaml or ~/.cortex/daemon.yaml
 #
-# - Socket and logging config are used in PR 1
-# - LLM, monitoring, alerts config will be used in PR 2 & PR 3
+# - Socket and logging config
+# - Additional configuration options may be added in future versions
 
 # Socket configuration
 socket:

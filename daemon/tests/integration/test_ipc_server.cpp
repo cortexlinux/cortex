@@ -356,6 +356,125 @@ TEST_F(IPCServerTest, ResponseIncludesTimestamp) {
     EXPECT_TRUE(json["timestamp"].is_number());
 }
 
+// ============================================================================
+// Edge case: Concurrent handler registration tests
+// ============================================================================
+
+TEST_F(IPCServerTest, ConcurrentHandlerRegistration) {
+    start_server();
+    
+    // Register handlers from multiple threads concurrently
+    std::vector<std::thread> threads;
+    std::atomic<int> success_count{0};
+    
+    for (int t = 0; t < 10; ++t) {
+        threads.emplace_back([&, t]() {
+            std::string method = "test.method" + std::to_string(t);
+            server_->register_handler(method, [](const cortexd::Request&) {
+                return cortexd::Response::ok({{"registered", true}});
+            });
+            success_count++;
+        });
+    }
+    
+    for (auto& thread : threads) {
+        thread.join();
+    }
+    
+    EXPECT_EQ(success_count.load(), 10);
+    
+    // Verify all handlers work
+    for (int t = 0; t < 10; ++t) {
+        std::string method = "test.method" + std::to_string(t);
+        std::string request = R"({"method": ")" + method + R"("})";
+        std::string response = send_request(request);
+        auto json = cortexd::json::parse(response);
+        EXPECT_TRUE(json["success"]) << "Handler " << method << " should work";
+    }
+}
+
+// ============================================================================
+// Edge case: Malformed JSON tests
+// ============================================================================
+
+TEST_F(IPCServerTest, HandlesDuplicateJsonKeys) {
+    start_server();
+    server_->register_handler("ping", [](const cortexd::Request&) {
+        return cortexd::Response::ok({{"pong", true}});
+    });
+    
+    // JSON with duplicate keys - nlohmann/json keeps last value
+    std::string request = R"({"method": "ping", "method": "unknown"})";
+    std::string response = send_request(request);
+    
+    auto json = cortexd::json::parse(response);
+    // Should use last "method" value, so unknown method
+    EXPECT_FALSE(json["success"]);
+}
+
+TEST_F(IPCServerTest, HandlesUtf8InMethodName) {
+    start_server();
+    
+    // Register handler with UTF-8 in method name
+    std::string utf8_method = "test.方法";
+    server_->register_handler(utf8_method, [](const cortexd::Request&) {
+        return cortexd::Response::ok({{"utf8", true}});
+    });
+    
+    // Send request with UTF-8 method
+    cortexd::json request;
+    request["method"] = utf8_method;
+    std::string response = send_request(request.dump());
+    
+    auto json = cortexd::json::parse(response);
+    EXPECT_TRUE(json["success"]);
+}
+
+TEST_F(IPCServerTest, HandlesInvalidUtf8Sequence) {
+    start_server();
+    
+    // Send request with invalid UTF-8 bytes
+    // nlohmann/json should handle this gracefully
+    std::string invalid_utf8 = "{\"method\": \"test\", \"params\": {\"data\": \"\xFF\xFE\"}}";
+    std::string response = send_request(invalid_utf8);
+    
+    // Should either parse (if JSON library is lenient) or return parse error
+    auto json = cortexd::json::parse(response);
+    // Either way, should not crash
+    EXPECT_TRUE(json.contains("success") || json.contains("error"));
+}
+
+// ============================================================================
+// Edge case: Socket cleanup on crash tests
+// ============================================================================
+
+TEST_F(IPCServerTest, SocketCleanupOnStop) {
+    start_server();
+    
+    // Verify socket exists
+    EXPECT_TRUE(fs::exists(socket_path_));
+    
+    // Stop server (simulates crash/clean shutdown)
+    server_->stop();
+    
+    // Socket should be cleaned up
+    EXPECT_FALSE(fs::exists(socket_path_));
+}
+
+TEST_F(IPCServerTest, SocketCleanupOnDestruction) {
+    {
+        auto server = std::make_unique<cortexd::IPCServer>(socket_path_);
+        ASSERT_TRUE(server->start());
+        EXPECT_TRUE(fs::exists(socket_path_));
+        
+        // Server goes out of scope (simulates crash)
+        // Destructor should clean up socket
+    }
+    
+    // Socket should be cleaned up after destruction
+    EXPECT_FALSE(fs::exists(socket_path_));
+}
+
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
