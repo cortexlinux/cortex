@@ -6,17 +6,13 @@ Tests for lesson_loader and progress_tracker.
 
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch
-
 import pytest
 
-from cortex.tutor.tools.deterministic.lesson_loader import (
+from cortex.tutor.tools import (
     FALLBACK_LESSONS,
     LessonLoaderTool,
-    get_fallback_lesson,
-)
-from cortex.tutor.tools.deterministic.progress_tracker import (
     ProgressTrackerTool,
+    get_fallback_lesson,
 )
 
 

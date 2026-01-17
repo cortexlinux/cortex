@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from cortex.tutor.tools.deterministic.lesson_loader import (
+from cortex.tutor.tools import (
     LessonLoaderTool,
     get_fallback_lesson,
     load_lesson_with_fallback,
@@ -93,7 +93,7 @@ class TestLoadLessonWithFallback:
 
     def test_returns_cache_if_available(self, temp_db):
         """Test returns cached lesson if available."""
-        from cortex.tutor.memory.sqlite_store import SQLiteStore
+        from cortex.tutor.sqlite_store import SQLiteStore
 
         store = SQLiteStore(temp_db)
         store.cache_lesson("docker", {"summary": "cached"}, ttl_hours=24)

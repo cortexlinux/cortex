@@ -9,12 +9,8 @@ from typing import Any
 from cortex.tutor.branding import console, tutor_print
 from cortex.tutor.config import DEFAULT_TUTOR_TOPICS
 from cortex.tutor.llm import answer_question, generate_lesson
-from cortex.tutor.tools.deterministic.lesson_loader import LessonLoaderTool
-from cortex.tutor.tools.deterministic.progress_tracker import ProgressTrackerTool
-from cortex.tutor.tools.deterministic.validators import (
-    validate_package_name,
-    validate_question,
-)
+from cortex.tutor.tools import LessonLoaderTool, ProgressTrackerTool
+from cortex.tutor.validators import validate_package_name, validate_question
 
 
 class TutorAgent:

@@ -4,7 +4,7 @@ Terminal UI branding and styling for Intelligent Tutor.
 Provides Rich console utilities following Cortex Linux patterns.
 """
 
-from typing import Literal, Optional
+from typing import Literal
 
 from rich.console import Console
 from rich.markdown import Markdown

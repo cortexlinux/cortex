@@ -6,7 +6,6 @@ Handles API keys, settings, and environment variables securely.
 
 import os
 from pathlib import Path
-from typing import Optional
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, field_validator
@@ -25,7 +24,6 @@ class Config(BaseModel):
     Attributes:
         anthropic_api_key: Anthropic API key for Claude access.
         openai_api_key: Optional OpenAI API key for fallback.
-        model: LLM model to use for tutoring.
         data_dir: Directory for storing tutor data.
         debug: Enable debug mode for verbose logging.
     """
@@ -35,9 +33,6 @@ class Config(BaseModel):
     )
     openai_api_key: str | None = Field(
         default=None, description="Optional OpenAI API key for fallback"
-    )
-    model: str = Field(
-        default="claude-sonnet-4-20250514", description="LLM model to use for tutoring"
     )
     data_dir: Path = Field(
         default=Path.home() / ".cortex", description="Directory for storing tutor data"
@@ -85,7 +80,6 @@ class Config(BaseModel):
         return cls(
             anthropic_api_key=api_key,
             openai_api_key=os.getenv("OPENAI_API_KEY"),
-            model=os.getenv("TUTOR_MODEL", "claude-sonnet-4-20250514"),
             data_dir=data_dir,
             debug=os.getenv("TUTOR_DEBUG", "false").lower() == "true",
         )

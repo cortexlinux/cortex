@@ -4,11 +4,9 @@ Tests for CLI module.
 Comprehensive tests for command-line interface.
 """
 
-import os
 import tempfile
-from io import StringIO
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -38,12 +36,6 @@ class TestCreateParser:
         parser = create_parser()
         args = parser.parse_args(["docker"])
         assert args.package == "docker"
-
-    def test_version_flag(self):
-        """Test version flag exits."""
-        parser = create_parser()
-        with pytest.raises(SystemExit):
-            parser.parse_args(["--version"])
 
     def test_verbose_flag(self):
         """Test verbose flag."""
@@ -105,7 +97,7 @@ class TestCmdTeach:
             assert result == 1
 
     @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-ant-test-key"})
-    @patch("cortex.tutor.agents.tutor_agent.InteractiveTutor")
+    @patch("cortex.tutor.agent.InteractiveTutor")
     def test_successful_teach(self, mock_tutor_class):
         """Test successful teach session."""
         reset_config()  # Reset config singleton
@@ -118,7 +110,7 @@ class TestCmdTeach:
         mock_tutor.start.assert_called_once()
 
     @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-ant-test-key"})
-    @patch("cortex.tutor.agents.tutor_agent.InteractiveTutor")
+    @patch("cortex.tutor.agent.InteractiveTutor")
     def test_teach_with_value_error(self, mock_tutor_class):
         """Test teach handles ValueError."""
         reset_config()
@@ -130,7 +122,7 @@ class TestCmdTeach:
             assert result == 1
 
     @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-ant-test-key"})
-    @patch("cortex.tutor.agents.tutor_agent.InteractiveTutor")
+    @patch("cortex.tutor.agent.InteractiveTutor")
     def test_teach_with_keyboard_interrupt(self, mock_tutor_class):
         """Test teach handles KeyboardInterrupt."""
         reset_config()
@@ -155,7 +147,7 @@ class TestCmdQuestion:
             assert result == 1
 
     @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-ant-test-key"})
-    @patch("cortex.tutor.agents.tutor_agent.TutorAgent")
+    @patch("cortex.tutor.agent.TutorAgent")
     def test_successful_question(self, mock_agent_class):
         """Test successful question."""
         reset_config()
@@ -176,7 +168,7 @@ class TestCmdQuestion:
             assert result == 0
 
     @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-ant-test-key"})
-    @patch("cortex.tutor.agents.tutor_agent.TutorAgent")
+    @patch("cortex.tutor.agent.TutorAgent")
     def test_question_with_code_example(self, mock_agent_class):
         """Test question with code example in response."""
         reset_config()
@@ -201,7 +193,7 @@ class TestCmdQuestion:
                 assert result == 0
 
     @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-ant-test-key"})
-    @patch("cortex.tutor.agents.tutor_agent.TutorAgent")
+    @patch("cortex.tutor.agent.TutorAgent")
     def test_question_validation_failed(self, mock_agent_class):
         """Test question when validation fails."""
         reset_config()

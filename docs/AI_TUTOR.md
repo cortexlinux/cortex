@@ -265,7 +265,7 @@ cortex tutor --reset docker
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                      TutorAgent                                  │
-│              (cortex/tutor/agents/tutor_agent/)                  │
+│                  (cortex/tutor/agent.py)                         │
 │                                                                  │
 │   • Orchestrates lesson generation and Q&A                       │
 │   • Uses cortex.llm_router for LLM calls                         │
@@ -352,8 +352,8 @@ The tutor uses a simple cache-first pattern to minimize API costs:
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  │
-│  │ progress_tracker│  │  lesson_loader  │  │   validators    │  │
-│  │                 │  │                 │  │                 │  │
+│  │ProgressTracker  │  │  LessonLoader   │  │   validators    │  │
+│  │  (tools.py)     │  │   (tools.py)    │  │ (validators.py) │  │
 │  │ • Get progress  │  │ • Load cache    │  │ • Validate pkg  │  │
 │  │ • Update score  │  │ • Check expiry  │  │ • Sanitize input│  │
 │  │ • Mark complete │  │ • Get fallback  │  │ • Block patterns│  │
@@ -430,29 +430,16 @@ User Input                Processing                    Output
 
 ```
 cortex/tutor/
-├── __init__.py                 # Package exports
-├── cli.py                      # CLI commands and argument parsing
-├── config.py                   # Configuration management
-├── branding.py                 # Rich console UI utilities
-├── llm.py                      # LLM functions (uses cortex.llm_router)
-│
-├── agents/                     # Agent implementations
-│   └── tutor_agent/
-│       ├── __init__.py
-│       └── tutor_agent.py      # TutorAgent & InteractiveTutor
-│
-├── tools/                      # Tool implementations
-│   └── deterministic/          # No LLM required (fast, free)
-│       ├── progress_tracker.py # SQLite progress operations
-│       ├── lesson_loader.py    # Cache and fallback loading
-│       └── validators.py       # Input validation
-│
-├── contracts/                  # Data structures
-│   ├── lesson_context.py       # Lesson data structure
-│   └── progress_context.py     # Progress data structure
-│
-└── memory/                     # Persistence layer
-    └── sqlite_store.py         # SQLite operations
+├── __init__.py          # Package exports
+├── agent.py             # TutorAgent & InteractiveTutor
+├── branding.py          # Rich console UI utilities
+├── cli.py               # CLI commands and argument parsing
+├── config.py            # Configuration management
+├── contracts.py         # Pydantic data models (Lesson, Progress, Quiz)
+├── llm.py               # LLM functions with layered prompts
+├── sqlite_store.py      # SQLite persistence layer
+├── tools.py             # Deterministic tools (no LLM)
+└── validators.py        # Input validation and sanitization
 ```
 
 ### Database Schema
@@ -506,7 +493,7 @@ CREATE TABLE lesson_cache (
 ### TutorAgent Class
 
 ```python
-from cortex.tutor.agents.tutor_agent import TutorAgent
+from cortex.tutor.agent import TutorAgent
 
 # Initialize
 agent = TutorAgent(verbose=False)
@@ -523,7 +510,7 @@ result = agent.teach("docker", force_fresh=False)
 #     "best_practices": [...]
 #   },
 #   "cache_hit": True,
-#   "cost_gbp": 0.0
+#   "cost_usd": 0.0
 # }
 
 # Ask a question
@@ -561,7 +548,7 @@ agent.reset_progress("docker")  # or None for all
 ### InteractiveTutor Class
 
 ```python
-from cortex.tutor.agents.tutor_agent import InteractiveTutor
+from cortex.tutor.agent import InteractiveTutor
 
 # Start interactive session
 tutor = InteractiveTutor("docker")
@@ -643,7 +630,7 @@ pytest tests/tutor/ -v
 pytest tests/tutor/ -v --cov=cortex.tutor --cov-report=term-missing
 
 # Run specific test file
-pytest tests/tutor/test_tutor_agent.py -v
+pytest tests/tutor/test_cli.py -v
 ```
 
 ---

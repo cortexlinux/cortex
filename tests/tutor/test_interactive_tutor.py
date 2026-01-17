@@ -4,7 +4,7 @@ Tests for InteractiveTutor class.
 Tests the interactive menu-driven tutoring interface.
 """
 
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -12,10 +12,10 @@ import pytest
 class TestInteractiveTutorInit:
     """Tests for InteractiveTutor initialization."""
 
-    @patch("cortex.tutor.agents.tutor_agent.tutor_agent.TutorAgent")
+    @patch("cortex.tutor.agent.TutorAgent")
     def test_init(self, mock_agent_class):
         """Test InteractiveTutor initialization."""
-        from cortex.tutor.agents.tutor_agent import InteractiveTutor
+        from cortex.tutor.agent import InteractiveTutor
 
         mock_agent = Mock()
         mock_agent_class.return_value = mock_agent
@@ -29,17 +29,17 @@ class TestInteractiveTutorInit:
 class TestInteractiveTutorStart:
     """Tests for InteractiveTutor.start method."""
 
-    @patch("cortex.tutor.agents.tutor_agent.tutor_agent.TutorAgent")
+    @patch("cortex.tutor.agent.TutorAgent")
     @patch("cortex.tutor.branding.get_user_input")
     @patch("cortex.tutor.branding.print_menu")
     @patch("cortex.tutor.branding.print_lesson_header")
-    @patch("cortex.tutor.agents.tutor_agent.tutor_agent.tutor_print")
-    @patch("cortex.tutor.agents.tutor_agent.tutor_agent.console")
+    @patch("cortex.tutor.agent.tutor_print")
+    @patch("cortex.tutor.agent.console")
     def test_start_loads_lesson(
         self, mock_console, mock_tutor_print, mock_header, mock_menu, mock_input, mock_agent_class
     ):
         """Test start loads lesson and shows menu."""
-        from cortex.tutor.agents.tutor_agent import InteractiveTutor
+        from cortex.tutor.agent import InteractiveTutor
 
         mock_agent = Mock()
         mock_agent.teach.return_value = {
@@ -60,11 +60,11 @@ class TestInteractiveTutorStart:
         mock_agent.teach.assert_called_once()
         mock_header.assert_called_once_with("docker")
 
-    @patch("cortex.tutor.agents.tutor_agent.tutor_agent.TutorAgent")
-    @patch("cortex.tutor.agents.tutor_agent.tutor_agent.tutor_print")
+    @patch("cortex.tutor.agent.TutorAgent")
+    @patch("cortex.tutor.agent.tutor_print")
     def test_start_handles_failed_lesson(self, mock_tutor_print, mock_agent_class):
         """Test start handles failed lesson load."""
-        from cortex.tutor.agents.tutor_agent import InteractiveTutor
+        from cortex.tutor.agent import InteractiveTutor
 
         mock_agent = Mock()
         mock_agent.teach.return_value = {"validation_passed": False}
@@ -83,8 +83,8 @@ class TestInteractiveTutorMenuOptions:
     @pytest.fixture
     def mock_tutor(self):
         """Create a mock InteractiveTutor."""
-        with patch("cortex.tutor.agents.tutor_agent.tutor_agent.TutorAgent"):
-            from cortex.tutor.agents.tutor_agent import InteractiveTutor
+        with patch("cortex.tutor.agent.TutorAgent"):
+            from cortex.tutor.agent import InteractiveTutor
 
             tutor = InteractiveTutor("docker")
             tutor.lesson = {
@@ -138,7 +138,7 @@ class TestInteractiveTutorMenuOptions:
         mock_code_example.assert_called()
         mock_tutor.agent.mark_completed.assert_called_with("docker", "examples", 0.7)
 
-    @patch("cortex.tutor.agents.tutor_agent.tutor_agent.tutor_print")
+    @patch("cortex.tutor.agent.tutor_print")
     def test_show_examples_empty(self, mock_print, mock_tutor):
         """Test showing examples when none available."""
         mock_tutor.lesson["code_examples"] = []
@@ -169,7 +169,7 @@ class TestInteractiveTutorMenuOptions:
         # Should still mark as completed
         mock_tutor.agent.mark_completed.assert_called()
 
-    @patch("cortex.tutor.agents.tutor_agent.tutor_agent.tutor_print")
+    @patch("cortex.tutor.agent.tutor_print")
     def test_run_tutorial_empty(self, mock_print, mock_tutor):
         """Test tutorial with no steps."""
         mock_tutor.lesson["tutorial_steps"] = []
@@ -186,7 +186,7 @@ class TestInteractiveTutorMenuOptions:
         assert mock_practice.call_count == 2
         mock_tutor.agent.mark_completed.assert_called_with("docker", "best_practices", 0.6)
 
-    @patch("cortex.tutor.agents.tutor_agent.tutor_agent.tutor_print")
+    @patch("cortex.tutor.agent.tutor_print")
     def test_show_best_practices_empty(self, mock_print, mock_tutor):
         """Test best practices when none available."""
         mock_tutor.lesson["best_practices"] = []
@@ -216,7 +216,7 @@ class TestInteractiveTutorMenuOptions:
         mock_tutor.agent.ask.assert_not_called()
 
     @patch("cortex.tutor.branding.get_user_input")
-    @patch("cortex.tutor.agents.tutor_agent.tutor_agent.tutor_print")
+    @patch("cortex.tutor.agent.tutor_print")
     def test_ask_question_failed(self, mock_print, mock_input, mock_tutor):
         """Test asking question with failed response."""
         mock_input.return_value = "What?"
@@ -233,7 +233,7 @@ class TestInteractiveTutorMenuOptions:
 
         mock_progress.assert_called_with(2, 5, "docker")
 
-    @patch("cortex.tutor.agents.tutor_agent.tutor_agent.tutor_print")
+    @patch("cortex.tutor.agent.tutor_print")
     def test_show_progress_failed(self, mock_print, mock_tutor):
         """Test showing progress when failed."""
         mock_tutor.agent.get_progress.return_value = {"success": False}
@@ -246,10 +246,10 @@ class TestInteractiveTutorMenuOptions:
 class TestInteractiveTutorNoLesson:
     """Tests for InteractiveTutor when lesson is None."""
 
-    @patch("cortex.tutor.agents.tutor_agent.tutor_agent.TutorAgent")
+    @patch("cortex.tutor.agent.TutorAgent")
     def test_methods_with_no_lesson(self, mock_agent_class):
         """Test methods handle None lesson gracefully."""
-        from cortex.tutor.agents.tutor_agent import InteractiveTutor
+        from cortex.tutor.agent import InteractiveTutor
 
         tutor = InteractiveTutor("docker")
         tutor.lesson = None

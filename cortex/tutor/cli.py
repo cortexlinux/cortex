@@ -13,7 +13,6 @@ Usage:
 import argparse
 import sys
 
-from cortex.tutor import __version__
 from cortex.tutor.branding import (
     console,
     get_user_input,
@@ -25,8 +24,8 @@ from cortex.tutor.branding import (
     tutor_print,
 )
 from cortex.tutor.config import DEFAULT_TUTOR_TOPICS, Config
-from cortex.tutor.memory.sqlite_store import SQLiteStore
-from cortex.tutor.tools.deterministic.validators import validate_package_name
+from cortex.tutor.sqlite_store import SQLiteStore
+from cortex.tutor.validators import validate_package_name
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -41,14 +40,6 @@ def create_parser() -> argparse.ArgumentParser:
         description="AI-Powered Installation Tutor for Cortex Linux",
         epilog="Example: tutor docker",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-
-    # Version
-    parser.add_argument(
-        "-V",
-        "--version",
-        action="version",
-        version=f"%(prog)s {__version__}",
     )
 
     # Verbose mode
@@ -126,7 +117,7 @@ def cmd_teach(package: str, verbose: bool = False, fresh: bool = False) -> int:
 
     try:
         # Lazy import - only load when needed (requires API key)
-        from cortex.tutor.agents.tutor_agent import InteractiveTutor
+        from cortex.tutor.agent import InteractiveTutor
 
         # Start interactive tutor
         interactive = InteractiveTutor(package, force_fresh=fresh)
@@ -143,8 +134,6 @@ def cmd_teach(package: str, verbose: bool = False, fresh: bool = False) -> int:
     except Exception as e:
         print_error_panel(f"An error occurred: {e}")
         if verbose:
-            import traceback
-
             console.print_exception()
         return 1
 
@@ -169,7 +158,7 @@ def cmd_question(package: str, question: str, verbose: bool = False) -> int:
 
     try:
         # Lazy import - only load when needed (requires API key)
-        from cortex.tutor.agents.tutor_agent import TutorAgent
+        from cortex.tutor.agent import TutorAgent
 
         agent = TutorAgent(verbose=verbose)
         result = agent.ask(package, question)

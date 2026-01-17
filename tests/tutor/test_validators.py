@@ -6,7 +6,7 @@ Tests input validation functions for security and format checking.
 
 import pytest
 
-from cortex.tutor.tools.deterministic.validators import (
+from cortex.tutor.validators import (
     MAX_INPUT_LENGTH,
     MAX_PACKAGE_NAME_LENGTH,
     ValidationResult,

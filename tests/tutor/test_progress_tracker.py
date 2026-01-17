@@ -9,13 +9,13 @@ from pathlib import Path
 
 import pytest
 
-from cortex.tutor.memory.sqlite_store import (
+from cortex.tutor.sqlite_store import (
     LearningProgress,
     QuizResult,
     SQLiteStore,
     StudentProfile,
 )
-from cortex.tutor.tools.deterministic.progress_tracker import (
+from cortex.tutor.tools import (
     ProgressTrackerTool,
     get_learning_progress,
     get_package_stats,
@@ -298,7 +298,7 @@ class TestConvenienceFunctions:
         mock_config.get_db_path.return_value = temp_db
 
         with patch(
-            "cortex.tutor.tools.deterministic.progress_tracker.get_config", return_value=mock_config
+            "cortex.tutor.tools.get_config", return_value=mock_config
         ):
             # First mark a topic completed
             result = mark_topic_completed("docker", "basics", 0.85)
@@ -318,7 +318,7 @@ class TestConvenienceFunctions:
         mock_config.get_db_path.return_value = temp_db
 
         with patch(
-            "cortex.tutor.tools.deterministic.progress_tracker.get_config", return_value=mock_config
+            "cortex.tutor.tools.get_config", return_value=mock_config
         ):
             result = mark_topic_completed("git", "branching", 0.9)
             assert result is True
@@ -336,7 +336,7 @@ class TestConvenienceFunctions:
         mock_config.get_db_path.return_value = temp_db
 
         with patch(
-            "cortex.tutor.tools.deterministic.progress_tracker.get_config", return_value=mock_config
+            "cortex.tutor.tools.get_config", return_value=mock_config
         ):
             # Mark some topics
             mark_topic_completed("nginx", "basics", 0.9)

@@ -12,8 +12,9 @@ import pytest
 
 from cortex.tutor.branding import console, tutor_print
 from cortex.tutor.config import Config, reset_config
-from cortex.tutor.contracts.lesson_context import CodeExample, LessonContext
-from cortex.tutor.contracts.progress_context import (
+from cortex.tutor.contracts import (
+    CodeExample,
+    LessonContext,
     PackageProgress,
     ProgressContext,
     TopicProgress,
@@ -34,13 +35,11 @@ class TestConfig:
     def test_config_from_env(self, monkeypatch):
         """Test config loads from environment."""
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test123")
-        monkeypatch.setenv("TUTOR_MODEL", "claude-sonnet-4-20250514")
         monkeypatch.setenv("TUTOR_DEBUG", "true")
 
         config = Config.from_env()
 
         assert config.anthropic_api_key == "sk-ant-test123"
-        assert config.model == "claude-sonnet-4-20250514"
         assert config.debug is True
 
     def test_config_missing_api_key(self, monkeypatch):
@@ -194,15 +193,6 @@ class TestCLI:
 
         with pytest.raises(SystemExit):
             parser.parse_args(["--help"])
-
-    def test_version_flag(self):
-        """Test version flag."""
-        from cortex.tutor.cli import create_parser
-
-        parser = create_parser()
-
-        with pytest.raises(SystemExit):
-            parser.parse_args(["--version"])
 
     def test_parse_package_argument(self):
         """Test parsing package argument."""
