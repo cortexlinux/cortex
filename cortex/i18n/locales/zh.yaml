@@ -185,6 +185,15 @@ sandbox:
   commands_header: "命令"
   example_workflow: "示例工作流程"
   
+  # 命令描述（用于帮助文本）
+  cmd_create: "创建沙箱环境"
+  cmd_install: "在沙箱中安装软件包"
+  cmd_test: "在沙箱中运行测试"
+  cmd_promote: "将已测试的软件包安装到主系统"
+  cmd_cleanup: "删除沙箱环境"
+  cmd_list: "列出所有沙箱"
+  cmd_exec: "在沙箱中执行命令"
+  
   creating: "正在创建沙箱'{name}'..."
   created: "沙箱环境'{name}'已创建"
   installing: "正在沙箱'{name}'中安装'{package}'..."

@@ -240,6 +240,15 @@ sandbox:
   example_workflow: "Example workflow"
   environments_header: "Sandbox Environments"
   
+  # Command descriptions (for help text)
+  cmd_create: "Create a sandbox environment"
+  cmd_install: "Install package in sandbox"
+  cmd_test: "Run tests in sandbox"
+  cmd_promote: "Install tested package on main system"
+  cmd_cleanup: "Remove sandbox environment"
+  cmd_list: "List all sandboxes"
+  cmd_exec: "Execute command in sandbox"
+  
   # Actions
   # {name} - sandbox name
   creating: "Creating sandbox '{name}'..."

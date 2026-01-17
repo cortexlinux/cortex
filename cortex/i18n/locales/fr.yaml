@@ -156,6 +156,15 @@ sandbox:
   example_workflow: "Exemple de flux de travail"
   environments_header: "Environnements Sandbox"
   
+  # Descriptions des commandes (pour le texte d'aide)
+  cmd_create: "Créer un environnement sandbox"
+  cmd_install: "Installer un paquet dans le sandbox"
+  cmd_test: "Exécuter des tests dans le sandbox"
+  cmd_promote: "Installer le paquet testé sur le système principal"
+  cmd_cleanup: "Supprimer l'environnement sandbox"
+  cmd_list: "Lister tous les sandboxes"
+  cmd_exec: "Exécuter une commande dans le sandbox"
+  
   creating: "Création du sandbox '{name}'..."
   created: "Environnement sandbox '{name}' créé"
   installing: "Installation de '{package}' dans le sandbox '{name}'..."
