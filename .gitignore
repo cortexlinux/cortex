@@ -1,26 +1,24 @@
-# ==============================
+# Environment and Secrets
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+
+# API Keys and Credentials
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets.json
+.api_key_cache
+
 # Python
-# ==============================
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
 *.so
-
-# ==============================
-# Virtual Environments
-# ==============================
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-myenv/
-
-# ==============================
-# Distribution / Packaging
-# ==============================
 .Python
 build/
 develop-eggs/
@@ -34,174 +32,29 @@ parts/
 sdist/
 var/
 wheels/
-share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
+.venv/
+venv/
+ENV/
 
-# ==============================
-# PyInstaller
-# ==============================
-*.manifest
-*.spec
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
 
-# ==============================
-# Installer logs
-# ==============================
-pip-log.txt
-pip-delete-this-directory.txt
-
-# ==============================
-# Unit test / Coverage reports
-# ==============================
+# Testing
+.pytest_cache/
+.coverage
 htmlcov/
 .tox/
 .nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-cover/
-
-# ==============================
-# Translations
-# ==============================
-*.mo
-*.pot
-
-# ==============================
-# Django / Flask / FastAPI
-# ==============================
-*.log
-local_settings.py
-db.sqlite3
-instance/
-.webassets-cache
-
-# ==============================
-# Jupyter Notebook
-# ==============================
-.ipynb_checkpoints
-
-# ==============================
-# pyenv
-# ==============================
-.python-version
-
-# ==============================
-# pipenv
-# ==============================
-Pipfile.lock
-
-# ==============================
-# poetry
-# ==============================
-poetry.lock
-
-# ==============================
-# mypy / Pyre / pytype
-# ==============================
 .mypy_cache/
-.dmypy.json
-dmypy.json
-.pyre/
-.pytype/
 
-# ==============================
-# IDEs and editors
-# ==============================
-.vscode/
-.idea/
-.spyproject/
-.ropeproject/
-.sublime-project
-.sublime-workspace
-
-# ==============================
-# OS-specific
-# ==============================
-.DS_Store
-Thumbs.db
-
-# ==============================
-# Logs & Misc
-# ==============================
+# Logs
 *.log
 logs/
-*.tmp
-*.bak
-*.swp
-.env
-.venv
-env/
-venv/
-ENV/
-.mypy_cache/
-.pytest_cache/
-.coverage
-htmlcov/
-*.out
-*~
-*.swo
-
-# ==============================
-# Cortex specific
-# ==============================
-.cortex/
-*.yaml.bak
-/tmp/
-.env
-
-# Internal admin files (bounties, payments, etc.)
-internal/
-
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-history.db
-
-# Audit logs
-*_audit.log
-audit.log
-
-# Generated files
-fork-contributor-contacts.csv
-cortex-code-stats.csv
-
-# Local scripts (not part of distribution)
-*.local.sh
-
-# Editor config (keep .editorconfig)
-.vscode/settings.json
-.idea/workspace.xml
-
-# OS generated
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Temporary files
-*.tmp
-*.temp
-*.swp
-*.swo
-*~
-
-# Test artifacts
-.pytest_cache/
-.coverage
-htmlcov/
-coverage.xml
-*.cover
-.hypothesis/

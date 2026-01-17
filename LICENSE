@@ -5,15 +5,15 @@
 **Licensor:** AI Venture Holdings LLC
 
 **Licensed Work:** Cortex Linux v0.1.0 and later versions  
-The Licensed Work is (c) 2025 AI Venture Holdings LLC
+The Licensed Work is (c) 2025-2026 AI Venture Holdings LLC
 
 **Additional Use Grant:** You may use the Licensed Work for:
-- Personal, non-commercial use
+- Personal, non-commercial use (1 system)
 - Internal business operations (not offering as a service)
 - Educational and research purposes
 - Contributing to the Licensed Work
 
-**Change Date:** January 15, 2030 (4 years from release)
+**Change Date:** January 15, 2032 (6 years from release)
 
 **Change License:** Apache License, Version 2.0
 
@@ -25,7 +25,7 @@ The Licensor hereby grants you the right to copy, modify, create derivative work
 
 **Effective on the Change Date**, the Licensor grants you rights under the terms of the Change License, and the rights granted above terminate.
 
-If your use of the Licensed Work does not comply with the requirements currently in effect as described in this License, you must purchase a commercial license from the Licensor, its affiliated entities, or authorized resellers, or you must refrain from using the Licensed Work.
+If your use of the Licensed Work does not comply with the requirements currently in effect as described in this License, you must purchase a commercial license from the Licensor, its affiliated entities, or authorized resellers.
 
 **All copies** of the original and modified Licensed Work must include:
 - This License
@@ -37,11 +37,23 @@ If your use of the Licensed Work does not comply with the requirements currently
 ## Commercial Use
 
 **"Commercial Use"** means using the Licensed Work to:
-1. Offer a competing product or service
-2. Provide managed services based on the Licensed Work
-3. Sell, resell, or sublicense the Licensed Work
+1. Run on more than one (1) system
+2. Offer a competing product or service
+3. Provide managed services based on the Licensed Work
+4. Sell, resell, or sublicense the Licensed Work
 
 For Commercial Use licensing, contact: licensing@cortexlinux.com
+
+---
+
+## Pricing
+
+- **Personal (1 system):** Free
+- **Additional systems:** $20/system/month
+- **Pro (up to 25 systems):** $99/month
+- **Enterprise (up to 100 systems):** $299/month
+
+See https://cortexlinux.com/pricing for current rates.
 
 ---
 
@@ -53,5 +65,5 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ## Notice
 
-This license is based on the Business Source License 1.1, created by MariaDB Corporation.
+This license is based on the Business Source License 1.1, created by MariaDB Corporation.  
 For more information, see https://mariadb.com/bsl11/

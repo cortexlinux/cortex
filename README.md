@@ -521,7 +521,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## License
 
-Apache 2.0 - See [LICENSE](LICENSE) for details.
+BUSL-1.1 (Business Source License 1.1) - Free for personal use on 1 system. See [LICENSE](LICENSE) for details.
 
 ---
 
