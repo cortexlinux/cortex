@@ -301,7 +301,11 @@ class SandboxExecutor:
                             # Skip flag
                             i += 1
                             # If this flag requires a value (not another flag), skip it too
-                            if i < len(parts) and not parts[i].startswith("-") and parts[i - 1] not in {"-S", "-s"}:
+                            if (
+                                i < len(parts)
+                                and not parts[i].startswith("-")
+                                and parts[i - 1] not in {"-S", "-s"}
+                            ):
                                 i += 1
                         else:
                             # Found the actual command
@@ -519,8 +523,11 @@ class SandboxExecutor:
         return True
 
     def execute(
-        self, command: str, dry_run: bool = False, enable_rollback: bool | None = None,
-        stdin: str | None = None
+        self,
+        command: str,
+        dry_run: bool = False,
+        enable_rollback: bool | None = None,
+        stdin: str | None = None,
     ) -> ExecutionResult:
         """
         Execute command in sandbox.

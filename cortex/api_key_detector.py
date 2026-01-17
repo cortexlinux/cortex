@@ -239,9 +239,7 @@ class APIKeyDetector:
         if preferred_provider in ("openai", "anthropic", "claude"):
             # Build ordered list with preferred env var first
             preferred_var = (
-                "OPENAI_API_KEY"
-                if preferred_provider == "openai"
-                else "ANTHROPIC_API_KEY"
+                "OPENAI_API_KEY" if preferred_provider == "openai" else "ANTHROPIC_API_KEY"
             )
             # Keep uniqueness and order: preferred first, then the rest
             ordered_vars = [preferred_var] + [v for v in env_vars if v != preferred_var]

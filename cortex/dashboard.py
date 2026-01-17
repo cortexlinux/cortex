@@ -910,9 +910,7 @@ class UIRenderer:
         # Show dots instead of actual characters for security
         password_display = "•" * len(self.input_text)
         content = f"{instructions}\n\n[bold]>[/bold] {password_display}[blink_fast]█[/blink_fast]"
-        return Panel(
-            content, title="🔐 Sudo Password Required", padding=(2, 2), box=ROUNDED
-        )
+        return Panel(content, title="🔐 Sudo Password Required", padding=(2, 2), box=ROUNDED)
 
     def _render_confirmation_dialog(self) -> Panel:
         """Render confirmation dialog for installation"""
@@ -1739,7 +1737,9 @@ class UIRenderer:
                 if not commands:
                     result = 1
                     stdout_output = ""
-                    stderr_output = "No confirmed commands to execute. Please re-plan the installation."
+                    stderr_output = (
+                        "No confirmed commands to execute. Please re-plan the installation."
+                    )
                 else:
                     # Execute each command via sandbox, showing output and commands
                     all_success = True
@@ -1753,7 +1753,9 @@ class UIRenderer:
                         # Show the command being executed
                         with self.state_lock:
                             display_cmd = cmd if len(cmd) <= 70 else cmd[:67] + "..."
-                            self.installation_progress.current_library = f"[{cmd_idx}/{total_commands}] {display_cmd}"
+                            self.installation_progress.current_library = (
+                                f"[{cmd_idx}/{total_commands}] {display_cmd}"
+                            )
                             self.installation_progress.update_elapsed()
 
                         # Prepare command - if sudo is needed, inject password via stdin
@@ -1770,7 +1772,7 @@ class UIRenderer:
                         # Update with result indicator
                         if exec_result.success:
                             with self.state_lock:
-                                lines = output_text.split('\n') if output_text else []
+                                lines = output_text.split("\n") if output_text else []
                                 # Show last meaningful line of output
                                 preview = next((l for l in reversed(lines) if l.strip()), "")
                                 if preview and len(preview) > 60:
@@ -1782,7 +1784,9 @@ class UIRenderer:
                         else:
                             all_success = False
                             with self.state_lock:
-                                self.installation_progress.current_library = f"✗ [{cmd_idx}/{total_commands}] Failed"
+                                self.installation_progress.current_library = (
+                                    f"✗ [{cmd_idx}/{total_commands}] Failed"
+                                )
                             break
 
                     result = 0 if all_success else 1
