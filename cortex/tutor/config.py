@@ -43,9 +43,7 @@ class Config(BaseModel):
     )
     debug: bool = Field(default=False, description="Enable debug mode for verbose logging")
     db_path: Path | None = Field(default=None, description="Path to SQLite database")
-    model_name: str = Field(
-        default=DEFAULT_MODEL_NAME, description="LLM model name to use"
-    )
+    model_name: str = Field(default=DEFAULT_MODEL_NAME, description="LLM model name to use")
     cache_ttl_hours: int = Field(
         default=DEFAULT_CACHE_TTL_HOURS, description="Cache time-to-live in hours"
     )
