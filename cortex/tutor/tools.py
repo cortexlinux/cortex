@@ -86,7 +86,15 @@ class LessonLoaderTool:
             return False
 
     def clear_cache(self, package_name: str | None = None) -> int:
-        """Clear cached lessons."""
+        """Clear cached lessons.
+
+        Args:
+            package_name: If provided, clears cache for specific package.
+                         If None, clears only expired cache entries.
+
+        Returns:
+            Number of cache entries cleared.
+        """
         if package_name:
             try:
                 self.store.cache_lesson(package_name, {}, ttl_hours=0)
