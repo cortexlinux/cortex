@@ -13,8 +13,10 @@ from pydantic import BaseModel, Field, field_validator
 # Load environment variables from .env file
 load_dotenv()
 
-# Default number of topics for progress tracking
-DEFAULT_TUTOR_TOPICS = 5
+# Default settings (named constants with clear purpose)
+DEFAULT_TUTOR_TOPICS_COUNT = 5  # Default topic count when actual count unavailable
+DEFAULT_MODEL_NAME = "claude-sonnet-4-20250514"
+DEFAULT_CACHE_TTL_HOURS = 24
 
 
 class Config(BaseModel):
@@ -26,6 +28,8 @@ class Config(BaseModel):
         openai_api_key: Optional OpenAI API key for fallback.
         data_dir: Directory for storing tutor data.
         debug: Enable debug mode for verbose logging.
+        model_name: LLM model name to use.
+        cache_ttl_hours: Cache time-to-live in hours.
     """
 
     anthropic_api_key: str | None = Field(
@@ -39,6 +43,12 @@ class Config(BaseModel):
     )
     debug: bool = Field(default=False, description="Enable debug mode for verbose logging")
     db_path: Path | None = Field(default=None, description="Path to SQLite database")
+    model_name: str = Field(
+        default=DEFAULT_MODEL_NAME, description="LLM model name to use"
+    )
+    cache_ttl_hours: int = Field(
+        default=DEFAULT_CACHE_TTL_HOURS, description="Cache time-to-live in hours"
+    )
 
     def model_post_init(self, __context) -> None:
         """Initialize computed fields after model creation."""
@@ -77,11 +87,19 @@ class Config(BaseModel):
         data_dir_str = os.getenv("TUTOR_DATA_DIR", str(Path.home() / ".cortex"))
         data_dir = Path(data_dir_str).expanduser()
 
+        cache_ttl_str = os.getenv("TUTOR_CACHE_TTL_HOURS", str(DEFAULT_CACHE_TTL_HOURS))
+        try:
+            cache_ttl = int(cache_ttl_str)
+        except ValueError:
+            cache_ttl = DEFAULT_CACHE_TTL_HOURS
+
         return cls(
             anthropic_api_key=api_key,
             openai_api_key=os.getenv("OPENAI_API_KEY"),
             data_dir=data_dir,
             debug=os.getenv("TUTOR_DEBUG", "false").lower() == "true",
+            model_name=os.getenv("TUTOR_MODEL_NAME", DEFAULT_MODEL_NAME),
+            cache_ttl_hours=cache_ttl,
         )
 
     def ensure_data_dir(self) -> None:

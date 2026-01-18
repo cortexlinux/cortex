@@ -23,9 +23,8 @@ from cortex.tutor.branding import (
     print_table,
     tutor_print,
 )
-from cortex.tutor.config import DEFAULT_TUTOR_TOPICS, Config
+from cortex.tutor.config import DEFAULT_TUTOR_TOPICS_COUNT, Config
 from cortex.tutor.sqlite_store import SQLiteStore
-from cortex.tutor.validators import validate_package_name, validate_question
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -109,17 +108,11 @@ def cmd_teach(package: str, verbose: bool = False, fresh: bool = False) -> int:
     Returns:
         Exit code (0 for success, 1 for failure).
     """
-    # Validate package name
-    is_valid, error = validate_package_name(package)
-    if not is_valid:
-        print_error_panel(f"Invalid package name: {error}")
-        return 1
-
     try:
         # Lazy import - only load when needed (requires API key)
         from cortex.tutor.agent import InteractiveTutor
 
-        # Start interactive tutor
+        # Start interactive tutor (validation happens in agent.py)
         interactive = InteractiveTutor(package, force_fresh=fresh)
         interactive.start()
         return 0
@@ -150,21 +143,11 @@ def cmd_question(package: str, question: str, verbose: bool = False) -> int:
     Returns:
         Exit code.
     """
-    # Validate inputs
-    is_valid, error = validate_package_name(package)
-    if not is_valid:
-        print_error_panel(f"Invalid package name: {error}")
-        return 1
-
-    is_valid, error = validate_question(question)
-    if not is_valid:
-        print_error_panel(f"Invalid question: {error}")
-        return 1
-
     try:
         # Lazy import - only load when needed (requires API key)
         from cortex.tutor.agent import TutorAgent
 
+        # Validation happens in agent.ask()
         agent = TutorAgent(verbose=verbose)
         result = agent.ask(package, question)
 
@@ -240,7 +223,7 @@ def _show_package_progress(store: SQLiteStore, package: str) -> None:
     if stats:
         print_progress_summary(
             stats.get("completed", 0),
-            stats.get("total", 0) or DEFAULT_TUTOR_TOPICS,
+            stats.get("total", 0) or DEFAULT_TUTOR_TOPICS_COUNT,
             package,
         )
         console.print(f"[dim]Average score: {stats.get('avg_score', 0):.0%}[/dim]")

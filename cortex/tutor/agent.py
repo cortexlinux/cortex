@@ -7,7 +7,7 @@ Simplified implementation using cortex.llm_router directly.
 from typing import Any
 
 from cortex.tutor.branding import console, tutor_print
-from cortex.tutor.config import DEFAULT_TUTOR_TOPICS
+from cortex.tutor.config import DEFAULT_TUTOR_TOPICS_COUNT
 from cortex.tutor.llm import answer_question, generate_lesson
 from cortex.tutor.tools import LessonLoaderTool, ProgressTrackerTool
 from cortex.tutor.validators import validate_package_name, validate_question
@@ -388,7 +388,7 @@ class InteractiveTutor:
             stats = result.get("stats", {})
             print_progress_summary(
                 stats.get("completed", 0),
-                stats.get("total", 0) or DEFAULT_TUTOR_TOPICS,
+                stats.get("total", 0) or DEFAULT_TUTOR_TOPICS_COUNT,
                 self.package_name,
             )
         else:

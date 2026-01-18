@@ -33,8 +33,10 @@ class TestGetClient:
     def test_get_client_raises_without_api_key(self):
         """Test that get_client raises error without API key."""
         from cortex.tutor import llm
+        from cortex.tutor.config import reset_config
 
         llm._client = None
+        reset_config()
 
         with patch.dict("os.environ", {}, clear=True):
             # Remove ANTHROPIC_API_KEY if it exists
@@ -46,6 +48,7 @@ class TestGetClient:
                 llm.get_client()
 
         llm._client = None
+        reset_config()
 
 
 class TestCalculateCost:

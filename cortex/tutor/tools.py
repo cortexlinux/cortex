@@ -73,10 +73,13 @@ class LessonLoaderTool:
         self,
         package_name: str,
         lesson: dict[str, Any],
-        ttl_hours: int = 24,
+        ttl_hours: int | None = None,
     ) -> bool:
         """Cache a lesson for future retrieval."""
         try:
+            if ttl_hours is None:
+                config = get_config()
+                ttl_hours = config.cache_ttl_hours
             self.store.cache_lesson(package_name, lesson, ttl_hours)
             return True
         except Exception:
