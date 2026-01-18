@@ -72,6 +72,7 @@ cortex install "tools for video compression"
 | **Audit Trail** | Complete history in `~/.cortex/history.db` |
 | **Hardware-Aware** | Detects GPU, CPU, memory for optimized packages |
 | **Multi-LLM Support** | Works with Claude, GPT-4, or local Ollama models |
+| **Auto-Documentation** | [NEW] Automatically generates system and software guides |
 
 ---
 
@@ -192,6 +193,7 @@ cortex role set <slug>
 | `cortex rollback <id>` | Undo a specific installation |
 | `cortex --version` | Show version information |
 | `cortex --help` | Display help message |
+| `cortex docs <cmd>` | [NEW] Generate and view software documentation |
 
 #### Daemon Commands
 
@@ -275,6 +277,7 @@ cortex/
 │   ├── packages.py         # Package manager wrapper
 │   ├── hardware_detection.py
 │   ├── installation_history.py
+│   ├── docs_generator.py   # [NEW] Documentation system
 │   └── utils/              # Utility modules
 ├── daemon/                 # C++ background daemon (cortexd)
 │   ├── src/                # Daemon source code
@@ -284,6 +287,7 @@ cortex/
 │   └── README.md           # Daemon documentation
 ├── tests/                  # Python test suite
 ├── docs/                   # Documentation
+│   └── modules/            # [README_DOCS_GENERATOR.md](docs/modules/README_DOCS_GENERATOR.md)
 ├── examples/               # Example scripts
 └── scripts/                # Utility scripts
 ```

@@ -21,14 +21,9 @@ from cortex.dependency_importer import (
     ParseResult,
     format_package_list,
 )
+from cortex.docs_generator import DocsGenerator
 from cortex.env_manager import EnvironmentManager, get_env_manager
-from cortex.i18n import (
-    SUPPORTED_LANGUAGES,
-    LanguageConfig,
-    get_language,
-    set_language,
-    t,
-)
+from cortex.i18n import SUPPORTED_LANGUAGES, LanguageConfig, get_language, set_language, t
 from cortex.installation_history import InstallationHistory, InstallationStatus, InstallationType
 from cortex.llm.interpreter import CommandInterpreter
 from cortex.network_config import NetworkConfig
@@ -3853,6 +3848,30 @@ def main():
         help="Enable verbose output",
     )
 
+    # Automatic Documentation Generator
+    docs_parser = subparsers.add_parser("docs", help="Automatic documentation generator")
+    docs_subparsers = docs_parser.add_subparsers(dest="docs_action", help="Documentation actions")
+
+    # docs generate
+    gen_parser = docs_subparsers.add_parser("generate", help="Generate documentation for software")
+    gen_parser.add_argument("software", help="Software/Package name")
+
+    # docs export
+    exp_parser = docs_subparsers.add_parser("export", help="Export documentation to file")
+    exp_parser.add_argument("software", help="Software/Package name")
+    exp_parser.add_argument(
+        "--format", choices=["md", "pdf", "html"], default="md", help="Export format (default: md)"
+    )
+
+    # docs view
+    view_parser = docs_subparsers.add_parser("view", help="View documentation guide")
+    view_parser.add_argument("software", help="Software/Package name")
+    view_parser.add_argument(
+        "guide",
+        choices=["installation", "config", "quick-start", "troubleshooting"],
+        help="Guide type to view",
+    )
+
     # System Health Score
     health_parser = subparsers.add_parser("health", help="System health score and recommendations")
     health_parser.add_argument(
@@ -4000,6 +4019,28 @@ def main():
                 packages=getattr(args, "packages", None),
                 verbose=getattr(args, "verbose", False),
             )
+        elif args.command == "docs":
+            docs_gen = DocsGenerator()
+            if args.docs_action == "generate":
+                cx_print(f"📄 Generating documentation for {args.software}...", "info")
+                paths = docs_gen.generate_software_docs(args.software)
+                console.print("\nCreated:")
+                for name, path in paths.items():
+                    console.print(f"   - {name}")
+                return 0
+            elif args.docs_action == "export":
+                path = docs_gen.export_docs(args.software, format=args.format)
+                if "failed" in path.lower():
+                    cx_print(path, "warning")
+                else:
+                    cx_print(f"✓ Exported to {path}", "success")
+                return 0
+            elif args.docs_action == "view":
+                docs_gen.view_guide(args.software, args.guide)
+                return 0
+            else:
+                docs_parser.print_help()
+                return 1
         elif args.command == "health":
             from cortex.health_score import run_health_check
 

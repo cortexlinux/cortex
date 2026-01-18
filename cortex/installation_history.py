@@ -363,6 +363,19 @@ class InstallationHistory:
             conn.commit()
 
             logger.info(f"Installation {install_id} updated: {status.value}")
+
+            # Trigger documentation update for successful installations
+            if status == InstallationStatus.SUCCESS:
+                try:
+                    from cortex.docs_generator import DocsGenerator
+
+                    docs_gen = DocsGenerator()
+                    for pkg in packages:
+                        docs_gen.generate_software_docs(pkg)
+                except ImportError:
+                    pass  # Might happen during testing or if docs_generator is not yet available
+                except Exception as e:
+                    logger.warning(f"Failed to auto-update docs for {packages}: {e}")
         except Exception as e:
             logger.error(f"Failed to update installation: {e}")
             raise
