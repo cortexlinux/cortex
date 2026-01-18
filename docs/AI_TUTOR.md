@@ -603,6 +603,12 @@ export TUTOR_DATA_DIR=~/.cortex
 
 # Optional: Force offline fallback mode (use pre-built lessons)
 export TUTOR_OFFLINE=true
+
+# Optional: LLM model name (default: claude-sonnet-4-20250514)
+export TUTOR_MODEL_NAME=claude-sonnet-4-20250514
+
+# Optional: Cache TTL in hours (default: 24)
+export TUTOR_CACHE_TTL_HOURS=24
 ```
 
 ### Config File
@@ -612,7 +618,7 @@ Configuration can also be set in `~/.cortex/config.yaml`:
 ```yaml
 tutor:
   cache_ttl_hours: 24
-  max_retries: 3
+  model_name: claude-sonnet-4-20250514
   debug: false
   offline: false
 ```
