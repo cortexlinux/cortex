@@ -4,11 +4,13 @@ def test_parse_dependencies_cmake():
     deps = helper._parse_dependencies("CMakeLists.txt", content)
     assert set(deps) == {"OpenSSL", "ZLIB"}
 
+
 def test_parse_dependencies_makefile():
     helper = TarballHelper()
     content = "gcc -lfoo -lbar"
     deps = helper._parse_dependencies("Makefile", content)
     assert set(deps) == {"foo", "bar"}
+
 
 def test_parse_dependencies_setup_py():
     helper = TarballHelper()
@@ -27,12 +29,14 @@ def test_parse_dependencies_setup_py():
     deps3 = helper._parse_dependencies("setup.py", content3)
     assert deps3 == []
 
+
 def test_suggest_apt_packages_lib_prefix():
     helper = TarballHelper()
     deps = ["foo", "libbar"]
     mapping = helper.suggest_apt_packages(deps)
     assert mapping["foo"] == "libfoo-dev"
     assert mapping["libbar"] == "libbar-dev"
+
 
 def test_load_tracked_packages_corrupt(tmp_path, monkeypatch):
     test_file = tmp_path / "manual_builds.json"
@@ -42,6 +46,7 @@ def test_load_tracked_packages_corrupt(tmp_path, monkeypatch):
     pkgs = helper._load_tracked_packages()
     assert pkgs == []
 
+
 def test_load_tracked_packages_valid(tmp_path, monkeypatch):
     test_file = tmp_path / "manual_builds.json"
     test_file.write_text(json.dumps({"packages": ["libfoo-dev", "libbar-dev"]}))
@@ -50,18 +55,25 @@ def test_load_tracked_packages_valid(tmp_path, monkeypatch):
     pkgs2 = helper._load_tracked_packages()
     assert set(pkgs2) == {"libfoo-dev", "libbar-dev"}
 
+
 def test_install_deps_error_handling(monkeypatch):
     helper = TarballHelper()
     called = []
+
     def fake_run(args, check):
         called.append(args)
+
         class Result:
             returncode = 1
+
         return Result()
+
     monkeypatch.setattr("subprocess.run", fake_run)
     helper.tracked_packages = []
     helper.install_deps(["libfail-dev"])
     assert "libfail-dev" not in helper.tracked_packages
+
+
 """
 Unit tests for tarball_helper.py
 """

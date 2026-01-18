@@ -3942,8 +3942,11 @@ def main():
             "path", nargs="?", help="Path to source directory (for analyze/install-deps)"
         )
         tarball_parser.add_argument(
-            "--execute", action="store_true", help="Actually install dependencies (default: dry-run)"
+            "--execute",
+            action="store_true",
+            help="Actually install dependencies (default: dry-run)",
         )
+
     add_tarball_helper_subparser(subparsers)
 
     # ...existing code...
@@ -3955,7 +3958,9 @@ def main():
         if args.command == "tarball-helper":
             from rich.console import Console
             from rich.table import Table
+
             from cortex.tarball_helper import TarballHelper
+
             helper = TarballHelper()
             if args.action == "analyze":
                 deps = helper.analyze(args.path or ".")
@@ -3970,7 +3975,9 @@ def main():
                 deps = helper.analyze(args.path or ".")
                 mapping = helper.suggest_apt_packages(deps)
                 if not args.execute:
-                    Console().print("[yellow]Dry-run:[/yellow] The following packages would be installed:")
+                    Console().print(
+                        "[yellow]Dry-run:[/yellow] The following packages would be installed:"
+                    )
                     for pkg in mapping.values():
                         Console().print(f"  [cyan]{pkg}[/cyan]")
                     Console().print("Run with --execute to actually install.")
@@ -4059,25 +4066,30 @@ def main():
             return cli.config(args)
         elif args.command == "upgrade":
             from cortex.licensing import open_upgrade_page
+
             open_upgrade_page()
             return 0
         elif args.command == "license":
             from cortex.licensing import show_license_status
+
             show_license_status()
             return 0
         elif args.command == "activate":
             from cortex.licensing import activate_license
+
             return 0 if activate_license(args.license_key) else 1
         elif args.command == "update":
             return cli.update(args)
         elif args.command == "wifi":
             from cortex.wifi_driver import run_wifi_driver
+
             return run_wifi_driver(
                 action=getattr(args, "action", "status"),
                 verbose=getattr(args, "verbose", False),
             )
         elif args.command == "stdin":
             from cortex.stdin_handler import run_stdin_handler
+
             return run_stdin_handler(
                 action=getattr(args, "action", "info"),
                 max_lines=getattr(args, "max_lines", 1000),
@@ -4086,6 +4098,7 @@ def main():
             )
         elif args.command == "deps":
             from cortex.semver_resolver import run_semver_resolver
+
             return run_semver_resolver(
                 action=getattr(args, "action", "analyze"),
                 packages=getattr(args, "packages", None),
@@ -4093,6 +4106,7 @@ def main():
             )
         elif args.command == "health":
             from cortex.health_score import run_health_check
+
             return run_health_check(
                 action=getattr(args, "action", "check"),
                 verbose=getattr(args, "verbose", False),
@@ -4111,6 +4125,7 @@ def main():
         # Print traceback if verbose mode was requested
         if "--verbose" in sys.argv or "-v" in sys.argv:
             import traceback
+
             traceback.print_exc()
         return 1
 

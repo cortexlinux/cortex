@@ -19,7 +19,6 @@ import os
 import re
 from pathlib import Path
 
-
 from rich.console import Console
 from rich.table import Table
 
@@ -38,7 +37,9 @@ class TarballHelper:
                 with open(MANUAL_TRACK_FILE) as f:
                     data = json.load(f)
             except json.JSONDecodeError:
-                console.print(f"[yellow]Warning:[/yellow] Failed to parse {MANUAL_TRACK_FILE}. Ignoring corrupt tracking data.")
+                console.print(
+                    f"[yellow]Warning:[/yellow] Failed to parse {MANUAL_TRACK_FILE}. Ignoring corrupt tracking data."
+                )
                 return []
             packages = data.get("packages", [])
             if not isinstance(packages, list):
@@ -85,10 +86,14 @@ class TarballHelper:
         if fname == "setup.py":
             # Use AST for robust parsing
             import ast
+
             try:
                 tree = ast.parse(content)
                 for node in ast.walk(tree):
-                    if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", None) == "install_requires":
+                    if (
+                        isinstance(node, ast.Assign)
+                        and getattr(node.targets[0], "id", None) == "install_requires"
+                    ):
                         if isinstance(node.value, (ast.List, ast.Tuple)):
                             for elt in node.value.elts:
                                 if isinstance(elt, ast.Str):
@@ -118,13 +123,16 @@ class TarballHelper:
     def install_deps(self, pkgs: list[str]) -> None:
         """Install missing -dev packages via apt. Only track successful installs."""
         import subprocess
+
         for pkg in pkgs:
             console.print(f"[cyan]Installing:[/cyan] {pkg}")
             result = subprocess.run(["sudo", "apt-get", "install", "-y", pkg], check=False)
             if result.returncode == 0:
                 self.track(pkg)
             else:
-                console.print(f"[red]Failed to install:[/red] {pkg} (exit code {result.returncode}). Package will not be tracked for cleanup.")
+                console.print(
+                    f"[red]Failed to install:[/red] {pkg} (exit code {result.returncode}). Package will not be tracked for cleanup."
+                )
 
     def track(self, pkg: str) -> None:
         """Track a package for later cleanup."""
@@ -136,6 +144,7 @@ class TarballHelper:
     def cleanup(self) -> None:
         """Remove all tracked packages using apt-get purge."""
         import subprocess
+
         for pkg in self.tracked_packages:
             console.print(f"[yellow]Purging:[/yellow] {pkg}")
             subprocess.run(["sudo", "apt-get", "purge", "-y", pkg], check=False)
