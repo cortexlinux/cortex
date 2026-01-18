@@ -3280,7 +3280,9 @@ def main():
             "path", nargs="?", help="Path to source directory (for analyze/install-deps)"
         )
         tarball_parser.add_argument(
-            "--execute", action="store_true", help="Actually install dependencies (default: dry-run)"
+            "--execute",
+            action="store_true",
+            help="Actually install dependencies (default: dry-run)",
         )
 
     add_tarball_helper_subparser(subparsers)
@@ -3967,7 +3969,9 @@ def main():
         if args.command == "tarball-helper":
             from rich.console import Console
             from rich.table import Table
+
             from cortex.tarball_helper import TarballHelper
+
             helper = TarballHelper()
             if args.action == "analyze":
                 deps = helper.analyze(args.path or ".")
@@ -3990,10 +3994,14 @@ def main():
                 if args.execute:
                     helper.install_deps(list(mapping.values()))
                 else:
-                    Console().print("[yellow]Dry-run: No packages installed. Use --execute to install.[/yellow]")
+                    Console().print(
+                        "[yellow]Dry-run: No packages installed. Use --execute to install.[/yellow]"
+                    )
             elif args.action == "cleanup":
                 pkgs_str = ", ".join(helper.tracked_packages)
-                confirm = input(f"Are you sure you want to purge the following packages? {pkgs_str} [y/N]: ")
+                confirm = input(
+                    f"Are you sure you want to purge the following packages? {pkgs_str} [y/N]: "
+                )
                 if confirm.lower() == "y":
                     helper.cleanup()
                 else:

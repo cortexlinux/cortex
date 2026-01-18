@@ -45,13 +45,16 @@ class TarballHelper:
     def install_deps(self, pkgs: list[str]) -> None:
         """Install missing -dev packages via apt. Only track successful installs."""
         import subprocess
+
         for pkg in pkgs:
             console.print(f"[cyan]Installing:[/cyan] {pkg}")
             result = subprocess.run(["sudo", "apt-get", "install", "-y", pkg], check=False)
             if result.returncode == 0:
                 self.track(pkg)
             else:
-                console.print(f"[red]Failed to install:[/red] {pkg} (exit code {result.returncode}). Package will not be tracked for cleanup.")
+                console.print(
+                    f"[red]Failed to install:[/red] {pkg} (exit code {result.returncode}). Package will not be tracked for cleanup."
+                )
 
     def track(self, pkg: str) -> None:
         """Track a package for later cleanup."""
@@ -105,6 +108,7 @@ class TarballHelper:
                     else:
                         deps.update(self._parse_dependencies(fname, content))
         return list(deps)
+
     def _parse_dependencies(self, fname: str, content: str) -> list[str]:
         """Extract dependencies from build files using regex or delegate to setup.py parser."""
         if fname == "setup.py":
@@ -124,6 +128,7 @@ class TarballHelper:
     def _parse_setup_py_dependencies(self, content: str) -> list[str]:
         """Robustly parse install_requires from setup.py using ast and regex fallback."""
         import ast
+
         deps = set()
         try:
             tree = ast.parse(content)
@@ -137,16 +142,30 @@ class TarballHelper:
                                 for elt in node.value.elts:
                                     if isinstance(elt, ast.Str):
                                         deps.add(elt.s)
-                                    elif hasattr(ast, "Constant") and isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                                    elif (
+                                        hasattr(ast, "Constant")
+                                        and isinstance(elt, ast.Constant)
+                                        and isinstance(elt.value, str)
+                                    ):
                                         deps.add(elt.value)
                 # install_requires in setup() call
-                if isinstance(node, ast.Call) and hasattr(node.func, "id") and node.func.id == "setup":
+                if (
+                    isinstance(node, ast.Call)
+                    and hasattr(node.func, "id")
+                    and node.func.id == "setup"
+                ):
                     for kw in node.keywords:
-                        if kw.arg == "install_requires" and isinstance(kw.value, (ast.List, ast.Tuple)):
+                        if kw.arg == "install_requires" and isinstance(
+                            kw.value, (ast.List, ast.Tuple)
+                        ):
                             for elt in kw.value.elts:
                                 if isinstance(elt, ast.Str):
                                     deps.add(elt.s)
-                                elif hasattr(ast, "Constant") and isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                                elif (
+                                    hasattr(ast, "Constant")
+                                    and isinstance(elt, ast.Constant)
+                                    and isinstance(elt.value, str)
+                                ):
                                     deps.add(elt.value)
             if deps:
                 return list(deps)
@@ -161,9 +180,11 @@ class TarballHelper:
             # Extract all quoted package names from the captured group
             deps.update(re.findall(r"['\"]([^'\"]+)['\"]", m, re.DOTALL))
         return list(deps)
+
     def cleanup(self) -> None:
         """Remove tracked packages using apt-get purge."""
         import subprocess
+
         if not self.tracked_packages:
             console.print("[yellow]No tracked packages to remove.[/yellow]")
             return

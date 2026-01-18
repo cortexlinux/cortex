@@ -1,5 +1,7 @@
 import json
+
 from cortex.tarball_helper import TarballHelper
+
 
 def test_parse_dependencies_cmake():
     helper = TarballHelper()
@@ -32,6 +34,7 @@ def test_parse_dependencies_setup_py():
     deps3 = helper._parse_dependencies("setup.py", content3)
     assert deps3 == []
 
+
 def test_parse_dependencies_setup_py_multiline():
     helper = TarballHelper()
     content = """
@@ -60,14 +63,20 @@ def test_load_tracked_packages_corrupt(tmp_path, monkeypatch):
     helper = TarballHelper()
     pkgs = helper._load_tracked_packages()
     assert pkgs == []
+
+
 def test_install_deps_error_handling(monkeypatch):
     helper = TarballHelper()
     called = []
+
     def fake_run(args, check):
         called.append(args)
+
         class Result:
             returncode = 1
+
         return Result()
+
     monkeypatch.setattr("subprocess.run", fake_run)
     helper.tracked_packages = []
     helper.install_deps(["libfail-dev"])
@@ -105,14 +114,13 @@ def test_install_deps_error_handling(monkeypatch):
 Unit tests for tarball_helper.py
 """
 
-import json
 import os
 import shutil
 import tempfile
 
 import pytest
 
-from cortex.tarball_helper import MANUAL_TRACK_FILE, TarballHelper
+from cortex.tarball_helper import MANUAL_TRACK_FILE
 
 
 def test_analyze_cmake(tmp_path):
