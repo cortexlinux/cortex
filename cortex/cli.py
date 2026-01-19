@@ -2016,7 +2016,7 @@ class CortexCLI:
             return 0
 
     def _update_history_on_failure(
-        self, history: InstallationHistory, install_id: int | None, error_msg: str
+        self, history: InstallationHistory, install_id: str | None, error_msg: str
     ) -> None:
         """
         Helper method to update installation history on failure.
@@ -2123,22 +2123,6 @@ class CortexCLI:
 
         cx_header("Installing Cortex Daemon")
 
-        # Initialize audit logging
-        history = InstallationHistory()
-        start_time = datetime.now(timezone.utc)
-        install_id = None
-
-        try:
-            # Record operation start
-            install_id = history.record_installation(
-                InstallationType.CONFIG,
-                ["cortexd"],
-                ["cortex daemon install"],
-                start_time,
-            )
-        except Exception as e:
-            cx_print(f"Warning: Could not initialize audit logging: {e}", "warning")
-
         # Find setup_daemon.py
         daemon_dir = Path(__file__).parent.parent / "daemon"
         setup_script = daemon_dir / "scripts" / "setup_daemon.py"
@@ -2147,12 +2131,6 @@ class CortexCLI:
             error_msg = f"Setup script not found at {setup_script}"
             cx_print(error_msg, "error")
             cx_print("Please ensure the daemon directory is present.", "error")
-            if install_id:
-                try:
-                    history.update_installation(install_id, InstallationStatus.FAILED, error_msg)
-                except Exception:
-                    # Continue even if audit logging fails - don't break the main flow
-                    pass
             return 1
 
         execute = getattr(args, "execute", False)
@@ -2168,17 +2146,24 @@ class CortexCLI:
             cx_print("", "info")
             cx_print("Run with --execute to proceed:", "info")
             cx_print("  cortex daemon install --execute", "dim")
-            if install_id:
-                try:
-                    history.update_installation(
-                        install_id,
-                        InstallationStatus.FAILED,
-                        "Operation cancelled (no --execute flag)",
-                    )
-                except Exception:
-                    # Continue even if audit logging fails - don't break the main flow
-                    pass
+            # Don't record dry-runs in audit history
             return 0
+
+        # Initialize audit logging only when execution will actually run
+        history = InstallationHistory()
+        start_time = datetime.now(timezone.utc)
+        install_id = None
+
+        try:
+            # Record operation start
+            install_id = history.record_installation(
+                InstallationType.CONFIG,
+                ["cortexd"],
+                ["cortex daemon install"],
+                start_time,
+            )
+        except Exception as e:
+            cx_print(f"Warning: Could not initialize audit logging: {e}", "warning")
 
         # Run setup_daemon.py
         cx_print("Running daemon setup wizard...", "info")
@@ -2231,7 +2216,23 @@ class CortexCLI:
 
         cx_header("Uninstalling Cortex Daemon")
 
-        # Initialize audit logging
+        execute = getattr(args, "execute", False)
+
+        if not execute:
+            cx_print("This will stop and remove the cortexd daemon.", "warning")
+            cx_print("", "info")
+            cx_print("This will:", "info")
+            cx_print("  1. Stop the cortexd service", "info")
+            cx_print("  2. Disable the service", "info")
+            cx_print("  3. Remove systemd unit files", "info")
+            cx_print("  4. Remove the daemon binary", "info")
+            cx_print("", "info")
+            cx_print("Run with --execute to proceed:", "info")
+            cx_print("  cortex daemon uninstall --execute", "dim")
+            # Don't record dry-runs in audit history
+            return 0
+
+        # Initialize audit logging only when execution will actually run
         history = InstallationHistory()
         start_time = datetime.now(timezone.utc)
         install_id = None
@@ -2246,31 +2247,6 @@ class CortexCLI:
             )
         except Exception as e:
             cx_print(f"Warning: Could not initialize audit logging: {e}", "warning")
-
-        execute = getattr(args, "execute", False)
-
-        if not execute:
-            cx_print("This will stop and remove the cortexd daemon.", "warning")
-            cx_print("", "info")
-            cx_print("This will:", "info")
-            cx_print("  1. Stop the cortexd service", "info")
-            cx_print("  2. Disable the service", "info")
-            cx_print("  3. Remove systemd unit files", "info")
-            cx_print("  4. Remove the daemon binary", "info")
-            cx_print("", "info")
-            cx_print("Run with --execute to proceed:", "info")
-            cx_print("  cortex daemon uninstall --execute", "dim")
-            if install_id:
-                try:
-                    history.update_installation(
-                        install_id,
-                        InstallationStatus.FAILED,
-                        "Operation cancelled (no --execute flag)",
-                    )
-                except Exception:
-                    # Continue even if audit logging fails - don't break the main flow
-                    pass
-            return 0
 
         # Find uninstall script
         daemon_dir = Path(__file__).parent.parent / "daemon"

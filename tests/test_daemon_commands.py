@@ -26,6 +26,52 @@ class TestDaemonCommands(unittest.TestCase):
     def tearDown(self):
         self._temp_dir.cleanup()
 
+    def _create_mock_uninstall_script(self, exists=True):
+        """Helper to create a mock uninstall script Path object."""
+        mock_uninstall_script = Mock()
+        mock_uninstall_script.exists.return_value = exists
+        mock_uninstall_script.chmod = Mock()
+        mock_uninstall_script.stat.return_value = Mock()
+        mock_uninstall_script.__str__ = lambda x: "/path/to/uninstall.sh"
+        mock_uninstall_script.__fspath__ = lambda x: "/path/to/uninstall.sh"
+        return mock_uninstall_script
+
+    def _setup_path_side_effect(self, mock_path_class, mock_uninstall_script):
+        """Helper to set up Path class side effect."""
+
+        def path_side_effect(*args, **kwargs):
+            path_str = str(args[0]) if args else ""
+            if "uninstall.sh" in path_str:
+                return mock_uninstall_script
+            # Return a regular mock for other paths
+            mock_path = Mock()
+            mock_path.exists.return_value = False
+            return mock_path
+
+        mock_path_class.side_effect = path_side_effect
+
+    def _setup_subprocess_side_effect(self, mock_subprocess, handle_script=False):
+        """Helper to set up subprocess side effect."""
+
+        def subprocess_side_effect(*args, **kwargs):
+            mock_result = Mock()
+            if "dpkg-query" in str(args[0]):
+                # InstallationHistory call
+                mock_result.returncode = 0
+                mock_result.stdout = "install ok installed|1.0.0"
+                mock_result.stderr = ""
+            elif handle_script and "bash" in str(args[0]) and "uninstall" in str(args[0]):
+                # Uninstall script execution
+                mock_result.returncode = 0
+                mock_result.stderr = ""
+            else:
+                # Manual uninstall commands or other calls
+                mock_result.returncode = 0
+                mock_result.stderr = ""
+            return mock_result
+
+        mock_subprocess.side_effect = subprocess_side_effect
+
     def test_daemon_no_action(self):
         """Test daemon command with no action shows help."""
         args = Mock()
@@ -115,43 +161,9 @@ class TestDaemonCommands(unittest.TestCase):
         args.daemon_action = "uninstall"
 
         # Create a mock Path object
-        mock_uninstall_script = Mock()
-        mock_uninstall_script.exists.return_value = True
-        mock_uninstall_script.chmod = Mock()
-        mock_uninstall_script.stat.return_value = Mock()
-        mock_uninstall_script.__str__ = lambda x: "/path/to/uninstall.sh"
-        mock_uninstall_script.__fspath__ = lambda x: "/path/to/uninstall.sh"
-
-        # Mock Path class to return our mock script
-        def path_side_effect(*args, **kwargs):
-            path_str = str(args[0]) if args else ""
-            if "uninstall.sh" in path_str:
-                return mock_uninstall_script
-            # Return a regular mock for other paths
-            mock_path = Mock()
-            mock_path.exists.return_value = False
-            return mock_path
-
-        mock_path_class.side_effect = path_side_effect
-
-        # Mock subprocess result - need to handle both InstallationHistory and script execution
-        def subprocess_side_effect(*args, **kwargs):
-            mock_result = Mock()
-            if "dpkg-query" in str(args[0]):
-                # InstallationHistory call
-                mock_result.returncode = 0
-                mock_result.stdout = "install ok installed|1.0.0"
-                mock_result.stderr = ""
-            elif "bash" in str(args[0]) and "uninstall" in str(args[0]):
-                # Uninstall script execution
-                mock_result.returncode = 0
-                mock_result.stderr = ""
-            else:
-                mock_result.returncode = 0
-                mock_result.stderr = ""
-            return mock_result
-
-        mock_subprocess.side_effect = subprocess_side_effect
+        mock_uninstall_script = self._create_mock_uninstall_script(exists=True)
+        self._setup_path_side_effect(mock_path_class, mock_uninstall_script)
+        self._setup_subprocess_side_effect(mock_subprocess, handle_script=True)
 
         result = self.cli._daemon_uninstall(args)
         self.assertEqual(result, 0)
@@ -171,38 +183,9 @@ class TestDaemonCommands(unittest.TestCase):
         args.daemon_action = "uninstall"
 
         # Create a mock Path object for uninstall script that doesn't exist
-        mock_uninstall_script = Mock()
-        mock_uninstall_script.exists.return_value = False
-        mock_uninstall_script.__str__ = lambda x: "/path/to/uninstall.sh"
-        mock_uninstall_script.__fspath__ = lambda x: "/path/to/uninstall.sh"
-
-        # Mock Path class to return our mock script
-        def path_side_effect(*args, **kwargs):
-            path_str = str(args[0]) if args else ""
-            if "uninstall.sh" in path_str:
-                return mock_uninstall_script
-            # Return a regular mock for other paths
-            mock_path = Mock()
-            mock_path.exists.return_value = False
-            return mock_path
-
-        mock_path_class.side_effect = path_side_effect
-
-        # Mock subprocess result - need to handle both InstallationHistory and manual commands
-        def subprocess_side_effect(*args, **kwargs):
-            mock_result = Mock()
-            if "dpkg-query" in str(args[0]):
-                # InstallationHistory call
-                mock_result.returncode = 0
-                mock_result.stdout = "install ok installed|1.0.0"
-                mock_result.stderr = ""
-            else:
-                # Manual uninstall commands
-                mock_result.returncode = 0
-                mock_result.stderr = ""
-            return mock_result
-
-        mock_subprocess.side_effect = subprocess_side_effect
+        mock_uninstall_script = self._create_mock_uninstall_script(exists=False)
+        self._setup_path_side_effect(mock_path_class, mock_uninstall_script)
+        self._setup_subprocess_side_effect(mock_subprocess, handle_script=False)
 
         result = self.cli._daemon_uninstall(args)
         self.assertEqual(result, 0)
@@ -318,11 +301,8 @@ class TestDaemonCommands(unittest.TestCase):
     @patch("cortex.cli.cx_header")
     @patch("cortex.cli.cx_print")
     @patch("cortex.cli.Path.exists")
-    @patch("cortex.cli.Path.glob")
     @patch("subprocess.run")
-    def test_daemon_run_tests_success(
-        self, mock_subprocess, mock_glob, mock_exists, mock_print, mock_header
-    ):
+    def test_daemon_run_tests_success(self, mock_subprocess, mock_exists, mock_print, mock_header):
         """Test daemon run-tests with successful execution."""
         args = Mock()
         args.test = None
@@ -330,15 +310,10 @@ class TestDaemonCommands(unittest.TestCase):
         args.integration = False
         args.verbose = False
 
-        # Mock tests directory exists
+        # Mock Path.exists to return True for test files
+        # _daemon_run_tests checks (tests_dir / test).exists() for each test
+        # We need to return True when checking for test file existence
         mock_exists.return_value = True
-
-        # Mock test files exist
-        mock_test1 = Mock()
-        mock_test1.name = "test_config"
-        mock_test2 = Mock()
-        mock_test2.name = "test_daemon"
-        mock_glob.return_value = [mock_test1, mock_test2]
 
         # Mock subprocess result
         mock_result = Mock()
@@ -369,7 +344,7 @@ class TestDaemonCommands(unittest.TestCase):
         mock_history_class.return_value = mock_history
 
         history = mock_history
-        install_id = 123
+        install_id = "123"
         error_msg = "Test error"
 
         self.cli._update_history_on_failure(history, install_id, error_msg)
