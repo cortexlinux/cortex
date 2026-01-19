@@ -40,7 +40,8 @@ class ConfigManager:
     SOURCE_APT = "apt"
     SOURCE_PIP = "pip"
     SOURCE_NPM = "npm"
-    DEFAULT_SOURCES: ClassVar[list[str]] = [SOURCE_APT, SOURCE_PIP, SOURCE_NPM]
+    SOURCE_SERVICE = "service"
+    DEFAULT_SOURCES: ClassVar[list[str]] = [SOURCE_APT, SOURCE_PIP, SOURCE_NPM, SOURCE_SERVICE]
 
     def __init__(self, sandbox_executor=None):
         """
@@ -209,6 +210,59 @@ class ConfigManager:
 
         return packages
 
+    def detect_services(self) -> list[dict[str, Any]]:
+        """
+        Detect running and enabled systemd services.
+
+        Returns:
+            List of service dictionaries with name, state, and enabled status
+        """
+        services = []
+
+        try:
+            # Get list of all service units
+            result = subprocess.run(
+                ["systemctl", "list-units", "--type=service", "--all", "--no-legend", "--no-pager"],
+                capture_output=True,
+                text=True,
+                timeout=self.DETECTION_TIMEOUT,
+            )
+
+            if result.returncode == 0:
+                for line in result.stdout.strip().split("\n"):
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        service_name = parts[0]
+                        # Only track .service units
+                        if not service_name.endswith(".service"):
+                            continue
+
+                        active_state = parts[2]  # active, inactive, failed
+                        sub_state = parts[3]  # running, dead, exited
+
+                        # Get enabled status
+                        enabled_result = subprocess.run(
+                            ["systemctl", "is-enabled", service_name],
+                            capture_output=True,
+                            text=True,
+                            timeout=5,
+                        )
+                        is_enabled = enabled_result.stdout.strip() == "enabled"
+
+                        services.append(
+                            {
+                                "name": service_name,
+                                "active_state": active_state,
+                                "sub_state": sub_state,
+                                "enabled": is_enabled,
+                                "source": self.SOURCE_SERVICE,
+                            }
+                        )
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+
+        return services
+
     def detect_installed_packages(self, sources: list[str] | None = None) -> list[dict[str, Any]]:
         """
         Detect all installed packages from specified sources.
@@ -233,6 +287,9 @@ class ConfigManager:
 
         if self.SOURCE_NPM in sources:
             all_packages.extend(self.detect_npm_packages())
+
+        if self.SOURCE_SERVICE in sources:
+            all_packages.extend(self.detect_services())
 
         # Remove duplicates based on name and source (more efficient)
         unique_packages_dict = {}
@@ -344,7 +401,7 @@ class ConfigManager:
             except Exception as e:
                 config["hardware"] = {"error": f"Failed to detect hardware: {e}"}
 
-        # Add packages
+        # Add packages and services
         config["packages"] = self.detect_installed_packages(sources=package_sources)
 
         # Add preferences if requested
@@ -429,6 +486,32 @@ class ConfigManager:
 
         return True, None
 
+    def _categorize_service(
+        self, service: dict[str, Any], current_service_map: dict[str, dict[str, Any]]
+    ) -> tuple[str, dict[str, Any] | None]:
+        """
+        Categorize a service as install, start, or already correct.
+        """
+        name = service.get("name")
+        if not name:
+            return "skip", None
+
+        if name not in current_service_map:
+            return "missing", service
+
+        current = current_service_map[name]
+
+        needs_change = False
+        if service.get("enabled") and not current.get("enabled"):
+            needs_change = True
+        if service.get("active_state") == "active" and current.get("active_state") != "active":
+            needs_change = True
+
+        if needs_change:
+            return "update", {**service, "current_state": current.get("active_state")}
+
+        return "already_correct", service
+
     def _categorize_package(
         self, pkg: dict[str, Any], current_pkg_map: dict[tuple[str, str], str]
     ) -> tuple[str, dict[str, Any] | None]:
@@ -486,29 +569,42 @@ class ConfigManager:
             "packages_to_upgrade": [],
             "packages_to_downgrade": [],
             "packages_already_installed": [],
+            "services_missing": [],
+            "services_to_update": [],
             "preferences_changed": {},
             "warnings": [],
         }
 
-        # Get current packages
-        current_packages = self.detect_installed_packages()
+        # Get current state
+        all_current = self.detect_installed_packages()
+        current_packages = [p for p in all_current if p["source"] != self.SOURCE_SERVICE]
+        current_services = [p for p in all_current if p["source"] == self.SOURCE_SERVICE]
+
         current_pkg_map = {(pkg["name"], pkg["source"]): pkg["version"] for pkg in current_packages}
+        current_service_map = {s["name"]: s for s in current_services}
 
-        # Compare packages from config
-        config_packages = config.get("packages", [])
-        for pkg in config_packages:
-            category, pkg_data = self._categorize_package(pkg, current_pkg_map)
-
-            if category == "skip":
-                diff["warnings"].append(f"Malformed package entry skipped: {pkg}")
-            elif category == "install":
-                diff["packages_to_install"].append(pkg_data)
-            elif category == "upgrade":
-                diff["packages_to_upgrade"].append(pkg_data)
-            elif category == "downgrade":
-                diff["packages_to_downgrade"].append(pkg_data)
-            elif category == "already_installed":
-                diff["packages_already_installed"].append(pkg_data)
+        # Compare packages/services from config
+        config_items = config.get("packages", [])
+        for item in config_items:
+            source = item.get("source")
+            if source == self.SOURCE_SERVICE:
+                category, srv_data = self._categorize_service(item, current_service_map)
+                if category == "missing":
+                    diff["services_missing"].append(srv_data)
+                elif category == "update":
+                    diff["services_to_update"].append(srv_data)
+            else:
+                category, pkg_data = self._categorize_package(item, current_pkg_map)
+                if category == "skip":
+                    diff["warnings"].append(f"Malformed package entry skipped: {item}")
+                elif category == "install":
+                    diff["packages_to_install"].append(pkg_data)
+                elif category == "upgrade":
+                    diff["packages_to_upgrade"].append(pkg_data)
+                elif category == "downgrade":
+                    diff["packages_to_downgrade"].append(pkg_data)
+                elif category == "already_installed":
+                    diff["packages_already_installed"].append(pkg_data)
 
         # Compare preferences
         current_prefs = self._load_preferences()
@@ -658,12 +754,13 @@ class ConfigManager:
 
         # Determine what to import
         if selective is None:
-            selective = ["packages", "preferences"]
+            selective = ["packages", "services", "preferences"]
 
         summary = {
             "installed": [],
             "upgraded": [],
             "downgraded": [],
+            "services_updated": [],
             "failed": [],
             "skipped": [],
             "preferences_updated": False,
@@ -672,6 +769,10 @@ class ConfigManager:
         # Import packages
         if "packages" in selective:
             self._import_packages(config, summary)
+
+        # Import services
+        if "services" in selective:
+            self._import_services(config, summary)
 
         # Import preferences
         if "preferences" in selective:
@@ -729,6 +830,45 @@ class ConfigManager:
                     summary["failed"].append(pkg["name"])
             except Exception as e:
                 summary["failed"].append(f"{pkg['name']} ({str(e)})")
+
+    def _import_services(self, config: dict[str, Any], summary: dict[str, Any]) -> None:
+        """
+        Import and update service states from configuration.
+        """
+        diff = self.diff_configuration(config)
+        services_to_process = diff["services_to_update"]
+        # Note: services_missing are ignored as we don't have unit files to create them
+
+        for srv in services_to_process:
+            try:
+                success = self._update_service(srv)
+                if success:
+                    summary["services_updated"].append(srv["name"])
+                else:
+                    summary["failed"].append(f"service:{srv['name']}")
+            except Exception as e:
+                summary["failed"].append(f"service:{srv['name']} ({str(e)})")
+
+    def _update_service(self, srv: dict[str, Any]) -> bool:
+        """
+        Update a service state (start/enable).
+        """
+        name = srv["name"]
+        success = True
+
+        if srv.get("enabled"):
+            cmd = ["sudo", "systemctl", "enable", name]
+            res = subprocess.run(cmd, capture_output=True)
+            if res.returncode != 0:
+                success = False
+
+        if srv.get("active_state") == "active":
+            cmd = ["sudo", "systemctl", "start", name]
+            res = subprocess.run(cmd, capture_output=True)
+            if res.returncode != 0:
+                success = False
+
+        return success
 
     def _import_preferences(self, config: dict[str, Any], summary: dict[str, Any]) -> None:
         """

@@ -22,13 +22,7 @@ from cortex.dependency_importer import (
     format_package_list,
 )
 from cortex.env_manager import EnvironmentManager, get_env_manager
-from cortex.i18n import (
-    SUPPORTED_LANGUAGES,
-    LanguageConfig,
-    get_language,
-    set_language,
-    t,
-)
+from cortex.i18n import SUPPORTED_LANGUAGES, LanguageConfig, get_language, set_language, t
 from cortex.installation_history import InstallationHistory, InstallationStatus, InstallationType
 from cortex.llm.interpreter import CommandInterpreter
 from cortex.network_config import NetworkConfig
@@ -1978,6 +1972,164 @@ class CortexCLI:
 
         return run_systemd_helper(service, action, verbose)
 
+    def template(self, args):
+        """Handle template commands"""
+        from cortex.config_manager import ConfigManager
+        from cortex.template_manager import TemplateManager
+
+        manager = TemplateManager()
+        cmd = args.template_command
+
+        if not cmd:
+            self.console.print(
+                "[yellow]Usage: cortex template [create|deploy|list|show|delete|export|import][/yellow]"
+            )
+            return 1
+
+        if cmd == "create":
+            console.print("📸 [bold]Capturing system state...[/bold]")
+            version = manager.create_template(
+                args.name, args.description, package_sources=args.sources
+            )
+
+            # Get counts for the summary
+            t = manager.get_template(args.name, version)
+            pkgs = t["config"].get("packages", [])
+            apps = [p for p in pkgs if p["source"] != "service"]
+            services = [p for p in pkgs if p["source"] == "service"]
+
+            console.print(f"   - {len(apps)} packages")
+            console.print(
+                f"   - {len(t['config'].get('preferences', {})) + len(t['config'].get('environment_variables', {}))} configurations"
+            )
+            console.print(f"   - {len(services)} services")
+            console.print(f"[green]✓[/green]  Template saved: [bold]{args.name}-{version}[/bold]\n")
+            return 0
+
+        elif cmd == "list":
+            templates = manager.list_templates()
+            if not templates:
+                console.print("No templates found.")
+                return 0
+
+            console.print("\n[bold cyan]Available System Templates:[/bold cyan]\n")
+            for t in templates:
+                console.print(f"• [bold]{t['name']}[/bold] (latest: {t['latest_version']})")
+                for v in t["versions"]:
+                    console.print(
+                        f"  - {v['version']} ({v['created_at'][:10]}): {v['description']}"
+                    )
+            console.print()
+            return 0
+
+        elif cmd == "show" or cmd == "deploy" or cmd == "delete" or cmd == "export":
+            # These need a template specification
+            # Support both name:v1 and name-v1 syntax
+            if ":" in args.name:
+                parts = args.name.split(":", 1)
+                name = parts[0]
+                version = parts[1]
+            elif "-v" in args.name:
+                # Find the last -v
+                idx = args.name.rfind("-v")
+                name = args.name[:idx]
+                version = args.name[idx + 1 :]
+            else:
+                name = args.name
+                version = None
+
+            if cmd == "show":
+                t = manager.get_template(name, version)
+                if not t:
+                    console.print(f"[red]Error:[/red] Template '{args.name}' not found.")
+                    return 1
+
+                console.print(f"\n[bold]{t['name']}:{t['version']}[/bold]")
+                console.print(f"Description: {t['description']}")
+                console.print(f"Created: {t['created_at']}")
+                console.print(f"OS: {t['config'].get('os', 'unknown')}")
+
+                pkgs = t["config"].get("packages", [])
+                apps = [p for p in pkgs if p["source"] != "service"]
+                services = [p for p in pkgs if p["source"] == "service"]
+
+                console.print("\n[bold]Summary:[/bold]")
+                console.print(f"- {len(apps)} Packages")
+                console.print(
+                    f"- {len(t['config'].get('preferences', {})) + len(t['config'].get('environment_variables', {}))} Configurations"
+                )
+                console.print(f"- {len(services)} Services")
+                return 0
+
+            elif cmd == "delete":
+                if manager.delete_template(name, version):
+                    spec = f"{name}:{version}" if version else name
+                    console.print(f"[green]✓[/green] Deleted template: {spec}")
+                    return 0
+                console.print(f"[red]Error:[/red] Template '{args.name}' not found.")
+                return 1
+
+            elif cmd == "export":
+                try:
+                    path = manager.export_template(name, version or "v1", args.file)
+                    console.print(f"[green]✓[/green] Template exported to: {path}")
+                    return 0
+                except Exception as e:
+                    console.print(f"[red]Error:[/red] {e}")
+                    return 1
+
+            elif cmd == "deploy":
+                t = manager.get_template(name, version)
+                if not t:
+                    console.print(f"[red]Error:[/red] Template '{args.name}' not found.")
+                    return 1
+
+                config_manager = ConfigManager()
+
+                if args.dry_run:
+                    console.print(
+                        f"\n[bold cyan]Previewing deployment of {t['name']}:{t['version']}[/bold cyan]\n"
+                    )
+                    diff = config_manager.diff_configuration(t["config"])
+
+                    if diff["packages_to_install"]:
+                        console.print(
+                            f"📦 [bold]To Install:[/bold] {len(diff['packages_to_install'])} packages"
+                        )
+                    if diff["services_to_update"]:
+                        console.print(
+                            f"⚙️ [bold]To Update:[/bold] {len(diff['services_to_update'])} services"
+                        )
+
+                    if not diff["packages_to_install"] and not diff["services_to_update"]:
+                        console.print("[green]System already matches template.[/green]")
+                    return 0
+
+                console.print("🚀 [bold]Deploying template...[/bold]")
+                result = config_manager.import_configuration(
+                    str(manager.base_dir / t["name"] / t["version"] / "template.yaml"),
+                    force=args.force,
+                )
+
+                if result:
+                    console.print("   [green]✓[/green]  Packages installed")
+                    console.print("   [green]✓[/green]  Configurations applied")
+                    console.print("   [green]✓[/green]  Services started")
+                    console.print("[green]✓[/green]  System cloned successfully\n")
+                    return 0
+                return 1
+
+        elif cmd == "import":
+            try:
+                name, version = manager.import_template(args.file)
+                console.print(f"[green]✓[/green] Template imported: [bold]{name}:{version}[/bold]")
+                return 0
+            except Exception as e:
+                console.print(f"[red]Error:[/red] {e}")
+                return 1
+
+        return 0
+
     def gpu(self, action: str = "status", mode: str = None, verbose: bool = False):
         """Hybrid GPU (Optimus) manager"""
         from cortex.gpu_manager import run_gpu_manager
@@ -3277,6 +3429,45 @@ def main():
     benchmark_parser = subparsers.add_parser("benchmark", help="Run AI performance benchmark")
     benchmark_parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 
+    # Template commands
+    template_parser = subparsers.add_parser("template", help="System cloning and templating")
+    template_subparsers = template_parser.add_subparsers(dest="template_command")
+
+    # Create
+    create_p = template_subparsers.add_parser("create", help="Create system template")
+    create_p.add_argument("name", help="Template name")
+    create_p.add_argument("--description", "-d", default="", help="Template description")
+    create_p.add_argument(
+        "--sources", "-s", nargs="+", help="Sources to capture (apt, pip, npm, service)"
+    )
+
+    # Deploy
+    deploy_p = template_subparsers.add_parser("deploy", help="Deploy template")
+    deploy_p.add_argument("name", help="Template name[:version]")
+    deploy_p.add_argument("--dry-run", action="store_true", help="Preview changes")
+    deploy_p.add_argument("--force", action="store_true", help="Skip compatibility checks")
+    deploy_p.add_argument("--to", help="Target system (e.g., server-02)")
+
+    # List
+    template_subparsers.add_parser("list", help="List all templates")
+
+    # Show
+    show_p = template_subparsers.add_parser("show", help="Show template details")
+    show_p.add_argument("name", help="Template name[:version]")
+
+    # Delete
+    del_p = template_subparsers.add_parser("delete", help="Delete template")
+    del_p.add_argument("name", help="Template name[:version]")
+
+    # Export
+    exp_p = template_subparsers.add_parser("export", help="Export template to ZIP")
+    exp_p.add_argument("name", help="Template name[:version]")
+    exp_p.add_argument("file", help="Output zip file")
+
+    # Import
+    imp_p = template_subparsers.add_parser("import", help="Import template from ZIP")
+    imp_p.add_argument("file", help="Input zip file")
+
     # Systemd helper command
     systemd_parser = subparsers.add_parser("systemd", help="Systemd service helper (plain English)")
     systemd_parser.add_argument("service", help="Service name")
@@ -3907,12 +4098,10 @@ def main():
             return cli.status()
         elif args.command == "benchmark":
             return cli.benchmark(verbose=getattr(args, "verbose", False))
+        elif args.command == "template":
+            return cli.template(args)
         elif args.command == "systemd":
-            return cli.systemd(
-                args.service,
-                action=getattr(args, "action", "status"),
-                verbose=getattr(args, "verbose", False),
-            )
+            return cli.systemd(args.service, args.action, args.verbose)
         elif args.command == "gpu":
             return cli.gpu(
                 action=getattr(args, "action", "status"),

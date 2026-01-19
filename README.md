@@ -71,6 +71,7 @@ cortex install "tools for video compression"
 | **Docker Permission Fixer** | Fix root-owned bind mount issues automatically |
 | **Audit Trail** | Complete history in `~/.cortex/history.db` |
 | **Hardware-Aware** | Detects GPU, CPU, memory for optimized packages |
+| **System Cloning** | Capture, version, and replicate system states via templates |
 | **Multi-LLM Support** | Works with Claude, GPT-4, or local Ollama models |
 
 ---
@@ -165,6 +166,9 @@ cortex history
 
 # Rollback an installation
 cortex rollback <installation-id>
+
+# Create a system backup template
+cortex template create base-state --description "Baseline configuration"
 ```
 
 ### Role Management
@@ -190,6 +194,7 @@ cortex role set <slug>
 | `cortex sandbox <cmd>` | Test packages in Docker sandbox |
 | `cortex history` | View all past installations |
 | `cortex rollback <id>` | Undo a specific installation |
+| `cortex template <cmd>` | System cloning and templating (create, deploy, list, show) |
 | `cortex --version` | Show version information |
 | `cortex --help` | Display help message |
 
@@ -414,6 +419,7 @@ pip install -e .
 - [x] Dry-run preview mode
 - [x] Docker bind-mount permission fixer
 - [x] Automatic Role Discovery (AI-driven system context sensing)
+- [x] System Cloning & Templating (Capture, Version, Clone)
 
 ### In Progress
 - [ ] Conflict resolution UI
