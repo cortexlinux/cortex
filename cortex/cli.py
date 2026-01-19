@@ -1972,7 +1972,7 @@ class CortexCLI:
 
         return run_systemd_helper(service, action, verbose)
 
-    def template(self, args):
+    def template(self, args: argparse.Namespace) -> int:
         """Handle template commands"""
         from cortex.template_manager import TemplateManager
 
@@ -2012,7 +2012,7 @@ class CortexCLI:
             return name_spec[:idx], name_spec[idx + 1 :]
         return name_spec, None
 
-    def _template_create(self, manager, args) -> int:
+    def _template_create(self, manager: Any, args: argparse.Namespace) -> int:
         """Handle 'template create' command."""
         console.print("📸 [bold]Capturing system state...[/bold]")
         version = manager.create_template(args.name, args.description, package_sources=args.sources)
@@ -2033,7 +2033,7 @@ class CortexCLI:
         console.print(f"[green]✓[/green]  Template saved: [bold]{args.name}-{version}[/bold]\n")
         return 0
 
-    def _template_list(self, manager) -> int:
+    def _template_list(self, manager: Any) -> int:
         """Handle 'template list' command."""
         templates = manager.list_templates()
         if not templates:
@@ -2050,7 +2050,7 @@ class CortexCLI:
         console.print()
         return 0
 
-    def _template_show(self, manager, args) -> int:
+    def _template_show(self, manager: Any, args: argparse.Namespace) -> int:
         """Handle 'template show' command."""
         name, version = self._parse_template_spec(args.name)
         template_data = manager.get_template(name, version)
@@ -2075,7 +2075,7 @@ class CortexCLI:
         console.print(f"- {len(services)} Services")
         return 0
 
-    def _template_deploy(self, manager, args) -> int:
+    def _template_deploy(self, manager: Any, args: argparse.Namespace) -> int:
         """Handle 'template deploy' command."""
         from cortex.config_manager import ConfigManager
 
@@ -2087,7 +2087,10 @@ class CortexCLI:
 
         config_manager = ConfigManager()
 
-        if args.dry_run:
+        # Safety default: deploy is dry-run unless --execute is passed
+        is_dry_run = args.dry_run or not args.execute
+
+        if is_dry_run:
             console.print(
                 f"\n[bold cyan]Previewing deployment of {template_data['name']}:{template_data['version']}[/bold cyan]\n"
             )
@@ -2126,7 +2129,7 @@ class CortexCLI:
             return 0
         return 1
 
-    def _template_delete(self, manager, args) -> int:
+    def _template_delete(self, manager: Any, args: argparse.Namespace) -> int:
         """Handle 'template delete' command."""
         name, version = self._parse_template_spec(args.name)
         if manager.delete_template(name, version):
@@ -2136,7 +2139,7 @@ class CortexCLI:
         console.print(f"[red]Error:[/red] Template '{args.name}' not found.")
         return 1
 
-    def _template_export(self, manager, args) -> int:
+    def _template_export(self, manager: Any, args: argparse.Namespace) -> int:
         """Handle 'template export' command."""
         name, version = self._parse_template_spec(args.name)
         try:
@@ -2147,7 +2150,7 @@ class CortexCLI:
             console.print(f"[red]Error:[/red] {e}")
             return 1
 
-    def _template_import(self, manager, args) -> int:
+    def _template_import(self, manager: Any, args: argparse.Namespace) -> int:
         """Handle 'template import' command."""
         try:
             name, version = manager.import_template(args.file)
@@ -3473,7 +3476,12 @@ def main():
     # Deploy
     deploy_p = template_subparsers.add_parser("deploy", help="Deploy template")
     deploy_p.add_argument("name", help="Template name[:version]")
-    deploy_p.add_argument("--dry-run", action="store_true", help="Preview changes")
+    deploy_p.add_argument(
+        "--dry-run", action="store_true", help="Preview changes (default behavior)"
+    )
+    deploy_p.add_argument(
+        "--execute", action="store_true", help="Apply changes; defaults to dry-run"
+    )
     deploy_p.add_argument("--force", action="store_true", help="Skip compatibility checks")
     deploy_p.add_argument("--to", help="Target system (e.g., server-02)")
 

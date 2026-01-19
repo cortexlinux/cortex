@@ -881,17 +881,20 @@ class ConfigManager:
         name = srv["name"]
         success = True
 
-        if srv.get("enabled"):
-            cmd = ["sudo", "systemctl", "enable", name]
-            res = subprocess.run(cmd, capture_output=True)
-            if res.returncode != 0:
-                success = False
+        try:
+            if srv.get("enabled"):
+                cmd = ["sudo", "systemctl", "enable", name]
+                res = subprocess.run(cmd, capture_output=True, timeout=self.DETECTION_TIMEOUT)
+                if res.returncode != 0:
+                    success = False
 
-        if srv.get("active_state") == "active":
-            cmd = ["sudo", "systemctl", "start", name]
-            res = subprocess.run(cmd, capture_output=True)
-            if res.returncode != 0:
-                success = False
+            if srv.get("active_state") == "active":
+                cmd = ["sudo", "systemctl", "start", name]
+                res = subprocess.run(cmd, capture_output=True, timeout=self.DETECTION_TIMEOUT)
+                if res.returncode != 0:
+                    success = False
+        except (subprocess.TimeoutExpired, subprocess.SubprocessError):
+            success = False
 
         return success
 

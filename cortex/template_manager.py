@@ -5,6 +5,7 @@ Handles lifecycle of system duplication templates.
 
 import json
 import os
+import re
 import shutil
 import zipfile
 from datetime import datetime
@@ -46,10 +47,16 @@ class TemplateManager:
         template_dir.mkdir(parents=True, exist_ok=True)
 
         # Get next version
-        versions = [d.name for d in template_dir.iterdir() if d.is_dir() and d.name.startswith("v")]
-        next_v = 1
-        if versions:
-            next_v = max([int(v[1:]) for v in versions]) + 1
+        def get_v_num(v_str):
+            match = re.search(r"v(\d+)", v_str)
+            return int(match.group(1)) if match else 0
+
+        versions = [
+            get_v_num(d.name)
+            for d in template_dir.iterdir()
+            if d.is_dir() and d.name.startswith("v")
+        ]
+        next_v = max(versions) + 1 if versions else 1
 
         version_name = f"v{next_v}"
         version_dir = template_dir / version_name
@@ -98,7 +105,11 @@ class TemplateManager:
 
             if versions:
                 # Sort versions by version number descending
-                versions.sort(key=lambda x: int(x["version"][1:]), reverse=True)
+                def get_v_num(v_str):
+                    match = re.search(r"v(\d+)", v_str)
+                    return int(match.group(1)) if match else 0
+
+                versions.sort(key=lambda x: get_v_num(x["version"]), reverse=True)
                 templates.append(
                     {
                         "name": template_dir.name,
@@ -119,12 +130,16 @@ class TemplateManager:
 
         if not version:
             # Use latest version
+            def get_v_num(v_str):
+                match = re.search(r"v(\d+)", v_str)
+                return int(match.group(1)) if match else 0
+
             versions = [
                 v.name for v in template_path.iterdir() if v.is_dir() and v.name.startswith("v")
             ]
             if not versions:
                 return None
-            version = sorted(versions, key=lambda x: int(x[1:]))[-1]
+            version = sorted(versions, key=get_v_num)[-1]
 
         version_path = template_path / version
         if not version_path.exists():
@@ -189,7 +204,7 @@ class TemplateManager:
         """
         Import a template from a ZIP file.
         """
-        input_path = Path(input_path)
+        input_path = Path(input_path).resolve()
         if not input_path.exists():
             raise FileNotFoundError(f"File not found: {input_path}")
 
@@ -197,20 +212,49 @@ class TemplateManager:
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir).resolve()
             with zipfile.ZipFile(input_path, "r") as zipf:
-                zipf.extractall(tmpdir)
+                for member in zipf.infolist():
+                    # Zip Slip protection: check for absolute paths or ".."
+                    member_path = Path(member.filename)
+                    if member_path.is_absolute() or ".." in member.filename:
+                        continue  # Skip unsafe members
 
-            metadata_file = Path(tmpdir) / "metadata.json"
+                    target = (tmpdir_path / member_path).resolve()
+                    if not target.is_relative_to(tmpdir_path):
+                        continue  # Skip members outside tmpdir
+
+                    if member.is_dir():
+                        target.mkdir(parents=True, exist_ok=True)
+                    else:
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        with zipf.open(member) as source, open(target, "wb") as dest:
+                            shutil.copyfileobj(source, dest)
+
+            metadata_file = tmpdir_path / "metadata.json"
             if not metadata_file.exists():
                 raise ValueError("Invalid template: missing metadata.json")
 
             with open(metadata_file) as f:
                 metadata = json.load(f)
 
-            name = metadata["name"]
-            version = metadata["version"]
+            raw_name = metadata.get("name", "")
+            raw_version = metadata.get("version", "")
 
-            target_path = self.base_dir / name / version
+            # Sanitize name and version to prevent path traversal
+            if not re.match(r"^[a-zA-Z0-9._-]+$", raw_name) or not re.match(
+                r"^[a-zA-Z0-9._-]+$", raw_version
+            ):
+                raise ValueError("Invalid template: malformed name or version")
+
+            name = raw_name
+            version = raw_version
+
+            # Ensure target path is strictly within base_dir
+            target_path = (self.base_dir / name / version).resolve()
+            if not target_path.is_relative_to(self.base_dir.resolve()):
+                raise ValueError("Invalid template: target path outside templates directory")
+
             if target_path.exists():
                 # Append import suffix if version already exists
                 import time
@@ -218,8 +262,8 @@ class TemplateManager:
                 version = f"{version}-import-{int(time.time())}"
                 target_path = self.base_dir / name / version
 
-            target_path.mkdir(parents=True)
-            for item in Path(tmpdir).iterdir():
+            target_path.mkdir(parents=True, exist_ok=True)
+            for item in tmpdir_path.iterdir():
                 if item.is_file():
                     shutil.copy2(item, target_path / item.name)
 

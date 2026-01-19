@@ -194,7 +194,7 @@ cortex role set <slug>
 | `cortex sandbox <cmd>` | Test packages in Docker sandbox |
 | `cortex history` | View all past installations |
 | `cortex rollback <id>` | Undo a specific installation |
-| `cortex template <cmd>` | System cloning and templating (create, deploy, list, show) |
+| `cortex template <cmd>` | System cloning and templating (create, deploy, list, show, delete, export, import) |
 | `cortex --version` | Show version information |
 | `cortex --help` | Display help message |
 
