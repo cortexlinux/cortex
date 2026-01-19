@@ -199,9 +199,7 @@ class VoiceInputHandler:
             input_devices = [d for d in devices if d["max_input_channels"] > 0]
 
             if not input_devices:
-                raise MicrophoneNotFoundError(
-                    "No microphone found. Please connect a microphone."
-                )
+                raise MicrophoneNotFoundError("No microphone found. Please connect a microphone.")
 
             default = sd.query_devices(kind="input")
             cx_print(f"Using microphone: {default['name']}", "info")

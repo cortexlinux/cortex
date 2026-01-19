@@ -56,11 +56,11 @@ from cortex.output_formatter import (
 
 def strip_ansi(text: str) -> str:
     """Remove ANSI escape sequences from text.
-    
+
     Rich console outputs styling as ANSI escape codes, which can interfere
     with text assertions. This helper removes them for clean text testing.
     """
-    return re.sub(r'\x1b\[[0-9;]*m', '', text)
+    return re.sub(r"\x1b\[[0-9;]*m", "", text)
 
 
 class TestBrandingColors:
