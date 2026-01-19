@@ -289,7 +289,8 @@ class DocsGenerator:
         safe_name = self._sanitize_name(software_name)
         software_dir = self._get_software_dir(software_name)
 
-        if format.lower() not in ("md", "html", "pdf"):
+        format = format.lower()
+        if format not in ("md", "html", "pdf"):
             raise ValueError(f"Unsupported or invalid export format: {format}")
 
         if not software_dir.exists():

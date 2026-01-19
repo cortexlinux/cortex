@@ -171,3 +171,26 @@ def test_export_pdf_full(docs_gen, tmp_path):
         res = docs_gen.export_docs("test-pkg", format="pdf")
         assert res.endswith(".pdf")
         assert mock_pdfkit.from_file.called
+
+
+def test_export_docs_mixed_case_format(docs_gen, tmp_path):
+    """Verify that mixed-case formats like 'MD' or 'Html' work correctly."""
+    docs_gen.docs_dir = tmp_path / "docs"
+    docs_gen.docs_dir.mkdir()
+    pkg_dir = docs_gen.docs_dir / "pkg"
+    pkg_dir.mkdir()
+    (pkg_dir / "f.md").write_text("content")
+
+    with patch("os.getcwd", return_value=str(tmp_path)):
+        # Test 'MD'
+        path = docs_gen.export_docs("pkg", format="MD")
+        assert path.endswith(".md")
+        assert Path(path).exists()
+
+        # Test 'Html'
+        mock_markdown = MagicMock()
+        mock_markdown.markdown.return_value = "<html></html>"
+        with patch("cortex.docs_generator.markdown", mock_markdown):
+            path = docs_gen.export_docs("pkg", format="Html")
+            assert path.endswith(".html")
+            assert Path(path).exists()
