@@ -159,11 +159,15 @@ class APIKeyDetector:
 
             # If CORTEX_PROVIDER is explicitly set, check that provider's key first
             explicit_provider = os.environ.get("CORTEX_PROVIDER", "").lower()
-            if explicit_provider in ["openai", "claude"]:
-                target_env_var = (
-                    "OPENAI_API_KEY" if explicit_provider == "openai" else "ANTHROPIC_API_KEY"
-                )
-                target_provider = "openai" if explicit_provider == "openai" else "anthropic"
+            if explicit_provider in ["openai", "claude", "anthropic"]:
+                # Map provider names to env vars and canonical provider names
+                if explicit_provider == "openai":
+                    target_env_var = "OPENAI_API_KEY"
+                    target_provider = "openai"
+                else:  # claude or anthropic both map to ANTHROPIC_API_KEY
+                    target_env_var = "ANTHROPIC_API_KEY"
+                    target_provider = "anthropic"
+
                 value = env_mgr.get_variable(app="cortex", key=target_env_var, decrypt=True)
                 if value:
                     os.environ[target_env_var] = value

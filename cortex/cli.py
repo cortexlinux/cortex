@@ -819,6 +819,121 @@ class CortexCLI:
             self._print_error(str(e))
             return 1
 
+    def _ask_with_session_key(self, question: str, api_key: str, provider: str) -> int:
+        """Answer a question using provided session API key without re-prompting.
+
+        This wrapper is used by continuous voice mode to avoid re-calling _get_api_key().
+        """
+        self._debug(f"Using provider: {provider}")
+
+        try:
+            handler = AskHandler(
+                api_key=api_key,
+                provider=provider,
+            )
+            answer = handler.ask(question)
+            console.print(answer)
+            return 0
+        except ImportError as e:
+            self._print_error(str(e))
+            cx_print(
+                "Install the required SDK or set CORTEX_PROVIDER=ollama for local mode.", "info"
+            )
+            return 1
+        except ValueError as e:
+            self._print_error(str(e))
+            return 1
+        except RuntimeError as e:
+            self._print_error(str(e))
+            return 1
+
+    def _install_with_session_key(
+        self,
+        software: str,
+        api_key: str,
+        provider: str,
+        execute: bool = False,
+        dry_run: bool = False,
+    ) -> int:
+        """Install software using provided session API key without re-prompting.
+
+        This wrapper is used by continuous voice mode to avoid re-calling _get_api_key().
+        """
+        history = InstallationHistory()
+        install_id = None
+        start_time = datetime.now()
+
+        # Validate input first
+        is_valid, error = validate_install_request(software)
+        if not is_valid:
+            self._print_error(error)
+            return 1
+
+        software = self._normalize_software_name(software)
+        self._debug(f"Using provider: {provider}")
+        self._debug(f"API key: {api_key[:10]}...{api_key[-4:]}")
+
+        try:
+            self._print_status("🧠", "Understanding request...")
+            interpreter = CommandInterpreter(api_key=api_key, provider=provider)
+            self._print_status("📦", "Planning installation...")
+
+            for _ in range(10):
+                self._animate_spinner("Analyzing system requirements...")
+            self._clear_line()
+
+            commands = interpreter.parse(f"install {software}")
+
+            if not commands:
+                self._print_error(t("install.no_commands"))
+                return 1
+
+            packages = history._extract_packages_from_commands(commands)
+
+            if execute or dry_run:
+                install_id = history.record_installation(
+                    InstallationType.INSTALL, packages, commands, start_time
+                )
+
+            self._print_status("⚙️", f"Installing {software}...")
+            print("\nGenerated commands:")
+            for i, cmd in enumerate(commands, 1):
+                print(f"  {i}. {cmd}")
+
+            if dry_run:
+                print(f"\n({t('install.dry_run_message')})")
+                if install_id:
+                    history.update_installation(install_id, InstallationStatus.SUCCESS)
+                return 0
+
+            if execute:
+                print(f"\n{t('install.executing')}")
+                coordinator = InstallationCoordinator(commands=commands)
+                result = coordinator.execute()
+
+                if result.success:
+                    if install_id:
+                        history.update_installation(install_id, InstallationStatus.SUCCESS)
+                    return 0
+                else:
+                    error_msg = result.message or "Installation failed"
+                    if install_id:
+                        history.update_installation(
+                            install_id, InstallationStatus.FAILED, error_msg
+                        )
+                    self._print_error(error_msg)
+                    return 1
+            else:
+                # Neither dry_run nor execute - just show commands
+                return 0
+
+        except Exception as e:
+            error_msg = str(e)
+            if install_id:
+                history.update_installation(install_id, InstallationStatus.FAILED, error_msg)
+            self._print_error(error_msg)
+            return 1
+
     def voice(self, continuous: bool = False, model: str | None = None) -> int:
         """Handle voice input mode.
 
@@ -828,6 +943,9 @@ class CortexCLI:
             model: Whisper model name (e.g., 'base.en', 'small.en').
                   If None, uses CORTEX_WHISPER_MODEL env var or 'base.en'.
         """
+        import queue
+        import threading
+
         try:
             from cortex.voice import VoiceInputError, VoiceInputHandler
         except ImportError:
@@ -838,6 +956,10 @@ class CortexCLI:
         api_key = self._get_api_key()
         if not api_key:
             return 1
+
+        # Capture provider once for session
+        provider = self._get_provider()
+        self._debug(f"Session using provider: {provider}")
 
         # Display model information if specified
         if model:
@@ -853,6 +975,10 @@ class CortexCLI:
                 "large": "(6 GB, best accuracy, multilingual)",
             }
             cx_print(f"Using Whisper model: {model} {model_info.get(model, '')}", "info")
+
+        # Queue for thread-safe communication between worker and main thread
+        input_queue = queue.Queue()
+        response_queue = queue.Queue()
 
         def process_voice_command(text: str) -> None:
             """Process transcribed voice command."""
@@ -886,36 +1012,69 @@ class CortexCLI:
 
                 cx_print(f"Installing: {software}", "info")
 
-                # Ask user for confirmation
-                console.print()
-                console.print("[bold cyan]Choose an action:[/bold cyan]")
-                console.print("  [1] Dry run (preview commands)")
-                console.print("  [2] Execute (run commands)")
-                console.print("  [3] Cancel")
-                console.print()
+                # Request input from main thread via queue
+                input_queue.put({"type": "prompt", "software": software})
 
+                # Wait for response from main thread
                 try:
-                    choice = input("Enter choice [1/2/3]: ").strip()
+                    response = response_queue.get(timeout=60)
+                    choice = response.get("choice")
 
                     if choice == "1":
-                        self.install(software, execute=False, dry_run=True)
+                        self._install_with_session_key(
+                            software, api_key, provider, execute=False, dry_run=True
+                        )
                     elif choice == "2":
                         cx_print("Executing installation...", "info")
-                        self.install(software, execute=True, dry_run=False)
+                        self._install_with_session_key(
+                            software, api_key, provider, execute=True, dry_run=False
+                        )
                     else:
                         cx_print("Cancelled.", "info")
-                except (KeyboardInterrupt, EOFError):
-                    cx_print("\nCancelled.", "info")
+                except queue.Empty:
+                    cx_print("\nInput timeout - cancelled.", "warning")
             else:
                 # Treat as a question
                 cx_print(f"Question: {text}", "info")
-                self.ask(text)
+                self._ask_with_session_key(text, api_key, provider)
 
         handler = None
+        input_handler_thread = None
+        stop_input_handler = threading.Event()
+
+        def input_handler_loop():
+            """Main thread loop to handle user input requests from worker thread."""
+            while not stop_input_handler.is_set():
+                try:
+                    request = input_queue.get(timeout=0.5)
+                    if request.get("type") == "prompt":
+                        console.print()
+                        console.print("[bold cyan]Choose an action:[/bold cyan]")
+                        console.print("  [1] Dry run (preview commands)")
+                        console.print("  [2] Execute (run commands)")
+                        console.print("  [3] Cancel")
+                        console.print()
+
+                        try:
+                            choice = input("Enter choice [1/2/3]: ").strip()
+                            response_queue.put({"choice": choice})
+                        except (KeyboardInterrupt, EOFError):
+                            response_queue.put({"choice": "3"})
+                            cx_print("\nCancelled.", "info")
+                except queue.Empty:
+                    continue
+                except Exception as e:
+                    logging.debug(f"Input handler error: {e}")
+                    continue
+
         try:
             handler = VoiceInputHandler(model_name=model)
 
             if continuous:
+                # Start input handler thread
+                input_handler_thread = threading.Thread(target=input_handler_loop, daemon=True)
+                input_handler_thread.start()
+
                 # Continuous voice mode
                 handler.start_voice_mode(process_voice_command)
             else:
@@ -935,6 +1094,11 @@ class CortexCLI:
             cx_print("\nVoice mode exited.", "info")
             return 0
         finally:
+            # Stop input handler thread
+            stop_input_handler.set()
+            if input_handler_thread is not None and input_handler_thread.is_alive():
+                input_handler_thread.join(timeout=1.0)
+
             # Ensure cleanup even if exceptions occur
             if handler is not None:
                 try:

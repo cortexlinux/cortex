@@ -18,8 +18,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-# Use force_terminal and legacy_windows for better Windows compatibility
-console = Console(force_terminal=True, legacy_windows=sys.platform == "win32")
+# Use force_terminal for consistent styled output across environments
+console = Console(force_terminal=True)
 
 # Brand colors
 CORTEX_CYAN = "cyan"

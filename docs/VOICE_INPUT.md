@@ -63,7 +63,7 @@ cortex voice
 - **Ctrl+C** - Exit voice mode
 
 **Example session:**
-```
+```text
 $ cortex voice
 CX ✓ Voice mode active. Press F9 to speak, Ctrl+C to exit.
 CX │ Listening...
@@ -143,7 +143,7 @@ voice:
 4. **Command Processing** - Passes transcribed text to Cortex LLM interpreter
 5. **Execution** - Normal Cortex workflow (dry-run by default)
 
-```
+```text
 ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
 │      F9      │───>│    Record    │───>│  Transcribe  │
 │   Hotkey     │    │    Audio     │    │   (Whisper)  │

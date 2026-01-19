@@ -18,7 +18,7 @@ BASE_ENV = {
     "PYTHONDONTWRITEBYTECODE": "1",
 }
 # Install system dependencies needed for pynput/evdev compilation
-SYSTEM_DEPS_INSTALL = "apt-get update && apt-get install -y --no-install-recommends linux-headers-generic build-essential libasound2-dev libportaudio2 portaudio19-dev"
+SYSTEM_DEPS_INSTALL = "apt-get update && apt-get install -y --no-install-recommends linux-headers-$(uname -r) build-essential python3-dev libasound2-dev libportaudio2 portaudio19-dev"
 PIP_BOOTSTRAP = f"{SYSTEM_DEPS_INSTALL} && python -m pip install --quiet --upgrade pip setuptools build && python -m pip install --quiet --no-cache-dir -e /workspace"
 PIP_BOOTSTRAP_DEV = f"{SYSTEM_DEPS_INSTALL} && python -m pip install --quiet --upgrade pip setuptools build && python -m pip install --quiet --no-cache-dir -e /workspace[dev]"
 

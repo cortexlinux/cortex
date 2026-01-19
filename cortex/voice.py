@@ -443,19 +443,22 @@ class VoiceInputHandler:
 
     def _recording_worker(self) -> None:
         """Worker thread for recording and transcription."""
+        text = ""
         try:
             text = self.record_and_transcribe()
 
-            if text and self._hotkey_callback:
+            if text:
                 console.print(f"\n[bold cyan]Heard:[/bold cyan] {text}\n")
-                self._hotkey_callback(text)
-            elif not text:
+            else:
                 cx_print("No speech detected. Try speaking louder or closer to the mic.", "warning")
 
         except Exception as e:
             cx_print(f"Recording error: {e}", "error")
         finally:
             self._is_recording = False
+            # Always signal completion to unblock waiting callers
+            if self._hotkey_callback:
+                self._hotkey_callback(text)
 
     def start_voice_mode(self, on_transcription: Callable[[str], None]) -> None:
         """Start continuous voice input mode.
