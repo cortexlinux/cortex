@@ -471,20 +471,11 @@ class VoiceInputHandler:
         Raises:
             VoiceInputError: If dependencies are missing.
             MicrophoneNotFoundError: If microphone is not available.
+            ModelNotFoundError: If model cannot be loaded.
         """
-        try:
-            self._ensure_dependencies()
-            self._check_microphone()
-        except (VoiceInputError, MicrophoneNotFoundError) as e:
-            cx_print(str(e), "error")
-            return
-
-        # Pre-load the model
-        try:
-            self._load_model()
-        except ModelNotFoundError as e:
-            cx_print(str(e), "error")
-            return
+        self._ensure_dependencies()
+        self._check_microphone()
+        self._load_model()
 
         cx_print(
             f"Voice mode active. Press {self.hotkey.upper()} to speak, Ctrl+C to exit.", "success"
@@ -509,25 +500,16 @@ class VoiceInputHandler:
         to start and stop recording.
 
         Returns:
-            Transcribed text from the recording, or empty string on error.
+            Transcribed text from the recording.
 
         Raises:
             VoiceInputError: If dependencies are missing.
             MicrophoneNotFoundError: If microphone is not available.
+            ModelNotFoundError: If model cannot be loaded.
         """
-        try:
-            self._ensure_dependencies()
-            self._check_microphone()
-        except (VoiceInputError, MicrophoneNotFoundError) as e:
-            cx_print(str(e), "error")
-            return ""
-
-        # Pre-load the model
-        try:
-            self._load_model()
-        except ModelNotFoundError as e:
-            cx_print(str(e), "error")
-            return ""
+        self._ensure_dependencies()
+        self._check_microphone()
+        self._load_model()
 
         cx_print(f"Press {self.hotkey.upper()} to start recording...", "info")
 

@@ -871,7 +871,7 @@ class CortexCLI:
 
         software = self._normalize_software_name(software)
         self._debug(f"Using provider: {provider}")
-        self._debug(f"API key: {api_key[:10]}...{api_key[-4:]}")
+        self._debug("Using session API key: <REDACTED>")
 
         try:
             self._print_status("🧠", "Understanding request...")
@@ -947,7 +947,12 @@ class CortexCLI:
         import threading
 
         try:
-            from cortex.voice import VoiceInputError, VoiceInputHandler
+            from cortex.voice import (
+                MicrophoneNotFoundError,
+                ModelNotFoundError,
+                VoiceInputError,
+                VoiceInputHandler,
+            )
         except ImportError:
             self._print_error("Voice dependencies not installed.")
             cx_print("Install with: pip install cortex-linux[voice]", "info")
@@ -1149,7 +1154,7 @@ class CortexCLI:
 
             return 0
 
-        except VoiceInputError as e:
+        except (VoiceInputError, MicrophoneNotFoundError, ModelNotFoundError) as e:
             self._print_error(str(e))
             return 1
         except KeyboardInterrupt:
