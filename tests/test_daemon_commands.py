@@ -324,18 +324,39 @@ class TestDaemonCommands(unittest.TestCase):
         self.assertEqual(result, 0)
         mock_subprocess.assert_called()
 
-    @patch("cortex.cli.CortexCLI._daemon_ipc_call")
-    def test_daemon_ipc_call_success(self, mock_ipc_call):
+    @patch("cortex.cli.cx_print")
+    @patch("cortex.cli.InstallationHistory")
+    @patch("cortex.daemon_client.DaemonClient")
+    def test_daemon_ipc_call_success(self, mock_daemon_client_class, mock_history_class, mock_print):
         """Test _daemon_ipc_call helper with successful IPC call."""
-        from cortex.daemon_client import DaemonClient, DaemonResponse
+        from cortex.daemon_client import DaemonResponse
+
+        # Setup mocks
+        mock_history = Mock()
+        mock_history_class.return_value = mock_history
+        mock_history.record_installation.return_value = "test-install-id"
+
+        mock_client = Mock()
+        mock_daemon_client_class.return_value = mock_client
 
         mock_response = DaemonResponse(success=True, result={"test": "data"})
-        mock_ipc_call.return_value = (True, mock_response)
+        
+        # Create a mock IPC function that uses the client and returns the response
+        def mock_ipc_func(client):
+            # Verify the client is passed correctly
+            self.assertIs(client, mock_client)
+            return mock_response
 
-        # Test the helper method indirectly through a daemon command
-        result = self.cli._daemon_ping()
-        # Should succeed if IPC call works
-        self.assertIsInstance(result, int)
+        # Test _daemon_ipc_call directly
+        success, response = self.cli._daemon_ipc_call("test_operation", mock_ipc_func)
+
+        # Verify results
+        self.assertTrue(success)
+        self.assertIsNotNone(response)
+        self.assertEqual(response, mock_response)
+        mock_daemon_client_class.assert_called_once()
+        mock_history.record_installation.assert_called_once()
+        mock_history.update_installation.assert_called_once_with("test-install-id", ANY)
 
     @patch("cortex.cli.InstallationHistory")
     def test_update_history_on_failure(self, mock_history_class):

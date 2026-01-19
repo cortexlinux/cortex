@@ -2499,7 +2499,6 @@ class CortexCLI:
     def _daemon_run_tests(self, args: argparse.Namespace) -> int:
         """Run the daemon test suite."""
         import subprocess
-        from pathlib import Path
 
         cx_header("Daemon Tests")
 
