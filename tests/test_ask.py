@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from cortex.ask import AskHandler, SystemInfoGatherer
+from cortex.ask import AskHandler, LearningTracker, SystemInfoGatherer
 
 
 class TestSystemInfoGatherer(unittest.TestCase):
@@ -286,6 +286,260 @@ class TestAskHandlerProviders(unittest.TestCase):
         """Test that unsupported provider raises error."""
         with self.assertRaises(ValueError):
             AskHandler(api_key="test", provider="unsupported")
+
+
+class TestLearningTracker(unittest.TestCase):
+    """Tests for LearningTracker."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.temp_dir = tempfile.mkdtemp()
+        self.temp_file = Path(self.temp_dir) / "learning_history.json"
+        self.tracker = LearningTracker()
+        # Set the progress file to use temp location
+        self.tracker._progress_file = self.temp_file
+
+    def tearDown(self):
+        """Clean up temporary files."""
+        import shutil
+
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
+
+    def test_is_educational_query_explain(self):
+        """Test detection of 'explain' queries."""
+        self.assertTrue(self.tracker.is_educational_query("explain how docker works"))
+        self.assertTrue(self.tracker.is_educational_query("Explain nginx configuration"))
+
+    def test_is_educational_query_teach_me(self):
+        """Test detection of 'teach me' queries."""
+        self.assertTrue(self.tracker.is_educational_query("teach me about systemd"))
+        self.assertTrue(self.tracker.is_educational_query("Teach me how to use git"))
+
+    def test_is_educational_query_what_is(self):
+        """Test detection of 'what is' queries."""
+        self.assertTrue(self.tracker.is_educational_query("what is kubernetes"))
+        self.assertTrue(self.tracker.is_educational_query("What are containers"))
+
+    def test_is_educational_query_how_does(self):
+        """Test detection of 'how does' queries."""
+        self.assertTrue(self.tracker.is_educational_query("how does DNS work"))
+        self.assertTrue(self.tracker.is_educational_query("How do containers work"))
+
+    def test_is_educational_query_best_practices(self):
+        """Test detection of 'best practices' queries."""
+        self.assertTrue(self.tracker.is_educational_query("best practices for security"))
+        self.assertTrue(self.tracker.is_educational_query("what are best practice for nginx"))
+
+    def test_is_educational_query_tutorial(self):
+        """Test detection of 'tutorial' queries."""
+        self.assertTrue(self.tracker.is_educational_query("tutorial on docker compose"))
+
+    def test_is_educational_query_non_educational(self):
+        """Test that non-educational queries return False."""
+        self.assertFalse(self.tracker.is_educational_query("why is my disk full"))
+        self.assertFalse(self.tracker.is_educational_query("what packages need updating"))
+        self.assertFalse(self.tracker.is_educational_query("check my system status"))
+
+    def test_extract_topic_explain(self):
+        """Test topic extraction from 'explain' queries."""
+        topic = self.tracker.extract_topic("explain how docker containers work")
+        self.assertEqual(topic, "how docker containers work")
+
+    def test_extract_topic_teach_me(self):
+        """Test topic extraction from 'teach me' queries."""
+        topic = self.tracker.extract_topic("teach me about systemd services")
+        self.assertEqual(topic, "systemd services")
+
+    def test_extract_topic_what_is(self):
+        """Test topic extraction from 'what is' queries."""
+        topic = self.tracker.extract_topic("what is kubernetes?")
+        self.assertEqual(topic, "kubernetes")
+
+    def test_extract_topic_truncation(self):
+        """Test that long topics are truncated."""
+        long_question = "explain " + "a" * 100
+        topic = self.tracker.extract_topic(long_question)
+        self.assertLessEqual(len(topic), 50)
+
+    def test_record_topic_creates_file(self):
+        """Test that recording a topic creates the history file."""
+        self.tracker.record_topic("explain docker")
+        self.assertTrue(self.temp_file.exists())
+
+    def test_record_topic_stores_data(self):
+        """Test that recorded topics are stored correctly."""
+        self.tracker.record_topic("explain docker containers")
+        history = self.tracker.get_history()
+        self.assertIn("docker containers", history["topics"])
+        self.assertEqual(history["topics"]["docker containers"]["count"], 1)
+
+    def test_record_topic_increments_count(self):
+        """Test that repeated topics increment the count."""
+        self.tracker.record_topic("explain docker")
+        self.tracker.record_topic("explain docker")
+        history = self.tracker.get_history()
+        self.assertEqual(history["topics"]["docker"]["count"], 2)
+
+    def test_record_topic_ignores_non_educational(self):
+        """Test that non-educational queries are not recorded."""
+        self.tracker.record_topic("why is my disk full")
+        history = self.tracker.get_history()
+        self.assertEqual(len(history["topics"]), 0)
+
+    def test_get_recent_topics(self):
+        """Test getting recent topics."""
+        self.tracker.record_topic("explain docker")
+        self.tracker.record_topic("what is kubernetes")
+        self.tracker.record_topic("teach me nginx")
+
+        recent = self.tracker.get_recent_topics(limit=2)
+        self.assertEqual(len(recent), 2)
+        # Most recent should be first
+        self.assertEqual(recent[0], "nginx")
+
+    def test_get_recent_topics_empty(self):
+        """Test getting recent topics when none exist."""
+        recent = self.tracker.get_recent_topics()
+        self.assertEqual(recent, [])
+
+    def test_total_queries_tracked(self):
+        """Test that total educational queries are tracked."""
+        self.tracker.record_topic("explain docker")
+        self.tracker.record_topic("what is kubernetes")
+        history = self.tracker.get_history()
+        self.assertEqual(history["total_queries"], 2)
+
+    def test_load_history_with_malformed_json(self):
+        """Test that _load_history gracefully handles malformed JSON."""
+        # Write invalid JSON to the file
+        self.tracker._progress_file = self.temp_file
+        self.temp_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.temp_file, "w") as f:
+            f.write("{invalid json}")
+
+        # Should return empty history instead of crashing
+        history = self.tracker._load_history()
+        self.assertEqual(history, {"topics": {}, "total_queries": 0})
+
+    def test_progress_file_fallback_on_home_error(self):
+        """Test that progress_file property falls back to tempdir when Path.home() fails."""
+        tracker = LearningTracker()
+
+        # Mock Path.home() to raise RuntimeError
+        with patch("pathlib.Path.home", side_effect=RuntimeError("HOME not set")):
+            # Reset the cached progress file so it re-evaluates
+            tracker._progress_file = None
+
+            # Should fall back to tempfile location without crashing
+            progress_file = tracker.progress_file
+            self.assertIsNotNone(progress_file)
+            self.assertIn("cortex", str(progress_file))
+            # Verify it's in the temp directory, not trying to use home
+            self.assertIn(tempfile.gettempdir(), str(progress_file))
+
+
+class TestAskHandlerLearning(unittest.TestCase):
+    """Tests for AskHandler learning features."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.temp_dir = tempfile.mkdtemp()
+        self.temp_file = Path(self.temp_dir) / "learning_history.json"
+
+    def tearDown(self):
+        """Clean up temporary files and environment variables."""
+        import shutil
+
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
+
+        # Clean up any environment variables set during tests to prevent pollution
+        # when test order changes or new tests are added
+        if "CORTEX_FAKE_RESPONSE" in os.environ:
+            del os.environ["CORTEX_FAKE_RESPONSE"]
+
+    def test_ask_records_educational_topic(self):
+        """Test that educational questions are recorded."""
+        os.environ["CORTEX_FAKE_RESPONSE"] = "Docker is a containerization platform..."
+        handler = AskHandler(api_key="fake-key", provider="fake")
+        handler.cache = None
+        # Set the progress file to use temp location
+        handler.learning_tracker._progress_file = self.temp_file
+
+        handler.ask("explain how docker works")
+
+        history = handler.get_learning_history()
+        self.assertIn("how docker works", history["topics"])
+
+    def test_ask_does_not_record_diagnostic(self):
+        """Test that diagnostic questions are not recorded."""
+        os.environ["CORTEX_FAKE_RESPONSE"] = "Your disk is 80% full."
+        handler = AskHandler(api_key="fake-key", provider="fake")
+        handler.cache = None
+        handler.learning_tracker._progress_file = self.temp_file
+
+        handler.ask("why is my disk full")
+
+        history = handler.get_learning_history()
+        self.assertEqual(len(history["topics"]), 0)
+
+    def test_get_recent_topics_via_handler(self):
+        """Test getting recent topics through handler."""
+        os.environ["CORTEX_FAKE_RESPONSE"] = "Test response"
+        handler = AskHandler(api_key="fake-key", provider="fake")
+        handler.cache = None
+        handler.learning_tracker._progress_file = self.temp_file
+
+        handler.ask("explain kubernetes")
+        handler.ask("what is docker")
+
+        recent = handler.get_recent_topics(limit=5)
+        self.assertEqual(len(recent), 2)
+
+    def test_system_prompt_contains_educational_instructions(self):
+        """Test that system prompt includes educational guidance."""
+        handler = AskHandler(api_key="fake-key", provider="fake")
+        context = handler.info_gatherer.gather_context()
+        prompt = handler._get_system_prompt(context)
+
+        self.assertIn("Educational Questions", prompt)
+        self.assertIn("Diagnostic Questions", prompt)
+        self.assertIn("tutorial-style", prompt)
+        self.assertIn("best practices", prompt)
+
+
+class TestSystemPromptEnhancement(unittest.TestCase):
+    """Tests for enhanced system prompt."""
+
+    def test_prompt_includes_query_type_detection(self):
+        """Test that prompt includes query type detection section."""
+        handler = AskHandler(api_key="fake-key", provider="fake")
+        context = {"python_version": "3.11", "os": {"system": "Linux"}}
+        prompt = handler._get_system_prompt(context)
+
+        self.assertIn("Query Type Detection", prompt)
+        self.assertIn("explain", prompt.lower())
+        self.assertIn("teach me", prompt.lower())
+
+    def test_prompt_includes_educational_instructions(self):
+        """Test that prompt includes educational response instructions."""
+        handler = AskHandler(api_key="fake-key", provider="fake")
+        context = {}
+        prompt = handler._get_system_prompt(context)
+
+        self.assertIn("code examples", prompt.lower())
+        self.assertIn("best practices", prompt.lower())
+        self.assertIn("related topics", prompt.lower())
+
+    def test_prompt_includes_diagnostic_instructions(self):
+        """Test that prompt includes diagnostic response instructions."""
+        handler = AskHandler(api_key="fake-key", provider="fake")
+        context = {}
+        prompt = handler._get_system_prompt(context)
+
+        self.assertIn("system context", prompt.lower())
+        self.assertIn("actionable", prompt.lower())
 
 
 if __name__ == "__main__":

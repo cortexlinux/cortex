@@ -800,7 +800,8 @@ class CortexCLI:
                 provider=provider,
             )
             answer = handler.ask(question)
-            console.print(answer)
+            # Render as markdown for proper formatting in terminal
+            console.print(Markdown(answer))
             return 0
         except ImportError as e:
             # Provide a helpful message if provider SDK is missing
