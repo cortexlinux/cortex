@@ -327,7 +327,9 @@ class TestDaemonCommands(unittest.TestCase):
     @patch("cortex.cli.cx_print")
     @patch("cortex.cli.InstallationHistory")
     @patch("cortex.daemon_client.DaemonClient")
-    def test_daemon_ipc_call_success(self, mock_daemon_client_class, mock_history_class, mock_print):
+    def test_daemon_ipc_call_success(
+        self, mock_daemon_client_class, mock_history_class, mock_print
+    ):
         """Test _daemon_ipc_call helper with successful IPC call."""
         from cortex.daemon_client import DaemonResponse
 
@@ -340,7 +342,7 @@ class TestDaemonCommands(unittest.TestCase):
         mock_daemon_client_class.return_value = mock_client
 
         mock_response = DaemonResponse(success=True, result={"test": "data"})
-        
+
         # Create a mock IPC function that uses the client and returns the response
         def mock_ipc_func(client):
             # Verify the client is passed correctly
