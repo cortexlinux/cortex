@@ -3936,6 +3936,8 @@ def main():
         "--model",
         "-m",
         type=str,
+        default=None,
+        metavar="MODEL",
         choices=[
             "tiny.en",
             "base.en",
@@ -3947,7 +3949,9 @@ def main():
             "medium",
             "large",
         ],
-        help="Whisper model (default: base.en). Higher models = better accuracy but more storage.",
+        help="Whisper model to use (default: base.en or CORTEX_WHISPER_MODEL env var). "
+             "Available models: tiny.en (39MB), base.en (140MB), small.en (466MB), "
+             "medium.en (1.5GB), tiny/base/small/medium (multilingual), large (6GB).",
     )
 
     # Install command
