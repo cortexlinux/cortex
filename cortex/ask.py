@@ -251,10 +251,14 @@ class LearningTracker:
             return
 
         history = self._load_history()
+        if not isinstance(history, dict):
+            history = {"topics": {}, "total_queries": 0}
 
         # Ensure history has expected structure (defensive defaults for malformed data)
         history.setdefault("topics", {})
         history.setdefault("total_queries", 0)
+        if not isinstance(history.get("topics"), dict):
+            history["topics"] = {}
 
         # Use UTC timestamps for consistency and accurate sorting
         utc_now = datetime.now(timezone.utc).isoformat()
