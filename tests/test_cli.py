@@ -82,11 +82,18 @@ class TestCortexCLI(unittest.TestCase):
 
     @patch.dict(os.environ, {}, clear=True)
     @patch("cortex.cli.CommandInterpreter")
-    def test_install_no_api_key(self, mock_interpreter_class):
+    @patch("cortex.cli.PredictiveErrorManager")
+    def test_install_no_api_key(self, mock_predictive_class, mock_interpreter_class):
         # Should work with Ollama (no API key needed)
         mock_interpreter = Mock()
         mock_interpreter.parse.return_value = ["apt update", "apt install docker"]
         mock_interpreter_class.return_value = mock_interpreter
+
+        mock_predictive = Mock()
+        mock_prediction = Mock()
+        mock_prediction.risk_level = 0
+        mock_predictive.analyze_installation.return_value = mock_prediction
+        mock_predictive_class.return_value = mock_predictive
 
         result = self.cli.install("docker")
         # Should succeed with Ollama as fallback provider
@@ -94,10 +101,17 @@ class TestCortexCLI(unittest.TestCase):
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-openai-key-123"}, clear=True)
     @patch("cortex.cli.CommandInterpreter")
-    def test_install_dry_run(self, mock_interpreter_class):
+    @patch("cortex.cli.PredictiveErrorManager")
+    def test_install_dry_run(self, mock_predictive_class, mock_interpreter_class):
         mock_interpreter = Mock()
         mock_interpreter.parse.return_value = ["apt update", "apt install docker"]
         mock_interpreter_class.return_value = mock_interpreter
+
+        mock_predictive = Mock()
+        mock_prediction = Mock()
+        mock_prediction.risk_level = 0
+        mock_predictive.analyze_installation.return_value = mock_prediction
+        mock_predictive_class.return_value = mock_predictive
 
         result = self.cli.install("docker", dry_run=True)
 
@@ -106,10 +120,17 @@ class TestCortexCLI(unittest.TestCase):
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-openai-key-123"}, clear=True)
     @patch("cortex.cli.CommandInterpreter")
-    def test_install_no_execute(self, mock_interpreter_class):
+    @patch("cortex.cli.PredictiveErrorManager")
+    def test_install_no_execute(self, mock_predictive_class, mock_interpreter_class):
         mock_interpreter = Mock()
         mock_interpreter.parse.return_value = ["apt update", "apt install docker"]
         mock_interpreter_class.return_value = mock_interpreter
+
+        mock_predictive = Mock()
+        mock_prediction = Mock()
+        mock_prediction.risk_level = 0
+        mock_predictive.analyze_installation.return_value = mock_prediction
+        mock_predictive_class.return_value = mock_predictive
 
         result = self.cli.install("docker", execute=False)
 
@@ -119,10 +140,19 @@ class TestCortexCLI(unittest.TestCase):
     @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-openai-key-123"}, clear=True)
     @patch("cortex.cli.CommandInterpreter")
     @patch("cortex.cli.InstallationCoordinator")
-    def test_install_with_execute_success(self, mock_coordinator_class, mock_interpreter_class):
+    @patch("cortex.cli.PredictiveErrorManager")
+    def test_install_with_execute_success(
+        self, mock_predictive_class, mock_coordinator_class, mock_interpreter_class
+    ):
         mock_interpreter = Mock()
         mock_interpreter.parse.return_value = ["echo test"]
         mock_interpreter_class.return_value = mock_interpreter
+
+        mock_predictive = Mock()
+        mock_prediction = Mock()
+        mock_prediction.risk_level = 0
+        mock_predictive.analyze_installation.return_value = mock_prediction
+        mock_predictive_class.return_value = mock_predictive
 
         mock_coordinator = Mock()
         mock_result = Mock()
@@ -139,10 +169,19 @@ class TestCortexCLI(unittest.TestCase):
     @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-openai-key-123"}, clear=True)
     @patch("cortex.cli.CommandInterpreter")
     @patch("cortex.cli.InstallationCoordinator")
-    def test_install_with_execute_failure(self, mock_coordinator_class, mock_interpreter_class):
+    @patch("cortex.cli.PredictiveErrorManager")
+    def test_install_with_execute_failure(
+        self, mock_predictive_class, mock_coordinator_class, mock_interpreter_class
+    ):
         mock_interpreter = Mock()
         mock_interpreter.parse.return_value = ["invalid command"]
         mock_interpreter_class.return_value = mock_interpreter
+
+        mock_predictive = Mock()
+        mock_prediction = Mock()
+        mock_prediction.risk_level = 0
+        mock_predictive.analyze_installation.return_value = mock_prediction
+        mock_predictive_class.return_value = mock_predictive
 
         mock_coordinator = Mock()
         mock_result = Mock()

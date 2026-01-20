@@ -22,17 +22,12 @@ from cortex.dependency_importer import (
     format_package_list,
 )
 from cortex.env_manager import EnvironmentManager, get_env_manager
-from cortex.i18n import (
-    SUPPORTED_LANGUAGES,
-    LanguageConfig,
-    get_language,
-    set_language,
-    t,
-)
+from cortex.i18n import SUPPORTED_LANGUAGES, LanguageConfig, get_language, set_language, t
 from cortex.installation_history import InstallationHistory, InstallationStatus, InstallationType
 from cortex.llm.interpreter import CommandInterpreter
 from cortex.network_config import NetworkConfig
 from cortex.notification_manager import NotificationManager
+from cortex.predictive_prevention import PredictiveErrorManager, RiskLevel
 from cortex.role_manager import RoleManager
 from cortex.stack_manager import StackManager
 from cortex.uninstall_impact import (
@@ -783,6 +778,66 @@ class CortexCLI:
 
         return result.exit_code
 
+    def _display_prediction_warning(self, prediction):
+        """Display formatted prediction warning."""
+        from rich.panel import Panel
+        from rich.table import Table
+
+        risk_colors = {
+            RiskLevel.NONE: "green",
+            RiskLevel.LOW: "green",
+            RiskLevel.MEDIUM: "yellow",
+            RiskLevel.HIGH: "orange1",
+            RiskLevel.CRITICAL: "red",
+        }
+
+        risk_labels = {
+            RiskLevel.NONE: t("predictive.no_risk"),
+            RiskLevel.LOW: t("predictive.low_risk"),
+            RiskLevel.MEDIUM: t("predictive.medium_risk"),
+            RiskLevel.HIGH: t("predictive.high_risk"),
+            RiskLevel.CRITICAL: t("predictive.critical_risk"),
+        }
+
+        color = risk_colors.get(prediction.risk_level, "white")
+        label = risk_labels.get(prediction.risk_level, "Unknown")
+
+        console.print()
+        if prediction.risk_level >= RiskLevel.HIGH:
+            console.print(f"⚠️  [bold red]{t('predictive.risks_detected')}:[/bold red]")
+        else:
+            console.print(f"ℹ️  [bold {color}]{t('predictive.risks_detected')}:[/bold {color}]")
+
+        if prediction.reasons:
+            console.print(f"\n[bold]{label}:[/bold]")
+            for reason in prediction.reasons:
+                console.print(f"   - {reason}")
+
+        if prediction.recommendations:
+            console.print(f"\n[bold]{t('predictive.recommendation')}:[/bold]")
+            for i, rec in enumerate(prediction.recommendations, 1):
+                console.print(f"   {i}. {rec}")
+
+        if prediction.predicted_errors:
+            console.print(f"\n[bold]{t('predictive.predicted_errors')}:[/bold]")
+            for err in prediction.predicted_errors:
+                console.print(f"   ! [dim]{err[:100]}...[/dim]")
+
+    def _confirm_risky_operation(self, prediction) -> bool:
+        """Prompt user for confirmation of a risky operation."""
+        if prediction.risk_level == RiskLevel.HIGH or prediction.risk_level == RiskLevel.CRITICAL:
+            cx_print(f"\n{t('predictive.high_risk_warning')}", "warning")
+
+        console.print(f"\n{t('predictive.continue_anyway')} [y/N]: ", end="", markup=False)
+        try:
+            from cortex.stdin_handler import StdinHandler
+
+            response = input().strip().lower()
+            return response in ("y", "yes")
+        except (EOFError, KeyboardInterrupt):
+            console.print()
+            return False
+
     # --- End Sandbox Commands ---
 
     def ask(self, question: str) -> int:
@@ -871,6 +926,20 @@ class CortexCLI:
             if not commands:
                 self._print_error(t("install.no_commands"))
                 return 1
+
+            # Predictive Analysis
+            self._print_status("🔮", t("predictive.analyzing"))
+            predict_manager = PredictiveErrorManager(api_key=api_key, provider=provider)
+            prediction = predict_manager.analyze_installation(software, commands)
+            self._clear_line()
+
+            if prediction.risk_level != RiskLevel.NONE:
+                self._display_prediction_warning(prediction)
+                if execute and not self._confirm_risky_operation(prediction):
+                    cx_print(f"\n{t('ui.operation_cancelled')}", "warning")
+                    return 0
+            else:
+                cx_print(t("predictive.no_issues_detected"), "success")
 
             # Extract packages from commands for tracking
             packages = history._extract_packages_from_commands(commands)
