@@ -310,8 +310,8 @@ class LearningTracker:
 
         # Filter out malformed entries and sort by last_accessed
         valid_topics = [
-            (name, data) 
-            for name, data in topics.items() 
+            (name, data)
+            for name, data in topics.items()
             if isinstance(data, dict) and "last_accessed" in data
         ]
         sorted_topics = sorted(

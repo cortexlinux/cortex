@@ -674,7 +674,7 @@ class TestLearningTracker(unittest.TestCase):
                 },
                 "redis": ["list", "data"],  # Malformed: not a dict
             },
-            "total_queries": 3
+            "total_queries": 3,
         }
         with open(self.temp_file, "w") as f:
             json.dump(malformed_history, f)
