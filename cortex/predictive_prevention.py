@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Predictive Error Prevention System for Cortex Linux
+Predictive Prevention System for Cortex Linux
 
 Analyzes installation requests before execution to predict and prevent failures.
 Uses hardware detection, historical failure analysis, and LLM-backed risk assessment.
@@ -132,12 +132,12 @@ class PredictiveErrorManager:
                         prediction.recommendations.append("Update kernel to 5.15+ first")
                         prediction.risk_level = max(prediction.risk_level, RiskLevel.HIGH)
                     else:
-                        # Add a low-risk warning for newer kernels regarding driver/header complexity
+                        # Articulate the specific risk for newer kernels as requested in review
                         prediction.reasons.append(
-                            f"CUDA installation on kernel {system.kernel_version} has a potential risk of driver mismatch without proper headers."
+                            f"Risk of driver-kernel mismatch on {system.kernel_version}. CUDA requires exact matching headers and drivers to avoid installation failure."
                         )
                         prediction.recommendations.append(
-                            "Ensure official NVIDIA drivers and kernel headers are installed before proceeding"
+                            "Ensure official NVIDIA drivers and matching kernel headers are installed"
                         )
                         prediction.risk_level = max(prediction.risk_level, RiskLevel.LOW)
 

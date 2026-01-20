@@ -1,6 +1,6 @@
-# Predictive Error Prevention System
+# Predictive Prevention System
 
-The Predictive Error Prevention System in Cortex Linux analyzes installation requests before they are executed to identify potential risks and suggest preventive actions. This system acts as a safety layer to prevent partial or broken installations.
+The Predictive Prevention System in Cortex Linux analyzes installation requests before they are executed to identify potential risks and suggest preventive actions. This system acts as a safety layer to prevent partial or broken installations.
 
 ## Features
 

@@ -56,7 +56,7 @@ Package Manager Wrapper (apt/yum/dnf)
     ↓
 Dependency Resolver
     ↓
-Predictive Error Prevention (Risk Analysis)
+Predictive Prevention (Risk Analysis)
     ↓
 Sandbox Executor (Firejail)
     ↓
