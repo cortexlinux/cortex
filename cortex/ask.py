@@ -147,6 +147,9 @@ class LearningTracker:
 
     _progress_file: Path | None = None
 
+    # Maximum number of tokens to request from LLM
+    MAX_TOKENS = 2000
+
     # Patterns that indicate educational questions
     EDUCATIONAL_PATTERNS = [
         r"^explain\b",
@@ -230,7 +233,8 @@ class LearningTracker:
             truncated = topic[:50]
             # Try to split at word boundary; keep full 50 chars if no spaces found
             words = truncated.rsplit(" ", 1)
-            topic = words[0]
+            # Handle case where topic starts with space after prefix removal
+            topic = words[0] if words[0] else truncated
 
         return topic
 
@@ -265,8 +269,26 @@ class LearningTracker:
 
         # Update or add topic
         if topic in history["topics"]:
-            history["topics"][topic]["count"] += 1
-            history["topics"][topic]["last_accessed"] = utc_now
+            # Check if the topic data is actually a dict before accessing it
+            if not isinstance(history["topics"][topic], dict):
+                # If topic data is malformed, reinitialize it
+                history["topics"][topic] = {
+                    "count": 1,
+                    "first_accessed": utc_now,
+                    "last_accessed": utc_now,
+                }
+            else:
+                try:
+                    # Safely increment count, handle missing key
+                    history["topics"][topic]["count"] = history["topics"][topic].get("count", 0) + 1
+                    history["topics"][topic]["last_accessed"] = utc_now
+                except (KeyError, TypeError, AttributeError):
+                    # If topic data is malformed, reinitialize it
+                    history["topics"][topic] = {
+                        "count": 1,
+                        "first_accessed": utc_now,
+                        "last_accessed": utc_now,
+                    }
         else:
             history["topics"][topic] = {
                 "count": 1,
@@ -467,7 +489,7 @@ sudo apt install nginx
                 {"role": "user", "content": question},
             ],
             temperature=0.3,
-            max_tokens=2000,
+            max_tokens=LearningTracker.MAX_TOKENS,
         )
         # Defensive: content may be None or choices could be empty in edge cases
         try:
@@ -479,7 +501,7 @@ sudo apt install nginx
     def _call_claude(self, question: str, system_prompt: str) -> str:
         response = self.client.messages.create(
             model=self.model,
-            max_tokens=2000,
+            max_tokens=LearningTracker.MAX_TOKENS,
             temperature=0.3,
             system=system_prompt,
             messages=[{"role": "user", "content": question}],
@@ -503,7 +525,7 @@ sudo apt install nginx
                 "model": self.model,
                 "prompt": prompt,
                 "stream": False,
-                "options": {"temperature": 0.3, "num_predict": 2000},
+                "options": {"temperature": 0.3, "num_predict": LearningTracker.MAX_TOKENS},
             }
         ).encode("utf-8")
 

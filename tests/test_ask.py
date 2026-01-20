@@ -1,5 +1,6 @@
 """Unit tests for the ask module."""
 
+import json
 import os
 import sys
 import tempfile
@@ -175,6 +176,64 @@ class TestAskHandler(unittest.TestCase):
         self.assertEqual(answer, "TensorFlow is compatible with your system.")
         mock_openai.assert_called_once()
 
+    @patch("openai.OpenAI")
+    def test_call_openai_uses_max_tokens_constant(self, mock_openai_client):
+        """Test that _call_openai uses the MAX_TOKENS constant."""
+        mock_create = MagicMock()
+        mock_create.return_value = MagicMock(
+            choices=[MagicMock(message=MagicMock(content="Test response"))]
+        )
+        mock_client_instance = MagicMock()
+        mock_client_instance.chat.completions.create = mock_create
+        mock_openai_client.return_value = mock_client_instance
+
+        handler = AskHandler(api_key="test-key", provider="openai")
+        handler.cache = None
+        handler.ask("test question")
+
+        # Verify that max_tokens was set to LearningTracker.MAX_TOKENS
+        call_kwargs = mock_create.call_args[1]
+        self.assertEqual(call_kwargs["max_tokens"], LearningTracker.MAX_TOKENS)
+
+    @patch("anthropic.Anthropic")
+    def test_call_claude_uses_max_tokens_constant(self, mock_anthropic_client):
+        """Test that _call_claude uses the MAX_TOKENS constant."""
+        mock_create = MagicMock()
+        mock_create.return_value = MagicMock(
+            content=[MagicMock(text="Test response")]
+        )
+        mock_client_instance = MagicMock()
+        mock_client_instance.messages.create = mock_create
+        mock_anthropic_client.return_value = mock_client_instance
+
+        handler = AskHandler(api_key="test-key", provider="claude")
+        handler.cache = None
+        handler.ask("test question")
+
+        # Verify that max_tokens was set to LearningTracker.MAX_TOKENS
+        call_kwargs = mock_create.call_args[1]
+        self.assertEqual(call_kwargs["max_tokens"], LearningTracker.MAX_TOKENS)
+
+    @patch("urllib.request.urlopen")
+    def test_call_ollama_uses_max_tokens_constant(self, mock_urlopen):
+        """Test that _call_ollama uses the MAX_TOKENS constant."""
+        import json as json_module
+        mock_response = MagicMock()
+        mock_response.read.return_value = json_module.dumps({"response": "Test response"}).encode("utf-8")
+        mock_response.__enter__ = MagicMock(return_value=mock_response)
+        mock_response.__exit__ = MagicMock(return_value=False)
+        mock_urlopen.return_value = mock_response
+
+        handler = AskHandler(api_key="test-key", provider="ollama")
+        handler.cache = None
+        handler.ask("test question")
+
+        # Verify that num_predict was set to LearningTracker.MAX_TOKENS
+        call_args = mock_urlopen.call_args[0]
+        request = call_args[0]
+        data = json_module.loads(request.data.decode("utf-8"))
+        self.assertEqual(data["options"]["num_predict"], LearningTracker.MAX_TOKENS)
+
     def test_ask_caches_response(self):
         """Test that responses are cached after successful API call."""
         from cortex.semantic_cache import SemanticCache
@@ -306,6 +365,16 @@ class TestLearningTracker(unittest.TestCase):
         if os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir)
 
+    def test_max_tokens_constant_exists(self):
+        """Test that MAX_TOKENS constant is defined."""
+        self.assertTrue(hasattr(LearningTracker, "MAX_TOKENS"))
+        self.assertIsInstance(LearningTracker.MAX_TOKENS, int)
+        self.assertGreater(LearningTracker.MAX_TOKENS, 0)
+
+    def test_max_tokens_value(self):
+        """Test that MAX_TOKENS has the expected value."""
+        self.assertEqual(LearningTracker.MAX_TOKENS, 2000)
+
     def test_is_educational_query_explain(self):
         """Test detection of 'explain' queries."""
         self.assertTrue(self.tracker.is_educational_query("explain how docker works"))
@@ -335,6 +404,82 @@ class TestLearningTracker(unittest.TestCase):
         """Test detection of 'tutorial' queries."""
         self.assertTrue(self.tracker.is_educational_query("tutorial on docker compose"))
 
+    def test_is_educational_query_how_to(self):
+        """Test detection of 'how to' queries."""
+        self.assertTrue(self.tracker.is_educational_query("how to configure nginx"))
+        self.assertTrue(self.tracker.is_educational_query("How to set up SSH keys"))
+
+    def test_is_educational_query_guide_to(self):
+        """Test detection of 'guide to' queries."""
+        self.assertTrue(self.tracker.is_educational_query("guide to systemd"))
+        self.assertTrue(self.tracker.is_educational_query("Guide to Linux networking"))
+
+    def test_is_educational_query_learn_about(self):
+        """Test detection of 'learn about' queries."""
+        self.assertTrue(self.tracker.is_educational_query("learn about bash scripting"))
+        self.assertTrue(self.tracker.is_educational_query("Learn about container orchestration"))
+
+    def test_is_educational_query_introduction_to(self):
+        """Test detection of 'introduction to' queries."""
+        self.assertTrue(self.tracker.is_educational_query("introduction to docker"))
+        self.assertTrue(self.tracker.is_educational_query("Introduction to kubernetes"))
+
+    def test_is_educational_query_basics_of(self):
+        """Test detection of 'basics of' queries."""
+        self.assertTrue(self.tracker.is_educational_query("basics of linux"))
+        self.assertTrue(self.tracker.is_educational_query("Basics of container networking"))
+
+    def test_is_educational_query_what_are(self):
+        """Test detection of 'what are' queries."""
+        self.assertTrue(self.tracker.is_educational_query("what are pods in kubernetes"))
+        self.assertTrue(self.tracker.is_educational_query("What are environment variables"))
+
+    def test_is_educational_query_how_do(self):
+        """Test detection of 'how do' queries."""
+        self.assertTrue(self.tracker.is_educational_query("how do I use git"))
+        self.assertTrue(self.tracker.is_educational_query("How do containers communicate"))
+
+    def test_is_educational_query_case_insensitive(self):
+        """Test that pattern matching is case-insensitive."""
+        self.assertTrue(self.tracker.is_educational_query("EXPLAIN docker"))
+        self.assertTrue(self.tracker.is_educational_query("tUtOrIaL on kubernetes"))
+        self.assertTrue(self.tracker.is_educational_query("WHAT IS nginx"))
+
+    def test_is_educational_query_best_practice_singular(self):
+        """Test detection of 'best practice' (singular) queries."""
+        self.assertTrue(self.tracker.is_educational_query("what is the best practice for docker"))
+        self.assertTrue(self.tracker.is_educational_query("show me best practice"))
+
+    def test_is_educational_query_all_patterns_comprehensive(self):
+        """Comprehensive test ensuring all 13 EDUCATIONAL_PATTERNS are covered."""
+        test_cases = [
+            ("explain docker", True, "Pattern 1: ^explain\\b"),
+            ("teach me kubernetes", True, "Pattern 2: ^teach\\s+me\\b"),
+            ("what is nginx", True, "Pattern 3: ^what\\s+is\\b"),
+            ("what are containers", True, "Pattern 4: ^what\\s+are\\b"),
+            ("how does DNS work", True, "Pattern 5: ^how\\s+does\\b"),
+            ("how do I install", True, "Pattern 6: ^how\\s+do\\b"),
+            ("how to configure", True, "Pattern 7: ^how\\s+to\\b"),
+            ("best practices for security", True, "Pattern 8: \\bbest\\s+practices?\\b"),
+            ("best practice for coding", True, "Pattern 8: \\bbest\\s+practices?\\b (singular)"),
+            ("tutorial on git", True, "Pattern 9: ^tutorial\\b"),
+            ("guide to linux", True, "Pattern 10: ^guide\\s+to\\b"),
+            ("learn about python", True, "Pattern 11: ^learn\\s+about\\b"),
+            ("introduction to bash", True, "Pattern 12: ^introduction\\s+to\\b"),
+            ("basics of networking", True, "Pattern 13: ^basics\\s+of\\b"),
+            ("why is my disk full", False, "Non-educational query"),
+            ("check system status", False, "Non-educational query"),
+        ]
+        
+        for query, expected, description in test_cases:
+            with self.subTest(query=query, description=description):
+                result = self.tracker.is_educational_query(query)
+                self.assertEqual(
+                    result,
+                    expected,
+                    f"{description}: Expected {expected} for '{query}', got {result}"
+                )
+
     def test_is_educational_query_non_educational(self):
         """Test that non-educational queries return False."""
         self.assertFalse(self.tracker.is_educational_query("why is my disk full"))
@@ -362,6 +507,59 @@ class TestLearningTracker(unittest.TestCase):
         topic = self.tracker.extract_topic(long_question)
         self.assertLessEqual(len(topic), 50)
 
+    def test_extract_topic_truncation_at_word_boundary(self):
+        """Test that truncation preserves word boundaries."""
+        # Create a topic that's longer than 50 chars with spaces
+        long_question = "explain this is a very long topic name that exceeds fifty characters easily"
+        topic = self.tracker.extract_topic(long_question)
+        self.assertLessEqual(len(topic), 50)
+        # Should not end with a partial word
+        self.assertFalse(topic.endswith(" "))
+
+    def test_extract_topic_starts_with_space(self):
+        """Test handling when topic starts with space after prefix removal."""
+        # This tests the fix for words[0] being empty
+        question = "explain  leading spaces after prefix"  # Double space
+        topic = self.tracker.extract_topic(question)
+        # Should not be empty and should be trimmed
+        self.assertGreater(len(topic), 0)
+        self.assertFalse(topic.startswith(" "))
+
+    def test_extract_topic_how_to(self):
+        """Test topic extraction from 'how to' queries."""
+        topic = self.tracker.extract_topic("how to configure nginx")
+        self.assertEqual(topic, "configure nginx")
+
+    def test_extract_topic_guide_to(self):
+        """Test topic extraction from 'guide to' queries."""
+        topic = self.tracker.extract_topic("guide to kubernetes basics")
+        self.assertEqual(topic, "kubernetes basics")
+
+    def test_extract_topic_learn_about(self):
+        """Test topic extraction from 'learn about' queries."""
+        topic = self.tracker.extract_topic("learn about docker networking")
+        self.assertEqual(topic, "docker networking")
+
+    def test_extract_topic_introduction_to(self):
+        """Test topic extraction from 'introduction to' queries."""
+        topic = self.tracker.extract_topic("introduction to bash scripting")
+        self.assertEqual(topic, "bash scripting")
+
+    def test_extract_topic_basics_of(self):
+        """Test topic extraction from 'basics of' queries."""
+        topic = self.tracker.extract_topic("basics of linux administration")
+        self.assertEqual(topic, "linux administration")
+
+    def test_extract_topic_best_practices_for(self):
+        """Test topic extraction from 'best practices' queries."""
+        topic = self.tracker.extract_topic("best practices for docker security")
+        self.assertEqual(topic, "docker security")
+
+    def test_extract_topic_tutorial_on(self):
+        """Test topic extraction from 'tutorial on' queries."""
+        topic = self.tracker.extract_topic("tutorial on git workflow")
+        self.assertEqual(topic, "git workflow")
+
     def test_record_topic_creates_file(self):
         """Test that recording a topic creates the history file."""
         self.tracker.record_topic("explain docker")
@@ -380,6 +578,54 @@ class TestLearningTracker(unittest.TestCase):
         self.tracker.record_topic("explain docker")
         history = self.tracker.get_history()
         self.assertEqual(history["topics"]["docker"]["count"], 2)
+
+    def test_record_topic_handles_missing_count_key(self):
+        """Test that record_topic handles malformed topic data with missing count key."""
+        # Manually create history with a topic missing the count key
+        import json
+        self.temp_file.parent.mkdir(parents=True, exist_ok=True)
+        malformed_history = {
+            "topics": {
+                "docker": {
+                    "first_accessed": "2025-01-01T00:00:00+00:00",
+                    "last_accessed": "2025-01-01T00:00:00+00:00",
+                    # Missing "count" key
+                }
+            },
+            "total_queries": 1
+        }
+        with open(self.temp_file, "w") as f:
+            json.dump(malformed_history, f)
+
+        # This should not crash and should reinitialize the topic
+        self.tracker.record_topic("explain docker")
+        history = self.tracker.get_history()
+        
+        # Should have reinitialized with count=1
+        self.assertIn("docker", history["topics"])
+        self.assertEqual(history["topics"]["docker"]["count"], 1)
+
+    def test_record_topic_handles_non_dict_topic_data(self):
+        """Test that record_topic handles topic data that's not a dictionary."""
+        self.temp_file.parent.mkdir(parents=True, exist_ok=True)
+        malformed_history = {
+            "topics": {
+                "docker": "invalid_data_type"  # Should be a dict
+            },
+            "total_queries": 1
+        }
+        with open(self.temp_file, "w") as f:
+            json.dump(malformed_history, f)
+
+        # This should not crash and should reinitialize the topic
+        self.tracker.record_topic("explain docker")
+        history = self.tracker.get_history()
+        
+        # Should have reinitialized properly
+        self.assertIn("docker", history["topics"])
+        topic_data = history["topics"]["docker"]
+        self.assertIsInstance(topic_data, dict)
+        self.assertEqual(topic_data["count"], 1)
 
     def test_record_topic_ignores_non_educational(self):
         """Test that non-educational queries are not recorded."""
