@@ -106,10 +106,12 @@ class TestCortexCLIExtended(unittest.TestCase):
     @patch.object(CortexCLI, "_get_api_key", return_value="sk-test-key")
     @patch.object(CortexCLI, "_animate_spinner", return_value=None)
     @patch.object(CortexCLI, "_clear_line", return_value=None)
+    @patch("cortex.cli.PredictiveErrorManager")
     @patch("cortex.cli.CommandInterpreter")
     def test_install_dry_run(
         self,
         mock_interpreter_class,
+        mock_predictive_class,
         _mock_clear_line,
         _mock_spinner,
         _mock_get_api_key,
@@ -118,6 +120,12 @@ class TestCortexCLIExtended(unittest.TestCase):
         mock_interpreter = Mock()
         mock_interpreter.parse.return_value = ["apt update", "apt install docker"]
         mock_interpreter_class.return_value = mock_interpreter
+
+        mock_predictive = Mock()
+        mock_prediction = Mock()
+        mock_prediction.risk_level = 0
+        mock_predictive.analyze_installation.return_value = mock_prediction
+        mock_predictive_class.return_value = mock_predictive
 
         result = self.cli.install("docker", dry_run=True)
 
@@ -128,10 +136,12 @@ class TestCortexCLIExtended(unittest.TestCase):
     @patch.object(CortexCLI, "_get_api_key", return_value="sk-test-key")
     @patch.object(CortexCLI, "_animate_spinner", return_value=None)
     @patch.object(CortexCLI, "_clear_line", return_value=None)
+    @patch("cortex.cli.PredictiveErrorManager")
     @patch("cortex.cli.CommandInterpreter")
     def test_install_no_execute(
         self,
         mock_interpreter_class,
+        mock_predictive_class,
         _mock_clear_line,
         _mock_spinner,
         _mock_get_api_key,
@@ -140,6 +150,12 @@ class TestCortexCLIExtended(unittest.TestCase):
         mock_interpreter = Mock()
         mock_interpreter.parse.return_value = ["apt update", "apt install docker"]
         mock_interpreter_class.return_value = mock_interpreter
+
+        mock_predictive = Mock()
+        mock_prediction = Mock()
+        mock_prediction.risk_level = 0
+        mock_predictive.analyze_installation.return_value = mock_prediction
+        mock_predictive_class.return_value = mock_predictive
 
         result = self.cli.install("docker", execute=False)
 
@@ -150,12 +166,14 @@ class TestCortexCLIExtended(unittest.TestCase):
     @patch.object(CortexCLI, "_get_api_key", return_value="sk-test-key")
     @patch.object(CortexCLI, "_animate_spinner", return_value=None)
     @patch.object(CortexCLI, "_clear_line", return_value=None)
+    @patch("cortex.cli.PredictiveErrorManager")
     @patch("cortex.cli.CommandInterpreter")
     @patch("cortex.cli.InstallationCoordinator")
     def test_install_with_execute_success(
         self,
         mock_coordinator_class,
         mock_interpreter_class,
+        mock_predictive_class,
         _mock_clear_line,
         _mock_spinner,
         _mock_get_api_key,
@@ -164,6 +182,12 @@ class TestCortexCLIExtended(unittest.TestCase):
         mock_interpreter = Mock()
         mock_interpreter.parse.return_value = ["echo test"]
         mock_interpreter_class.return_value = mock_interpreter
+
+        mock_predictive = Mock()
+        mock_prediction = Mock()
+        mock_prediction.risk_level = 0
+        mock_predictive.analyze_installation.return_value = mock_prediction
+        mock_predictive_class.return_value = mock_predictive
 
         mock_coordinator = Mock()
         mock_result = Mock()
@@ -181,12 +205,14 @@ class TestCortexCLIExtended(unittest.TestCase):
     @patch.object(CortexCLI, "_get_api_key", return_value="sk-test-key")
     @patch.object(CortexCLI, "_animate_spinner", return_value=None)
     @patch.object(CortexCLI, "_clear_line", return_value=None)
+    @patch("cortex.cli.PredictiveErrorManager")
     @patch("cortex.cli.CommandInterpreter")
     @patch("cortex.cli.InstallationCoordinator")
     def test_install_with_execute_failure(
         self,
         mock_coordinator_class,
         mock_interpreter_class,
+        mock_predictive_class,
         _mock_clear_line,
         _mock_spinner,
         _mock_get_api_key,
@@ -195,6 +221,12 @@ class TestCortexCLIExtended(unittest.TestCase):
         mock_interpreter = Mock()
         mock_interpreter.parse.return_value = ["invalid command"]
         mock_interpreter_class.return_value = mock_interpreter
+
+        mock_predictive = Mock()
+        mock_prediction = Mock()
+        mock_prediction.risk_level = 0
+        mock_predictive.analyze_installation.return_value = mock_prediction
+        mock_predictive_class.return_value = mock_predictive
 
         mock_coordinator = Mock()
         mock_result = Mock()
