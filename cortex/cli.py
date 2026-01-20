@@ -878,9 +878,9 @@ class CortexCLI:
                 providers_to_try.append(other_provider)
 
         commands = None
-        api_key = None
-        history = InstallationHistory()
-        start_time = datetime.now()
+        install_id = None
+
+        # Try each provider until we get commands
         for try_provider in providers_to_try:
             try:
                 try_api_key = self._get_api_key_for_provider(try_provider) or "dummy-key"
@@ -894,63 +894,29 @@ class CortexCLI:
                 self._clear_line()
 
                 commands = interpreter.parse(f"install {software}")
-        api_key = self._get_api_key()
-        if not api_key:
-            error_msg = "No API key found. Please configure an API provider."
-            # Record installation attempt before failing if we have packages
-            try:
-                packages = [software.split()[0]]  # Basic package extraction
-                install_id = history.record_installation(
-                    InstallationType.INSTALL, packages, [], start_time
-                )
-            except Exception:
-                pass  # If recording fails, continue with error reporting
 
-            if install_id:
-                history.update_installation(install_id, InstallationStatus.FAILED, error_msg)
-
-            if json_output:
-                print(
-                    json.dumps({"success": False, "error": error_msg, "error_type": "RuntimeError"})
-                )
-            else:
-                self._print_error(error_msg)
-            return 1
-
-        provider = self._get_provider()
-        self._debug(f"Using provider: {provider}")
-        self._debug(f"API key: {api_key[:10]}...{api_key[-4:]}")
-
-        try:
-            if not json_output:
-                self._print_status("🧠", "Understanding request...")
-
-            interpreter = CommandInterpreter(api_key=api_key, provider=provider)
-
-            if not json_output:
-                self._print_status("📦", "Planning installation...")
-
-                for _ in range(10):
-                    self._animate_spinner("Analyzing system requirements...")
-                self._clear_line()
-
+                # If we successfully got commands, break out of the provider loop
                 if commands:
-                    api_key = try_api_key
+                    self._debug(f"Successfully generated commands with {try_provider}")
                     break
                 else:
                     self._debug(f"No commands generated with {try_provider}")
+
             except (RuntimeError, Exception) as e:
                 self._debug(f"API call failed with {try_provider}: {e}")
                 continue
 
+        # After the provider loop, check if we got commands
         if not commands:
-            self._print_error(t("install.no_commands"))
+            error_msg = "No commands generated with any available provider. Please try again with a different request."
+            self._print_error(error_msg)
             return 1
 
+        # Now we have commands, proceed with installation
         try:
-            install_id = None
             # Extract packages from commands for tracking
             packages = history._extract_packages_from_commands(commands)
+
             # Record installation start
             if execute or dry_run:
                 install_id = history.record_installation(
@@ -959,7 +925,6 @@ class CortexCLI:
 
             # If JSON output requested, return structured data and exit early
             if json_output:
-
                 output = {
                     "success": True,
                     "commands": commands,
@@ -1131,7 +1096,6 @@ class CortexCLI:
             if install_id:
                 history.update_installation(install_id, InstallationStatus.FAILED, str(e))
             if json_output:
-
                 print(json.dumps({"success": False, "error": str(e), "error_type": "ValueError"}))
             else:
                 self._print_error(str(e))
@@ -1140,7 +1104,6 @@ class CortexCLI:
             if install_id:
                 history.update_installation(install_id, InstallationStatus.FAILED, str(e))
             if json_output:
-
                 print(json.dumps({"success": False, "error": str(e), "error_type": "RuntimeError"}))
             else:
                 self._print_error(f"API call failed: {str(e)}")
@@ -1149,7 +1112,6 @@ class CortexCLI:
             if install_id:
                 history.update_installation(install_id, InstallationStatus.FAILED, str(e))
             if json_output:
-
                 print(json.dumps({"success": False, "error": str(e), "error_type": "OSError"}))
             else:
                 self._print_error(f"System error: {str(e)}")
