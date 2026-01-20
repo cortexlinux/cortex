@@ -263,7 +263,7 @@ class LearningTracker:
         history.setdefault("total_queries", 0)
         if not isinstance(history.get("topics"), dict):
             history["topics"] = {}
-        
+
         # Ensure total_queries is an integer
         if not isinstance(history.get("total_queries"), int):
             try:
