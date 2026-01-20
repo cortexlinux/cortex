@@ -2694,32 +2694,45 @@ class CortexCLI:
             test_regex = "|".join(tests_to_run)
             ctest_args.extend(["-R", test_regex])
 
-        result = subprocess.run(
-            ctest_args,
-            cwd=str(build_dir),
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                ctest_args,
+                cwd=str(build_dir),
+                check=False,
+            )
 
-        if result.returncode == 0:
-            cx_print("", "info")
-            cx_print("All tests passed!", "success")
-            if install_id:
-                try:
-                    history.update_installation(install_id, InstallationStatus.SUCCESS)
-                except Exception:
-                    # Continue even if audit logging fails - don't break the main flow
-                    pass
-            return 0
-        else:
-            error_msg = f"Test execution failed with return code {result.returncode}"
-            cx_print("", "info")
-            cx_print("Some tests failed.", "error")
-            if install_id:
-                try:
-                    history.update_installation(install_id, InstallationStatus.FAILED, error_msg)
-                except Exception:
-                    # Continue even if audit logging fails - don't break the main flow
-                    pass
+            if result.returncode == 0:
+                cx_print("", "info")
+                cx_print("All tests passed!", "success")
+                if install_id:
+                    try:
+                        history.update_installation(install_id, InstallationStatus.SUCCESS)
+                    except Exception:
+                        # Continue even if audit logging fails - don't break the main flow
+                        pass
+                return 0
+            else:
+                error_msg = f"Test execution failed with return code {result.returncode}"
+                cx_print("", "info")
+                cx_print("Some tests failed.", "error")
+                if install_id:
+                    try:
+                        history.update_installation(
+                            install_id, InstallationStatus.FAILED, error_msg
+                        )
+                    except Exception:
+                        # Continue even if audit logging fails - don't break the main flow
+                        pass
+                return 1
+        except subprocess.SubprocessError as e:
+            error_msg = f"Subprocess error during test execution: {str(e)}"
+            cx_print(error_msg, "error")
+            self._update_history_on_failure(history, install_id, error_msg)
+            return 1
+        except Exception as e:
+            error_msg = f"Unexpected error during test execution: {str(e)}"
+            cx_print(error_msg, "error")
+            self._update_history_on_failure(history, install_id, error_msg)
             return 1
 
     def benchmark(self, verbose: bool = False):
