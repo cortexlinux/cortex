@@ -94,6 +94,7 @@ class CortexCLI:
 
     @property
     def risk_labels(self) -> dict[RiskLevel, str]:
+        """Localized labels for each RiskLevel."""
         return {
             RiskLevel.NONE: t("predictive.no_risk"),
             RiskLevel.LOW: t("predictive.low_risk"),
