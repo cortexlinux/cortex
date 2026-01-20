@@ -73,7 +73,7 @@ Predicted Error Messages:
 
 ## AI Usage Statement
 
-This feature was developed with heavy assistance from the **Antigravity AI Coding Assistant**.
+This feature was developed with heavy assistance from the **Antigravity AI (Google DeepMind)**.
 - **Generated Logic**: The core `PredictiveErrorManager` logic and history pattern matching were AI-suggested.
 - **Test Generation**: Unit tests were designed using AI to reach 87% coverage.
 - **Documentation**: This documentation was refined by the AI to match the final implementation style.

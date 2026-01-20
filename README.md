@@ -415,7 +415,7 @@ pip install -e .
 - [x] Dry-run preview mode
 - [x] Docker bind-mount permission fixer
 - [x] Automatic Role Discovery (AI-driven system context sensing)
-- [x] Predictive Error Prevention (pre-install compatibility checks)
+- [x] Predictive Prevention (pre-install compatibility checks)
 
 ### In Progress
 - [ ] Conflict resolution UI

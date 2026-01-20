@@ -113,7 +113,7 @@ class PredictiveErrorManager:
 
     def _check_static_compatibility(
         self, software: str, system: SystemInfo, prediction: FailurePrediction
-    ):
+    ) -> None:
         """Run fast, rule-based compatibility checks."""
         normalized_software = software.lower()
 
@@ -121,7 +121,7 @@ class PredictiveErrorManager:
         if "cuda" in normalized_software or "nvidia" in normalized_software:
             # Check for very old kernels
             if system.kernel_version:
-                version_match = re.search(r"(\d+)\.(\d+)", system.kernel_version)
+                version_match = re.search(r"^(\d+)\.(\d+)", system.kernel_version)
                 if version_match:
                     major = int(version_match.group(1))
                     minor = int(version_match.group(2))
@@ -134,7 +134,7 @@ class PredictiveErrorManager:
                     else:
                         # Add a low-risk demo warning for newer kernels
                         prediction.reasons.append(
-                            f"CUDA installation detected on kernel {system.kernel_version}."
+                            f"CUDA installation on kernel {system.kernel_version} requires specific driver modules and headers."
                         )
                         prediction.recommendations.append(
                             "Ensure official NVIDIA drivers are installed before proceeding"
@@ -163,7 +163,7 @@ class PredictiveErrorManager:
 
     def _analyze_history_patterns(
         self, software: str, commands: list[str], prediction: FailurePrediction
-    ):
+    ) -> None:
         """Learn from past failures in the installation records."""
         history = self.history.get_history(limit=50, status_filter=InstallationStatus.FAILED)
 
@@ -298,7 +298,7 @@ class PredictiveErrorManager:
             logger.error(f"LLM prediction failed: {e}")
             prediction.reasons.append(f"Advanced AI analysis unavailable: {str(e)}")
 
-    def _finalize_risk_level(self, prediction: FailurePrediction):
+    def _finalize_risk_level(self, prediction: FailurePrediction) -> None:
         """Clean up and finalize the risk assessment."""
         # Deduplicate reasons and recommendations
         prediction.reasons = list(dict.fromkeys(prediction.reasons))
@@ -309,9 +309,12 @@ class PredictiveErrorManager:
         if prediction.reasons and prediction.risk_level == RiskLevel.NONE:
             prediction.risk_level = RiskLevel.LOW
 
-        if any("critical" in r.lower() or "fail" in r.lower() for r in prediction.reasons):
-            if prediction.risk_level < RiskLevel.HIGH:
-                prediction.risk_level = RiskLevel.HIGH
+        # Escalate based on critical keywords in reasons
+        reasons_lower = [r.lower() for r in prediction.reasons]
+        if any("critical" in r for r in reasons_lower):
+            prediction.risk_level = max(prediction.risk_level, RiskLevel.CRITICAL)
+        elif any("unsupported" in r for r in reasons_lower):
+            prediction.risk_level = max(prediction.risk_level, RiskLevel.HIGH)
 
 
 if __name__ == "__main__":

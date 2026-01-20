@@ -10,7 +10,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from rich.console import Console
 from rich.markdown import Markdown
+from rich.panel import Panel
+from rich.table import Table
 
 from cortex.api_key_detector import auto_detect_api_key, setup_api_key
 from cortex.ask import AskHandler
@@ -32,6 +35,7 @@ from cortex.notification_manager import NotificationManager
 from cortex.predictive_prevention import PredictiveErrorManager, RiskLevel
 from cortex.role_manager import RoleManager
 from cortex.stack_manager import StackManager
+from cortex.stdin_handler import StdinHandler
 from cortex.uninstall_impact import (
     ImpactResult,
     ImpactSeverity,
@@ -58,10 +62,37 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 class CortexCLI:
+    RISK_COLORS = {
+        RiskLevel.NONE: "green",
+        RiskLevel.LOW: "green",
+        RiskLevel.MEDIUM: "yellow",
+        RiskLevel.HIGH: "orange1",
+        RiskLevel.CRITICAL: "red",
+    }
+
+    RISK_COLORS = {
+        RiskLevel.NONE: "green",
+        RiskLevel.LOW: "green",
+        RiskLevel.MEDIUM: "yellow",
+        RiskLevel.HIGH: "orange1",
+        RiskLevel.CRITICAL: "red",
+    }
+
     def __init__(self, verbose: bool = False):
         self.spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         self.spinner_idx = 0
         self.verbose = verbose
+        self.predict_manager = None
+
+    @property
+    def risk_labels(self):
+        return {
+            RiskLevel.NONE: t("predictive.no_risk"),
+            RiskLevel.LOW: t("predictive.low_risk"),
+            RiskLevel.MEDIUM: t("predictive.medium_risk"),
+            RiskLevel.HIGH: t("predictive.high_risk"),
+            RiskLevel.CRITICAL: t("predictive.critical_risk"),
+        }
 
     # Define a method to handle Docker-specific permission repairs
     def docker_permissions(self, args: argparse.Namespace) -> int:
@@ -783,27 +814,8 @@ class CortexCLI:
 
     def _display_prediction_warning(self, prediction):
         """Display formatted prediction warning."""
-        from rich.panel import Panel
-        from rich.table import Table
-
-        risk_colors = {
-            RiskLevel.NONE: "green",
-            RiskLevel.LOW: "green",
-            RiskLevel.MEDIUM: "yellow",
-            RiskLevel.HIGH: "orange1",
-            RiskLevel.CRITICAL: "red",
-        }
-
-        risk_labels = {
-            RiskLevel.NONE: t("predictive.no_risk"),
-            RiskLevel.LOW: t("predictive.low_risk"),
-            RiskLevel.MEDIUM: t("predictive.medium_risk"),
-            RiskLevel.HIGH: t("predictive.high_risk"),
-            RiskLevel.CRITICAL: t("predictive.critical_risk"),
-        }
-
-        color = risk_colors.get(prediction.risk_level, "white")
-        label = risk_labels.get(prediction.risk_level, "Unknown")
+        color = self.RISK_COLORS.get(prediction.risk_level, "white")
+        label = self.risk_labels.get(prediction.risk_level, "Unknown")
 
         console.print()
         if prediction.risk_level >= RiskLevel.HIGH:
@@ -824,7 +836,8 @@ class CortexCLI:
         if prediction.predicted_errors:
             console.print(f"\n[bold]{t('predictive.predicted_errors')}:[/bold]")
             for err in prediction.predicted_errors:
-                console.print(f"   ! [dim]{err[:100]}...[/dim]")
+                msg = f"{err[:100]}..." if len(err) > 100 else err
+                console.print(f"   ! [dim]{msg}[/dim]")
 
     def _confirm_risky_operation(self, prediction) -> bool:
         """Prompt user for confirmation of a risky operation."""
@@ -833,8 +846,6 @@ class CortexCLI:
 
         console.print(f"\n{t('predictive.continue_anyway')} [y/N]: ", end="", markup=False)
         try:
-            from cortex.stdin_handler import StdinHandler
-
             response = input().strip().lower()
             return response in ("y", "yes")
         except (EOFError, KeyboardInterrupt):
@@ -957,8 +968,9 @@ class CortexCLI:
 
             # Predictive Analysis
             self._print_status("🔮", t("predictive.analyzing"))
-            predict_manager = PredictiveErrorManager(api_key=api_key, provider=provider)
-            prediction = predict_manager.analyze_installation(software, commands)
+            if not self.predict_manager:
+                self.predict_manager = PredictiveErrorManager(api_key=api_key, provider=provider)
+            prediction = self.predict_manager.analyze_installation(software, commands)
             self._clear_line()
 
             if prediction.risk_level != RiskLevel.NONE:
@@ -1319,8 +1331,6 @@ class CortexCLI:
 
     def _display_impact_report(self, result: ImpactResult) -> None:
         """Display formatted impact analysis report"""
-        from rich.panel import Panel
-        from rich.table import Table
 
         # Severity styling
         severity_styles = {
@@ -1846,7 +1856,6 @@ class CortexCLI:
     def update(self, args: argparse.Namespace) -> int:
         """Handle the update command for self-updating Cortex."""
         from rich.progress import Progress, SpinnerColumn, TextColumn
-        from rich.table import Table
 
         # Parse channel
         channel_str = getattr(args, "channel", "stable")
@@ -4001,7 +4010,6 @@ def show_rich_help():
     for all core Cortex utilities including installation, environment
     management, and container tools.
     """
-    from rich.table import Table
 
     show_banner(show_version=True)
     console.print()

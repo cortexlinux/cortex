@@ -26,7 +26,7 @@ class TestPredictiveErrorManager(unittest.TestCase):
         mock_history.return_value = []
 
         # Mock LLM response
-        mock_llm.return_value.content = '{"risk_level": "high", "reasons": ["Old kernel", "Low RAM"], "recommendations": ["Upgrade kernel"], "predicted_errors": ["Out of memory"]}'
+        mock_llm.return_value.content = '{"risk_level": "critical", "reasons": ["Old kernel", "Low RAM"], "recommendations": ["Upgrade kernel"], "predicted_errors": ["Out of memory"]}'
 
         prediction = self.manager.analyze_installation("cuda-12.0", ["sudo apt install cuda-12.0"])
 
@@ -38,7 +38,13 @@ class TestPredictiveErrorManager(unittest.TestCase):
 
     @patch("cortex.hardware_detection.HardwareDetector.detect")
     @patch("cortex.installation_history.InstallationHistory.get_history")
-    def test_static_compatibility_check(self, mock_history, mock_detect):
+    @patch("cortex.llm_router.LLMRouter.complete")
+    def test_static_compatibility_check(self, mock_llm, mock_history, mock_detect):
+        # Mock LLM to return neutral result so only static checks apply
+        mock_llm.return_value.content = (
+            '{"risk_level": "none", "reasons": [], "recommendations": [], "predicted_errors": []}'
+        )
+
         system_info = SystemInfo(
             kernel_version="5.15.0",
             memory=MemoryInfo(total_mb=8192),
@@ -54,7 +60,13 @@ class TestPredictiveErrorManager(unittest.TestCase):
 
     @patch("cortex.hardware_detection.HardwareDetector.detect")
     @patch("cortex.installation_history.InstallationHistory.get_history")
-    def test_history_pattern_failure(self, mock_history, mock_detect):
+    @patch("cortex.llm_router.LLMRouter.complete")
+    def test_history_pattern_failure(self, mock_llm, mock_history, mock_detect):
+        # Mock LLM to return neutral result
+        mock_llm.return_value.content = (
+            '{"risk_level": "none", "reasons": [], "recommendations": [], "predicted_errors": []}'
+        )
+
         system_info = SystemInfo(
             kernel_version="6.0.0",
             memory=MemoryInfo(total_mb=16384),
@@ -91,8 +103,8 @@ class TestPredictiveErrorManager(unittest.TestCase):
 
         prediction = self.manager.analyze_installation("docker", ["sudo apt install docker.io"])
 
-        # Should be HIGH risk because it's a direct match and failure
-        self.assertEqual(prediction.risk_level, RiskLevel.HIGH)
+        # Should be MEDIUM risk for a single historical failure match
+        self.assertEqual(prediction.risk_level, RiskLevel.MEDIUM)
         self.assertTrue(any("failed 1 times" in r for r in prediction.reasons))
 
     @patch("cortex.hardware_detection.HardwareDetector.detect")
@@ -113,7 +125,12 @@ class TestPredictiveErrorManager(unittest.TestCase):
         self.assertTrue(any("LLM detected risks" in r for r in prediction.reasons))
 
     @patch("cortex.hardware_detection.HardwareDetector.detect")
-    def test_critical_risk_finalization(self, mock_detect):
+    @patch("cortex.llm_router.LLMRouter.complete")
+    def test_critical_risk_finalization(self, mock_llm, mock_detect):
+        mock_llm.return_value.content = (
+            '{"risk_level": "none", "reasons": [], "recommendations": [], "predicted_errors": []}'
+        )
+
         mock_detect.return_value = SystemInfo(
             kernel_version="6.0.0",
             memory=MemoryInfo(total_mb=16384),
@@ -123,7 +140,7 @@ class TestPredictiveErrorManager(unittest.TestCase):
         prediction = self.manager.analyze_installation("test", ["test"])
         prediction.reasons.append("This is a CRITICAL failure")
         self.manager._finalize_risk_level(prediction)
-        self.assertEqual(prediction.risk_level, RiskLevel.HIGH)
+        self.assertEqual(prediction.risk_level, RiskLevel.CRITICAL)
 
 
 if __name__ == "__main__":
