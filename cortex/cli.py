@@ -32,7 +32,7 @@ from cortex.installation_history import InstallationHistory, InstallationStatus,
 from cortex.llm.interpreter import CommandInterpreter
 from cortex.network_config import NetworkConfig
 from cortex.notification_manager import NotificationManager
-from cortex.predictive_prevention import PredictiveErrorManager, RiskLevel
+from cortex.predictive_prevention import FailurePrediction, PredictiveErrorManager, RiskLevel
 from cortex.role_manager import RoleManager
 from cortex.stack_manager import StackManager
 from cortex.stdin_handler import StdinHandler
@@ -812,7 +812,7 @@ class CortexCLI:
 
         return result.exit_code
 
-    def _display_prediction_warning(self, prediction):
+    def _display_prediction_warning(self, prediction: FailurePrediction) -> None:
         """Display formatted prediction warning."""
         color = self.RISK_COLORS.get(prediction.risk_level, "white")
         label = self.risk_labels.get(prediction.risk_level, "Unknown")
@@ -839,7 +839,7 @@ class CortexCLI:
                 msg = f"{err[:100]}..." if len(err) > 100 else err
                 console.print(f"   ! [dim]{msg}[/dim]")
 
-    def _confirm_risky_operation(self, prediction) -> bool:
+    def _confirm_risky_operation(self, prediction: FailurePrediction) -> bool:
         """Prompt user for confirmation of a risky operation."""
         if prediction.risk_level == RiskLevel.HIGH or prediction.risk_level == RiskLevel.CRITICAL:
             cx_print(f"\n{t('predictive.high_risk_warning')}", "warning")

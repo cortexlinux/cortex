@@ -132,12 +132,12 @@ class PredictiveErrorManager:
                         prediction.recommendations.append("Update kernel to 5.15+ first")
                         prediction.risk_level = max(prediction.risk_level, RiskLevel.HIGH)
                     else:
-                        # Add a low-risk demo warning for newer kernels
+                        # Add a low-risk warning for newer kernels regarding driver/header complexity
                         prediction.reasons.append(
-                            f"CUDA installation on kernel {system.kernel_version} requires specific driver modules and headers."
+                            f"CUDA installation on kernel {system.kernel_version} has a potential risk of driver mismatch without proper headers."
                         )
                         prediction.recommendations.append(
-                            "Ensure official NVIDIA drivers are installed before proceeding"
+                            "Ensure official NVIDIA drivers and kernel headers are installed before proceeding"
                         )
                         prediction.risk_level = max(prediction.risk_level, RiskLevel.LOW)
 
@@ -210,7 +210,7 @@ class PredictiveErrorManager:
 
     def _get_llm_prediction(
         self, software: str, commands: list[str], system: SystemInfo, prediction: FailurePrediction
-    ):
+    ) -> None:
         """Use LLM to predict complex failure scenarios."""
         try:
             # Prepare context for LLM
