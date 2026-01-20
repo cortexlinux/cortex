@@ -77,13 +77,16 @@ class PredictiveErrorManager:
             default_provider=llm_provider,
         )
 
-    def analyze_installation(self, software: str, commands: list[str]) -> FailurePrediction:
+    def analyze_installation(
+        self, software: str, commands: list[str], redact: bool = True
+    ) -> FailurePrediction:
         """
         Analyze a planned installation for potential risks.
 
         Args:
             software: The software request string
             commands: List of commands planned for execution
+            redact: Whether to redact sensitive data before LLM call
 
         Returns:
             FailurePrediction object with risk details
@@ -104,8 +107,8 @@ class PredictiveErrorManager:
 
         # 4. LLM-backed advanced prediction (if AI available and not in fake mode)
         if (self.api_key or self.provider == "ollama") and self.provider != "fake":
-            # Redact sensitive data from commands before sending to LLM
-            redacted_commands = self._redact_commands(commands)
+            # Redact sensitive data from commands before sending to LLM if requested
+            redacted_commands = self.redact_commands(commands) if redact else commands
             self._get_llm_prediction(software, redacted_commands, system_info, prediction)
 
         # 5. Final risk level adjustment based on findings
@@ -113,26 +116,32 @@ class PredictiveErrorManager:
 
         return prediction
 
-    def _redact_commands(self, commands: list[str]) -> list[str]:
+    def redact_commands(self, commands: list[str]) -> list[str]:
         """Mask potential tokens, passwords, and API keys in commands."""
         # Common patterns for sensitive data in CLI commands:
         # 1. --password PASSWORD or --api-key=TOKEN
         # 2. env vars like AUTH_TOKEN=xxx
         redacted = []
+        redact_count = 0
         for cmd in commands:
             # Mask common credential flags (handles both spaces and equals)
-            tmp = re.sub(
+            new_cmd, count1 = re.subn(
                 r"(?i)(--?(?:token|api[-_]?key|password|secret|pwd|auth|key)(?:\s+|=))(\S+)",
                 r"\1<REDACTED>",
                 cmd,
             )
             # Mask env var assignments
-            tmp = re.sub(
+            new_cmd, count2 = re.subn(
                 r"(?i)\b([A-Z0-9_-]*(?:TOKEN|PASSWORD|SECRET|KEY|AUTH)=)(\S+)",
                 r"\1<REDACTED>",
-                tmp,
+                new_cmd,
             )
-            redacted.append(tmp)
+            redacted.append(new_cmd)
+            redact_count += count1 + count2
+
+        if redact_count > 0:
+            logger.info(f"Redacted {redact_count} sensitive fields in commands before LLM call")
+
         return redacted
 
     def _check_static_compatibility(

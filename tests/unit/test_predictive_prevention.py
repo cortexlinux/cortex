@@ -135,7 +135,7 @@ class TestPredictiveErrorManager(unittest.TestCase):
             "export API_KEY=12345-abcde",
             "docker login --token=98765",
         ]
-        redacted = self.manager._redact_commands(commands)
+        redacted = self.manager.redact_commands(commands)
 
         self.assertIn("--password <REDACTED>", redacted[0])
         self.assertIn("API_KEY=<REDACTED>", redacted[2])
