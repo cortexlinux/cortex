@@ -4590,11 +4590,11 @@ def main():
                     handler = VoiceInputHandler()
                     cx_print("Press F9 to speak your question...", "info")
                     transcript = handler.record_single()
-                    
+
                     if not transcript:
                         cli._print_error("No speech detected")
                         return 1
-                    
+
                     cx_print(f"Question: {transcript}", "info")
                     return cli.ask(transcript)
                 except ImportError:
