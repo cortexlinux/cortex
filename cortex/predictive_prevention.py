@@ -77,7 +77,6 @@ class PredictiveErrorManager:
         self.router = LLMRouter(
             claude_api_key=api_key if normalized_provider == "claude" else None,
             kimi_api_key=api_key if normalized_provider == "kimi_k2" else None,
-            openai_api_key=api_key if normalized_provider == "openai" else None,
             default_provider=llm_provider,
         )
 
