@@ -83,13 +83,14 @@ This feature was developed with heavy assistance from the **Antigravity AI (Goog
 To verify the system manually:
 1. Ensure you have the project environment setup: `pip install -e .`
 2. Run unit tests: `pytest tests/unit/test_predictive_prevention.py`
-3. Use the **Fake Provider** demo (Recommended if your AI API is not working or unavailable):
+3. **Verify with Real AI**:
+   This tests the full pipeline including LLM-based risk assessment.
    ```bash
-   # Enable fake mode to bypass external AI services
-   export CORTEX_PROVIDER=fake
-   # Define the commands you want to simulate
-   export CORTEX_FAKE_COMMANDS='{"commands": ["sudo apt install -y broken-pkg"]}'
-   cortex install "broken-pkg" --execute
+   # 1. Ensure your API key is set
+   export ANTHROPIC_API_KEY=sk-...
+
+   # 2. Run an installation that might trigger warnings (e.g., CUDA on non-NVIDIA system)
+   cortex install "cuda-toolkit" --dry-run
    ```
 
 ## Development
