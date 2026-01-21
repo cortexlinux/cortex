@@ -545,12 +545,16 @@ std::optional<Alert> AlertManager::get_alert(const std::string& uuid) {
         }
         
         // Read all columns while lock is held (stmt is only valid during lock)
-        alert.uuid = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        const unsigned char* uuid_txt = sqlite3_column_text(stmt, 0);
+        alert.uuid = uuid_txt ? reinterpret_cast<const char*>(uuid_txt) : std::string();
         alert.severity = static_cast<AlertSeverity>(sqlite3_column_int(stmt, 1));
         alert.category = static_cast<AlertCategory>(sqlite3_column_int(stmt, 2));
-        alert.source = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
-        alert.message = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
-        alert.description = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
+        const unsigned char* source_txt = sqlite3_column_text(stmt, 3);
+        alert.source = source_txt ? reinterpret_cast<const char*>(source_txt) : std::string();
+        const unsigned char* message_txt = sqlite3_column_text(stmt, 4);
+        alert.message = message_txt ? reinterpret_cast<const char*>(message_txt) : std::string();
+        const unsigned char* desc_txt = sqlite3_column_text(stmt, 5);
+        alert.description = desc_txt ? reinterpret_cast<const char*>(desc_txt) : std::string();
         
         // Parse timestamp
         std::string timestamp_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 6));
@@ -635,12 +639,16 @@ std::vector<Alert> AlertManager::get_alerts(const AlertFilter& filter) {
     
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         Alert alert;
-        alert.uuid = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        const unsigned char* uuid_txt = sqlite3_column_text(stmt, 0);
+        alert.uuid = uuid_txt ? reinterpret_cast<const char*>(uuid_txt) : std::string();
         alert.severity = static_cast<AlertSeverity>(sqlite3_column_int(stmt, 1));
         alert.category = static_cast<AlertCategory>(sqlite3_column_int(stmt, 2));
-        alert.source = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
-        alert.message = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
-        alert.description = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
+        const unsigned char* source_txt = sqlite3_column_text(stmt, 3);
+        alert.source = source_txt ? reinterpret_cast<const char*>(source_txt) : std::string();
+        const unsigned char* message_txt = sqlite3_column_text(stmt, 4);
+        alert.message = message_txt ? reinterpret_cast<const char*>(message_txt) : std::string();
+        const unsigned char* desc_txt = sqlite3_column_text(stmt, 5);
+        alert.description = desc_txt ? reinterpret_cast<const char*>(desc_txt) : std::string();
         
         // Parse timestamp
         std::string timestamp_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 6));
