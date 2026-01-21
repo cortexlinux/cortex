@@ -86,7 +86,12 @@ class CortexCLI:
 
     @property
     def risk_labels(self) -> dict[RiskLevel, str]:
-        """Localized labels for each RiskLevel."""
+        """
+        Localized mapping from RiskLevel enum values to human-readable strings.
+
+        Returns a dictionary mapping each tier (RiskLevel.NONE to CRITICAL)
+        to its corresponding localized label via the t() translation helper.
+        """
         return {
             RiskLevel.NONE: t("predictive.no_risk"),
             RiskLevel.LOW: t("predictive.low_risk"),

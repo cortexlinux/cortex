@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Predictive Prevention System for Cortex Linux
+Predictive Error Prevention System for Cortex Linux
 
 Analyzes installation requests before execution to predict and prevent failures.
 Uses hardware detection, historical failure analysis, and LLM-backed risk assessment.
