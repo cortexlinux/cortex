@@ -120,6 +120,16 @@ SystemHealth SystemMonitor::get_health() const {
     return current_health_;
 }
 
+MonitoringThresholds SystemMonitor::get_thresholds() const {
+    std::shared_lock<std::shared_mutex> lock(thresholds_mutex_);
+    return thresholds_;
+}
+
+void SystemMonitor::set_thresholds(const MonitoringThresholds& thresholds) {
+    std::unique_lock<std::shared_mutex> lock(thresholds_mutex_);
+    thresholds_ = thresholds;
+}
+
 void SystemMonitor::monitor_loop() {
     while (running_.load()) {
         try {
@@ -425,6 +435,9 @@ int SystemMonitor::get_failed_services_count() const {
 }
 
 void SystemMonitor::check_thresholds(const SystemHealth& health) {
+    // Acquire shared lock for reading thresholds
+    std::shared_lock<std::shared_mutex> lock(thresholds_mutex_);
+    
     // CPU checks
     std::string cpu_critical_key = std::to_string(static_cast<int>(AlertCategory::CPU)) + ":" + 
                                     std::to_string(static_cast<int>(AlertSeverity::CRITICAL)) + ":" + 

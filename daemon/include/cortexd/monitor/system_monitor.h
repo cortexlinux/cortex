@@ -12,6 +12,7 @@
 #include <atomic>
 #include <chrono>
 #include <mutex>
+#include <shared_mutex>
 #include <unordered_set>
 #include <string>
 
@@ -98,18 +99,20 @@ public:
     /**
      * @brief Get monitoring thresholds
      */
-    MonitoringThresholds get_thresholds() const { return thresholds_; }
+    MonitoringThresholds get_thresholds() const;
     
     /**
      * @brief Set monitoring thresholds
      */
-    void set_thresholds(const MonitoringThresholds& thresholds) { thresholds_ = thresholds; }
+    void set_thresholds(const MonitoringThresholds& thresholds);
 
 private:
     std::shared_ptr<AlertManager> alert_manager_;
     std::atomic<bool> running_{false};
     std::unique_ptr<std::thread> monitor_thread_;
     int check_interval_seconds_;
+    
+    mutable std::shared_mutex thresholds_mutex_;
     MonitoringThresholds thresholds_;
     
     mutable std::mutex health_mutex_;

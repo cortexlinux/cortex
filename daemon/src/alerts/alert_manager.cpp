@@ -746,18 +746,19 @@ size_t AlertManager::acknowledge_all() {
         
         rc = sqlite3_step(stmt);
         changes = (rc == SQLITE_DONE) ? sqlite3_changes(db) : 0;
+        
+        // Update counters while holding lock to prevent race with concurrent inserts
+        // Reset all to 0 since all active alerts are now acknowledged
+        // Note: This is approximate - for exact counts we'd need to query by severity
+        // But for acknowledge_all, we typically want to clear all counters anyway
+        if (changes > 0) {
+            count_info_.store(0, std::memory_order_relaxed);
+            count_warning_.store(0, std::memory_order_relaxed);
+            count_error_.store(0, std::memory_order_relaxed);
+            count_critical_.store(0, std::memory_order_relaxed);
+            count_total_.store(0, std::memory_order_relaxed);
+        }
     }  // Lock released
-    
-    // Update counters - reset all to 0 since all active alerts are now acknowledged
-    // Note: This is approximate - for exact counts we'd need to query by severity
-    // But for acknowledge_all, we typically want to clear all counters anyway
-    if (changes > 0) {
-        count_info_.store(0, std::memory_order_relaxed);
-        count_warning_.store(0, std::memory_order_relaxed);
-        count_error_.store(0, std::memory_order_relaxed);
-        count_critical_.store(0, std::memory_order_relaxed);
-        count_total_.store(0, std::memory_order_relaxed);
-    }
     
     return changes;
 }
