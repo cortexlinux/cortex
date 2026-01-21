@@ -289,11 +289,11 @@ bool AlertManager::prepare_statements() {
     
     const char* select_all_sql = "SELECT uuid, severity, category, source, message, description, timestamp, status, acknowledged_at, dismissed_at FROM alerts WHERE 1=1";
     
-    const char* update_ack_sql = "UPDATE alerts SET status = ?, acknowledged_at = ? WHERE uuid = ?";
+    const char* update_ack_sql = "UPDATE alerts SET status = ?, acknowledged_at = ? WHERE uuid = ? AND status = ?";
     
     const char* update_ack_all_sql = "UPDATE alerts SET status = ?, acknowledged_at = ? WHERE status = ?";
     
-    const char* update_dismiss_sql = "UPDATE alerts SET status = ?, dismissed_at = ? WHERE uuid = ?";
+    const char* update_dismiss_sql = "UPDATE alerts SET status = ?, dismissed_at = ? WHERE uuid = ? AND status = ?";
     
     const char* count_sql = "SELECT severity, COUNT(*) FROM alerts WHERE status != ? GROUP BY severity";
     
@@ -411,10 +411,10 @@ void AlertManager::load_initial_counters() {
         
         int rc;
         while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-        int severity = sqlite3_column_int(stmt, 0);
-        int count = sqlite3_column_int(stmt, 1);
-        
-        switch (static_cast<AlertSeverity>(severity)) {
+            int severity = sqlite3_column_int(stmt, 0);
+            int count = sqlite3_column_int(stmt, 1);
+            
+            switch (static_cast<AlertSeverity>(severity)) {
             case AlertSeverity::INFO:
                 count_info_.store(count, std::memory_order_relaxed);
                 break;
@@ -427,8 +427,8 @@ void AlertManager::load_initial_counters() {
             case AlertSeverity::CRITICAL:
                 count_critical_.store(count, std::memory_order_relaxed);
                 break;
-        }
-        total += count;
+            }
+            total += count;
         }  // End of while loop
         count_total_.store(total, std::memory_order_relaxed);
     }  // Lock released
@@ -711,6 +711,7 @@ bool AlertManager::acknowledge_alert(const std::string& uuid) {
         sqlite3_bind_int(stmt, 1, static_cast<int>(AlertStatus::ACKNOWLEDGED));
         sqlite3_bind_text(stmt, 2, timestamp_str.c_str(), -1, SQLITE_STATIC);
         sqlite3_bind_text(stmt, 3, uuid.c_str(), -1, SQLITE_STATIC);
+        sqlite3_bind_int(stmt, 4, static_cast<int>(AlertStatus::ACTIVE));
         
         rc = sqlite3_step(stmt);
         changes = (rc == SQLITE_DONE) ? sqlite3_changes(db) : 0;
@@ -789,6 +790,7 @@ bool AlertManager::dismiss_alert(const std::string& uuid) {
     
     int rc;
     int changes = 0;
+    AlertStatus expected_status = alert_opt->status;
     {
         // SQLite prepared statements are NOT thread-safe - protect with mutex
         std::lock_guard<std::mutex> lock(stmt_mutex_);
@@ -799,6 +801,7 @@ bool AlertManager::dismiss_alert(const std::string& uuid) {
         sqlite3_bind_int(stmt, 1, static_cast<int>(AlertStatus::DISMISSED));
         sqlite3_bind_text(stmt, 2, timestamp_str.c_str(), -1, SQLITE_STATIC);
         sqlite3_bind_text(stmt, 3, uuid.c_str(), -1, SQLITE_STATIC);
+        sqlite3_bind_int(stmt, 4, static_cast<int>(expected_status));
         
         rc = sqlite3_step(stmt);
         changes = (rc == SQLITE_DONE) ? sqlite3_changes(db) : 0;
@@ -806,7 +809,7 @@ bool AlertManager::dismiss_alert(const std::string& uuid) {
     
     if (rc == SQLITE_DONE && changes > 0) {
         // Update counters if alert was active - atomics are thread-safe
-        if (should_update_counters && alert_opt->status == AlertStatus::ACTIVE) {
+        if (should_update_counters && expected_status == AlertStatus::ACTIVE) {
             update_counters(alert_opt->severity, -1);
         }
         return true;
