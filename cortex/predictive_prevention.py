@@ -297,7 +297,8 @@ class PredictiveErrorManager:
                 # Find JSON block if it's wrapped in markdown
                 json_str = response.content
                 # Robust parsing: handle markdown code blocks or raw JSON
-                code_block_match = re.search(r"```(?:json)?\s*(.*?)\s*```", json_str, re.DOTALL)
+                # Removed \s* inside regex to prevent potential backtracking issues (ReDoS)
+                code_block_match = re.search(r"```(?:json)?(.*?)```", json_str, re.DOTALL)
                 if code_block_match:
                     json_str = code_block_match.group(1).strip()
 
