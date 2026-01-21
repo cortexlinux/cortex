@@ -143,6 +143,54 @@ class TestPredictiveErrorManager(unittest.TestCase):
         # Note: Header tokens aren't redacted yet; keep values non-secret-like
         # to avoid triggering secret scanners.
 
+    def test_ubuntu_kernel_parsing(self, mock_llm, mock_history, mock_detect):
+        """Test parsing of typical Ubuntu kernel version strings."""
+        # Setup mock system with Ubuntu-style kernel string
+        system = self._get_mock_system(kernel="6.5.0-generic-ubuntu", disk_gb=50.0)
+        self._setup_mocks(mock_llm, mock_history, mock_detect, system=system)
+
+        prediction = self.manager.analyze_installation("cuda", ["apt install cuda"])
+
+        # Should be recognized as modern kernel (>= 5.4) -> LOW risk warning about sync
+        # Note: analyze_installation calls _check_static_compatibility internally
+        self.assertEqual(prediction.risk_level, RiskLevel.LOW)
+        self.assertTrue(any("driver-kernel mismatch" in r.lower() for r in prediction.reasons))
+
+    def test_unknown_kernel_parsing(self, mock_llm, mock_history, mock_detect):
+        """Test parsing of 'unknown' kernel version string."""
+        system = self._get_mock_system(kernel="unknown", disk_gb=50.0)
+        self._setup_mocks(mock_llm, mock_history, mock_detect, system=system)
+
+        prediction = self.manager.analyze_installation("cuda", ["apt install cuda"])
+
+        # Should gracefully ignore and not fail, risk level shouldn't be raised by kernel check
+        # It might remain NONE or LOW depending on other checks, but definitely not HIGH/CRITICAL due to parsing
+        self.assertNotEqual(prediction.risk_level, RiskLevel.CRITICAL)
+        self.assertNotEqual(prediction.risk_level, RiskLevel.HIGH)
+
+    def test_malformed_kernel_parsing(self, mock_llm, mock_history, mock_detect):
+        """Test parsing of malformed kernel version strings."""
+        edge_cases = ["", "None", "kernel-6.5", "v6.5"]
+
+        for k in edge_cases:
+            system = self._get_mock_system(kernel=k, disk_gb=50.0)
+            self._setup_mocks(mock_llm, mock_history, mock_detect, system=system)
+
+            prediction = self.manager.analyze_installation("cuda", ["apt install cuda"])
+            # Should not crash
+            self.assertIsNotNone(prediction)
+
+    def test_very_old_ubuntu_kernel(self, mock_llm, mock_history, mock_detect):
+        """Test parsing of old Ubuntu kernels."""
+        system = self._get_mock_system(kernel="4.15.0-101-generic", disk_gb=50.0)
+        self._setup_mocks(mock_llm, mock_history, mock_detect, system=system)
+
+        prediction = self.manager.analyze_installation("cuda", ["apt install cuda"])
+
+        # Should be HIGH risk (major < 5)
+        self.assertEqual(prediction.risk_level, RiskLevel.HIGH)
+        self.assertTrue(any("too old" in r.lower() for r in prediction.reasons))
+
 
 if __name__ == "__main__":
     unittest.main()
