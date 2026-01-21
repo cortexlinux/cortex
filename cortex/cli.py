@@ -58,13 +58,6 @@ if TYPE_CHECKING:
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("cortex.installation_history").setLevel(logging.ERROR)
 
-# More aggressive suppression for JSON output
-if "--json" in sys.argv:
-    logging.getLogger("cortex").setLevel(logging.ERROR)
-    # Also suppress common SDK loggers
-    logging.getLogger("anthropic").setLevel(logging.ERROR)
-    logging.getLogger("openai").setLevel(logging.ERROR)
-    logging.getLogger("httpcore").setLevel(logging.ERROR)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -143,9 +136,10 @@ class CortexCLI:
                     )
                     try:
                         # Interactive confirmation prompt for administrative repair.
-                        response = console.input(
-                            "[bold cyan]Reclaim ownership using sudo? (y/n): [/bold cyan]"
+                        console.print(
+                            "[bold cyan]Reclaim ownership using sudo? (y/n): [/bold cyan]", end=""
                         )
+                        response = StdinHandler.get_input()
                         if response.lower() not in ("y", "yes"):
                             cx_print("Operation cancelled", "info")
                             return 0
@@ -747,8 +741,8 @@ class CortexCLI:
         if not skip_confirm:
             console.print(f"\nPromote '{package}' to main system? [Y/n]: ", end="")
             try:
-                response = input().strip().lower()
-                if response and response not in ("y", "yes"):
+                response = StdinHandler.get_input()
+                if response and response.lower() not in ("y", "yes"):
                     cx_print("Promotion cancelled", "warning")
                     return 0
             except (EOFError, KeyboardInterrupt):
@@ -852,7 +846,7 @@ class CortexCLI:
 
         console.print(f"\n{t('predictive.continue_anyway')} [y/N]: ", end="", markup=False)
         try:
-            response = input().strip().lower()
+            response = StdinHandler.get_input().lower()
             return response in ("y", "yes")
         except (EOFError, KeyboardInterrupt):
             console.print()
@@ -1325,7 +1319,7 @@ class CortexCLI:
             confirm_msg += " and purge configuration"
         confirm_msg += "? [y/N]: "
         try:
-            response = input(confirm_msg).strip().lower()
+            response = StdinHandler.get_input(confirm_msg).lower()
             return response in ("y", "yes")
         except (EOFError, KeyboardInterrupt):
             console.print()
@@ -3095,7 +3089,9 @@ class CortexCLI:
 
         # Confirm unless --force is used
         if not force:
-            confirm = input(f"⚠️  Clear ALL environment variables for '{app}'? (y/n): ")
+            confirm = StdinHandler.get_input(
+                f"⚠️  Clear ALL environment variables for '{app}'? (y/n): "
+            )
             if confirm.lower() != "y":
                 cx_print("Operation cancelled", "info")
                 return 0
@@ -3716,7 +3712,7 @@ class CortexCLI:
 
         # Execute mode - confirm before installing
         total = total_packages + total_dev_packages
-        confirm = input(f"\nInstall all {total} packages? [Y/n]: ")
+        confirm = StdinHandler.get_input(f"\nInstall all {total} packages? [Y/n]: ")
         if confirm.lower() not in ["", "y", "yes"]:
             cx_print("Installation cancelled", "info")
             return 0
@@ -4845,6 +4841,14 @@ def main():
     )
 
     args = parser.parse_args()
+
+    # Configure logging based on parsed arguments
+    if getattr(args, "json", False):
+        logging.getLogger("cortex").setLevel(logging.ERROR)
+        # Also suppress common SDK loggers
+        logging.getLogger("anthropic").setLevel(logging.ERROR)
+        logging.getLogger("openai").setLevel(logging.ERROR)
+        logging.getLogger("httpcore").setLevel(logging.ERROR)
 
     # Handle --set-language global flag first (before any command)
     if getattr(args, "set_language", None):

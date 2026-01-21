@@ -69,7 +69,7 @@ class PredictiveErrorManager:
                 llm_provider = LLMProvider(normalized_provider)
             except ValueError:
                 # Fallback to OLLAMA if 'fake' or other unknown provider is passed
-                logger.debug(
+                logger.warning(
                     f"Provider '{provider}' not in LLMProvider enum, using OLLAMA fallback"
                 )
                 llm_provider = LLMProvider.OLLAMA
@@ -155,7 +155,7 @@ class PredictiveErrorManager:
 
         # Kernel compatibility examples
         if "cuda" in normalized_software or "nvidia" in normalized_software:
-            # Check for very old kernels
+            # Check for very old kernels (explicitly handle None/Empty case)
             if system.kernel_version:
                 version_match = re.search(r"^(\d+)\.(\d+)", system.kernel_version)
                 if version_match:
@@ -255,7 +255,7 @@ class PredictiveErrorManager:
                 "commands": commands,
                 "system_context": {
                     "kernel": system.kernel_version,
-                    "distro": f"{system.distro} {system.distro_version}",
+                    "distro": f"{system.distro or 'Unknown'} {system.distro_version or ''}".strip(),
                     "cpu": system.cpu.model,
                     "gpu": [g.model for g in system.gpu],
                     "ram_gb": system.memory.total_gb,
@@ -296,10 +296,10 @@ class PredictiveErrorManager:
             try:
                 # Find JSON block if it's wrapped in markdown
                 json_str = response.content
-                if "```json" in json_str:
-                    json_str = json_str.split("```json")[1].split("```")[0].strip()
-                elif "```" in json_str:
-                    json_str = json_str.split("```")[1].split("```")[0].strip()
+                # Robust parsing: handle markdown code blocks or raw JSON
+                code_block_match = re.search(r"```(?:json)?\s*(.*?)\s*```", json_str, re.DOTALL)
+                if code_block_match:
+                    json_str = code_block_match.group(1).strip()
 
                 # Cleanup potential non-json characters
                 json_data = json.loads(json_str)
