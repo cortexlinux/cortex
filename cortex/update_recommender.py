@@ -84,43 +84,68 @@ class PackageVersion:
         if not version_str:
             return cls(raw="0.0.0")
 
-        raw = version_str.strip()
+        raw_str = str(version_str).strip()
 
         # Handle epoch (e.g., "1:2.3.4")
-        epoch = 0
-        if ":" in raw:
-            epoch_str, raw = raw.split(":", 1)
-            try:
-                epoch = int(epoch_str)
-            except ValueError:
-                epoch = 0
+        epoch, clean_raw = cls._parse_epoch(raw_str)
 
         # Remove common suffixes like -1ubuntu1, +dfsg, etc.
-        clean_version = re.sub(r"[-+~].*$", "", raw)
+        core_ver = re.sub(r"[-+~].*$", "", clean_raw)
 
         # Parse major.minor.patch
-        parts, major, minor, patch = clean_version.split("."), 0, 0, 0
+        major, minor, patch = cls._parse_components(core_ver)
+
+        pr_match = re.search(r"[-+](alpha|beta|rc|dev|pre)[\d.]*", raw_str, re.I)
+        pr = pr_match.group(0) if pr_match else ""
+
+        return cls(raw_str, major, minor, patch, pr, epoch)
+
+    @staticmethod
+    def _parse_epoch(raw: str) -> tuple[int, str]:
+        if ":" not in raw:
+            return 0, raw
+        parts = raw.split(":", 1)
+        try:
+            return int(parts[0]), parts[1]
+        except (ValueError, IndexError):
+            return 0, raw
+
+    @staticmethod
+    def _parse_components(core: str) -> tuple[int, int, int]:
+        parts = core.split(".")
+        major, minor, patch = 0, 0, 0
         try:
             if len(parts) >= 1:
-                # Strip leading non-digits (e.g., 'v1' -> '1')
                 major_clean = re.sub(r"^\D+", "", parts[0])
                 major = int(re.sub(r"\D.*", "", major_clean) or 0)
             if len(parts) >= 2:
                 minor = int(re.sub(r"\D.*", "", parts[1]) or 0)
             if len(parts) >= 3:
-                # Handle alphanumeric patches like "1f" by taking the number
-                patch_match = re.search(r"(\d+)", parts[2])
-                patch = int(patch_match.group(1)) if patch_match else 0
+                p_match = re.search(r"(\d+)", parts[2])
+                patch = int(p_match.group(1)) if p_match else 0
         except (ValueError, IndexError):
             pass
-
-        pr_match = re.search(r"[-+](alpha|beta|rc|dev|pre)[\d.]*", raw, re.I)
-        return cls(version_str, major, minor, patch, pr_match.group(0) if pr_match else "", epoch)
+        return major, minor, patch
 
     def __str__(self) -> str:
         return self.raw
 
-    def __lt__(self, other: "PackageVersion") -> bool:
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, PackageVersion):
+            return NotImplemented
+        return (
+            self.epoch == other.epoch
+            and self.major == other.major
+            and self.minor == other.minor
+            and self.patch == other.patch
+            and self.prerelease == other.prerelease
+        )
+
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, PackageVersion):
+            return NotImplemented
+
+        # Compare components in priority order
         if self.epoch != other.epoch:
             return self.epoch < other.epoch
         if self.major != other.major:
@@ -130,7 +155,7 @@ class PackageVersion:
         if self.patch != other.patch:
             return self.patch < other.patch
 
-        # If numeric versions are same, a pre-release is "less" than a final release
+        # Pre-release comparison: pre-release < final release
         if self.prerelease and not other.prerelease:
             return True
         if not self.prerelease and other.prerelease:
@@ -469,41 +494,28 @@ class UpdateRecommender:
                 return adjustment, notes
 
             past_records = self.history.get_history(limit=50)
-            failures = [
-                r
-                for r in past_records
-                if r.packages
-                and package_name in r.packages
-                and r.status in (InstallationStatus.FAILED, InstallationStatus.ROLLED_BACK)
-            ]
+            for record in past_records:
+                if not record.packages:
+                    continue
+                if package_name not in record.packages:
+                    continue
 
-            if failures:
-                adjustment += 25
-                notes.append(
-                    f"Historical instability: {len(failures)} previous failures or rollbacks detected"
-                )
+                # Check for critical status issues
+                if record.status in (InstallationStatus.FAILED, InstallationStatus.ROLLED_BACK):
+                    adjustment += 25
+                    notes.append(
+                        "Historical instability: previous updates failed or were rolled back"
+                    )
+                    break
 
-            # Check for consistent successes to lower risk slightly
-            successes = [
-                r
-                for r in past_records
-                if r.packages
-                and package_name in r.packages
-                and r.status == InstallationStatus.SUCCESS
-            ]
-            if len(successes) >= 3 and not failures:
-                adjustment -= 5
-                # No note needed for subtle success tracking
-
-            # Check context memory for recurring issues or specific user notes
+            # Check context memory for recurring issues
             if self.memory:
                 memories = self.memory.get_similar_interactions(package_name, limit=5)
-                failed_memories = [m for m in memories if not m.success]
-                if failed_memories:
-                    adjustment += 10
-                    notes.append(
-                        f"Memory: Package previously caused issues during {failed_memories[0].action}"
-                    )
+                for m in memories:
+                    if not m.success:
+                        adjustment += 10
+                        notes.append(f"Memory: Previously caused issues during {m.action}")
+                        break
 
         except (OSError, AttributeError) as e:
             if self.verbose:

@@ -60,7 +60,7 @@ class TestPackageVersion:
         assert v4 < v5
         assert v6 < v1  # Pre-release is less than final
         assert v1 >= v6
-        assert v1 == v1
+        assert v1 == PackageVersion.parse("1.2.3")
         assert str(v1) == "1.2.3"
 
 
