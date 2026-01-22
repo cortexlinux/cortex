@@ -2640,7 +2640,7 @@ class CortexCLI:
                         from cortex.llm_router import LLMRouter
 
                         llm_router = LLMRouter()
-                    except (ImportError, ModuleNotFoundError):
+                    except ImportError:
                         pass
                     except Exception as e:
                         if self.verbose:

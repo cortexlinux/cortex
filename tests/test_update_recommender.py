@@ -59,8 +59,8 @@ class TestPackageVersion:
         assert v3 < v4
         assert v4 < v5
         assert v6 < v1  # Pre-release is less than final
-        assert not (v1 < v6)
-        assert not (v1 < v1)
+        assert v1 >= v6
+        assert v1 == v1
         assert str(v1) == "1.2.3"
 
 
@@ -102,7 +102,7 @@ class TestUpdateRecommender:
         risk, warns = r.assess_risk(
             "some-pkg", PackageVersion.parse("1.0"), PackageVersion.parse("1.1-beta")
         )
-        assert risk == RiskLevel.MEDIUM  # 15 (minor) + 25 (pre) = 40 (MEDIUM)
+        assert risk == RiskLevel.MEDIUM
 
         # Changelog keywords
         risk, warns = r.assess_risk(
@@ -111,7 +111,7 @@ class TestUpdateRecommender:
             PackageVersion.parse("1.0.1"),
             "Breaking change and deprecated",
         )
-        assert risk == RiskLevel.MEDIUM  # 5 (patch) + 15 + 15 = 35 (MEDIUM)
+        assert risk == RiskLevel.MEDIUM
 
     def test_security_detection(self, r):
         assert r.is_security_update("pkg", "High CVE-2024-0001 fix")

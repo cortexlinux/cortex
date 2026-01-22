@@ -15,6 +15,7 @@ import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from functools import total_ordering
 from pathlib import Path
 from typing import Any
 
@@ -22,10 +23,11 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from cortex.context_memory import ContextMemory, MemoryEntry
 from cortex.i18n.translator import t
+from cortex.installation_history import InstallationHistory, InstallationStatus
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 console = Console()
@@ -64,6 +66,7 @@ class ChangeType(Enum):
     UNKNOWN = "unknown"
 
 
+@total_ordering
 @dataclass
 class PackageVersion:
     """Represents a package version with parsed components."""
@@ -247,6 +250,8 @@ class UpdateRecommender:
     def __init__(
         self,
         llm_router: Any | None = None,
+        history: InstallationHistory | None = None,
+        memory: ContextMemory | None = None,
         verbose: bool = False,
     ):
         """
@@ -254,10 +259,25 @@ class UpdateRecommender:
 
         Args:
             llm_router: Optional LLM router for AI-powered analysis
+            history: Optional installation history for learning
+            memory: Optional context memory for pattern recognition
             verbose: Enable verbose output
         """
         self.llm_router = llm_router
         self.verbose = verbose
+
+        # Graceful initialization of subsystems
+        try:
+            self.history = history or InstallationHistory()
+        except Exception as e:
+            logger.warning(f"Installation history unavailable: {e}")
+            self.history = None
+
+        try:
+            self.memory = memory or ContextMemory()
+        except Exception as e:
+            logger.warning(f"Context memory unavailable: {e}")
+            self.memory = None
 
     def _run_pkg_cmd(self, cmd: list[str]) -> str | None:
         """Internal helper to run package manager commands."""
@@ -291,54 +311,43 @@ class UpdateRecommender:
 
     def get_available_updates(self) -> list[tuple[str, str, str]]:
         """Get list of packages with available updates."""
+        updates = self._get_apt_updates()
+        if updates:
+            return updates
+
+        return self._get_rpm_updates()
+
+    def _get_apt_updates(self) -> list[tuple[str, str, str]]:
+        """Helper to get updates via APT."""
         updates = []
+        if self._run_pkg_cmd(["apt-get", "update", "-q"]) is None:
+            return updates
 
-        # Attempt update check via APT (Debian/Ubuntu)
-        if self._run_pkg_cmd(["apt-get", "update", "-q"]) is not None:
-            output = self._run_pkg_cmd(["apt", "list", "--upgradable"])
-            if output:
-                for line in output.splitlines():
-                    # Optimized regex to prevent backtracking (ReDoS)
-                    # Pattern: package/suite version arch [upgradable from: old_version]
-                    match = re.search(
-                        r"^([^/\s]+)/[^\s]+\s+([^\s]+)\s+[^\s]+\s+\[upgradable from:\s+([^\s]+)\]",
-                        line,
-                    )
-                    if match:
-                        updates.append(match.groups())
-                return updates
+        output = self._run_pkg_cmd(["apt", "list", "--upgradable"])
+        if not output:
+            return updates
 
-        # Fallback check via DNF/YUM (RHEL/Fedora/Amazon Linux)
+        for line in output.splitlines():
+            # Optimized regex to prevent backtracking (ReDoS)
+            match = re.search(
+                r"^([^/\s]+)/[^\s]+\s+([^\s]+)\s+[^\s]+\s+\[upgradable from:\s+([^\s]+)\]",
+                line,
+            )
+            if match:
+                updates.append(match.groups())
+        return updates
+
+    def _get_rpm_updates(self) -> list[tuple[str, str, str]]:
+        """Helper to get updates via DNF/YUM."""
+        updates = []
         for pm in ("dnf", "yum"):
             try:
-                # pm check-update returns 100 if updates available
                 result = subprocess.run(
                     [pm, "check-update", "-q"], capture_output=True, text=True, timeout=120
                 )
                 if result.returncode in (0, 100) and result.stdout:
-                    # Optimized: Fetch all installed packages once
                     installed = self.get_installed_packages()
-
-                    for line in result.stdout.strip().splitlines():
-                        if (
-                            line
-                            and not line.startswith(" ")
-                            and not line.startswith("Last metadata")
-                        ):
-                            parts = line.split()
-                            if len(parts) >= 2:
-                                # More robust name parsing: assumes name.arch format
-                                full_name = parts[0]
-                                name = (
-                                    full_name.rsplit(".", 1)[0] if "." in full_name else full_name
-                                )
-                                new_ver = parts[1]
-
-                                # Use cached installed data instead of per-package lookup
-                                current = installed.get(name)
-                                old_ver = str(current) if current else "0.0.0"
-
-                                updates.append((name, old_ver, new_ver))
+                    updates.extend(self._parse_rpm_check_update(result.stdout, installed))
                     if updates:
                         return updates
             except (subprocess.TimeoutExpired, FileNotFoundError):
@@ -346,7 +355,35 @@ class UpdateRecommender:
             except subprocess.SubprocessError as e:
                 logger.warning(f"Package manager check failed: {e}")
                 continue
+        return updates
 
+    def _parse_rpm_check_update(
+        self, output: str, installed: dict[str, PackageVersion]
+    ) -> list[tuple[str, str, str]]:
+        """Helper to parse DNF/YUM check-update output."""
+        updates = []
+        for line in output.strip().splitlines():
+            parts = line.split()
+            if len(parts) >= 2:
+                full_name = parts[0]
+                new_ver = parts[1]
+
+                # Resolve name: prefer full name if installed, then name without arch,
+                # then fallback to name without arch for consistency.
+                name = full_name
+                if "." in full_name:
+                    name_no_arch = full_name.rsplit(".", 1)[0]
+                    if full_name in installed:
+                        name = full_name
+                    elif name_no_arch in installed:
+                        name = name_no_arch
+                    else:
+                        # Fallback for systems where we might not have matched yet
+                        name = name_no_arch
+
+                current = installed.get(name)
+                old_ver = str(current) if current else "0.0.0"
+                updates.append((name, old_ver, new_ver))
         return updates
 
     def analyze_change_type(self, current: PackageVersion, new: PackageVersion) -> ChangeType:
@@ -398,10 +435,81 @@ class UpdateRecommender:
                 warnings.append(f"Changelog mentions: {ind}")
 
         # Map aggregate score to RiskLevel enum
-        level = (
-            RiskLevel.HIGH if score >= 60 else RiskLevel.MEDIUM if score >= 35 else RiskLevel.LOW
-        )
+        level = self._map_score_to_risk(score)
+
+        # Learning Enhancement: Check history to refine risk
+        hist_adjustment, hist_notes = self._get_historical_risk_adjustment(package_name)
+        if hist_adjustment:
+            score += hist_adjustment
+            warnings.extend(hist_notes)
+            # Re-evaluate level if score changed significantly
+            level = self._map_score_to_risk(score)
+
         return level, warnings
+
+    def _map_score_to_risk(self, score: int) -> RiskLevel:
+        """Map aggregate risk score to RiskLevel enum."""
+        if score >= 60:
+            return RiskLevel.HIGH
+        if score >= 35:
+            return RiskLevel.MEDIUM
+        return RiskLevel.LOW
+
+    def _get_historical_risk_adjustment(self, package_name: str) -> tuple[int, list[str]]:
+        """
+        Query history and memory to refine risk scores based on past performance.
+        Returns (score_adjustment, notes).
+        """
+        adjustment = 0
+        notes = []
+
+        try:
+            # Check installation history for previous failures/rollbacks
+            if not self.history:
+                return adjustment, notes
+
+            past_records = self.history.get_history(limit=50)
+            failures = [
+                r
+                for r in past_records
+                if r.packages
+                and package_name in r.packages
+                and r.status in (InstallationStatus.FAILED, InstallationStatus.ROLLED_BACK)
+            ]
+
+            if failures:
+                adjustment += 25
+                notes.append(
+                    f"Historical instability: {len(failures)} previous failures or rollbacks detected"
+                )
+
+            # Check for consistent successes to lower risk slightly
+            successes = [
+                r
+                for r in past_records
+                if r.packages
+                and package_name in r.packages
+                and r.status == InstallationStatus.SUCCESS
+            ]
+            if len(successes) >= 3 and not failures:
+                adjustment -= 5
+                # No note needed for subtle success tracking
+
+            # Check context memory for recurring issues or specific user notes
+            if self.memory:
+                memories = self.memory.get_similar_interactions(package_name, limit=5)
+                failed_memories = [m for m in memories if not m.success]
+                if failed_memories:
+                    adjustment += 10
+                    notes.append(
+                        f"Memory: Package previously caused issues during {failed_memories[0].action}"
+                    )
+
+        except (OSError, AttributeError) as e:
+            if self.verbose:
+                logger.debug(f"Historical risk lookup failed: {e}")
+
+        return adjustment, notes
 
     def is_security_update(
         self, package_name: str, changelog: str = "", description: str = ""
@@ -555,6 +663,9 @@ Keep response concise (under 150 words)."""
                 temperature=0.3,
                 max_tokens=300,
             )
+
+            if not response or not hasattr(response, "content"):
+                return ""
 
             return response.content
 
@@ -794,7 +905,7 @@ def recommend_updates(
 
         return 0
 
-    except (RuntimeError, subprocess.SubprocessError) as e:
+    except (RuntimeError, subprocess.SubprocessError, OSError) as e:
         console.print(f"[red]System Error: {e}[/red]")
         return 1
     except Exception as e:
