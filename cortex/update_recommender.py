@@ -298,8 +298,11 @@ class UpdateRecommender:
             output = self._run_pkg_cmd(["apt", "list", "--upgradable"])
             if output:
                 for line in output.splitlines():
+                    # Optimized regex to prevent backtracking (ReDoS)
+                    # Pattern: package/suite version arch [upgradable from: old_version]
                     match = re.search(
-                        r"^(\S+)/\S+\s+(\S+)\s+\S+\s+\[upgradable from:\s+(\S+)\]", line
+                        r"^([^/\s]+)/[^\s]+\s+([^\s]+)\s+[^\s]+\s+\[upgradable from:\s+([^\s]+)\]",
+                        line,
                     )
                     if match:
                         updates.append(match.groups())
