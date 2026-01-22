@@ -34,7 +34,8 @@ cortex/
 │   ├── rollback.py          # Rollback system
 │   ├── config_templates.py  # Config generation
 │   ├── logging_system.py    # Logging & diagnostics
-│   └── context_memory.py    # AI memory system
+│   ├── context_memory.py    # AI memory system
+│   └── update_recommender.py # AI-powered update recommendations
 ├── tests/
 │   └── test_*.py            # Unit tests
 ├── docs/
@@ -83,6 +84,12 @@ Context Memory (learns patterns)
 - GPU/CPU detection
 - Optimization recommendations
 - Driver compatibility
+
+**Update Recommender (`update_recommender.py`)**
+- AI-powered update analysis
+- Risk assessment per update
+- Timing recommendations (Immediate vs. Deferred)
+- Related update grouping
 
 ## Contributing
 

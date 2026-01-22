@@ -22,13 +22,7 @@ from cortex.dependency_importer import (
     format_package_list,
 )
 from cortex.env_manager import EnvironmentManager, get_env_manager
-from cortex.i18n import (
-    SUPPORTED_LANGUAGES,
-    LanguageConfig,
-    get_language,
-    set_language,
-    t,
-)
+from cortex.i18n import SUPPORTED_LANGUAGES, LanguageConfig, get_language, set_language, t
 from cortex.installation_history import InstallationHistory, InstallationStatus, InstallationType
 from cortex.llm.interpreter import CommandInterpreter
 from cortex.network_config import NetworkConfig
@@ -1940,6 +1934,85 @@ class CortexCLI:
             )
             return 0
 
+        elif action == "recommend":
+            # Smart Update Recommendations (Issue #91)
+            from cortex.update_recommender import UpdateRecommender, recommend_updates
+
+            use_llm = not getattr(args, "no_llm", False)
+            output_json = getattr(args, "json", False)
+
+            if output_json:
+                import json as json_module
+
+                llm_router = None
+                if use_llm:
+                    try:
+                        from cortex.llm_router import LLMRouter
+
+                        llm_router = LLMRouter()
+                    except Exception:
+                        pass
+
+                recommender = UpdateRecommender(llm_router=llm_router, verbose=self.verbose)
+                recommendation = recommender.get_recommendations(use_llm=use_llm)
+
+                # Convert to JSON-serializable format
+                output = {
+                    "timestamp": recommendation.timestamp,
+                    "total_updates": recommendation.total_updates,
+                    "overall_risk": recommendation.overall_risk.value,
+                    "security_updates": [
+                        {
+                            "package": u.package_name,
+                            "current": str(u.current_version),
+                            "new": str(u.new_version),
+                            "risk": u.risk_level.value,
+                            "type": u.change_type.value,
+                        }
+                        for u in recommendation.security_updates
+                    ],
+                    "immediate_updates": [
+                        {
+                            "package": u.package_name,
+                            "current": str(u.current_version),
+                            "new": str(u.new_version),
+                            "risk": u.risk_level.value,
+                            "type": u.change_type.value,
+                        }
+                        for u in recommendation.immediate_updates
+                    ],
+                    "scheduled_updates": [
+                        {
+                            "package": u.package_name,
+                            "current": str(u.current_version),
+                            "new": str(u.new_version),
+                            "risk": u.risk_level.value,
+                            "type": u.change_type.value,
+                        }
+                        for u in recommendation.scheduled_updates
+                    ],
+                    "deferred_updates": [
+                        {
+                            "package": u.package_name,
+                            "current": str(u.current_version),
+                            "new": str(u.new_version),
+                            "risk": u.risk_level.value,
+                            "type": u.change_type.value,
+                            "breaking_changes": u.breaking_changes,
+                        }
+                        for u in recommendation.deferred_updates
+                    ],
+                    "groups": {
+                        k: [u.package_name for u in v] for k, v in recommendation.groups.items()
+                    },
+                    "llm_analysis": recommendation.llm_analysis,
+                }
+                print(json_module.dumps(output, indent=2))
+                return 0
+            else:
+                cx_print(t("update_recommend.checking"), "thinking")
+                return recommend_updates(use_llm=use_llm, verbose=self.verbose)
+
         else:
             # Default: show current version and check for updates
             cx_print(f"Current version: [cyan]{get_version_string()}[/cyan]", "info")
@@ -3786,6 +3859,21 @@ def main():
 
     # update backups
     update_subs.add_parser("backups", help="List available backups for rollback")
+
+    # update recommend - Smart Update Recommendations (Issue #91)
+    update_recommend_parser = update_subs.add_parser(
+        "recommend", help="AI-powered update recommendations"
+    )
+    update_recommend_parser.add_argument(
+        "--no-llm",
+        action="store_true",
+        help="Disable LLM analysis for recommendations",
+    )
+    update_recommend_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output recommendations in JSON format",
+    )
     # --------------------------
 
     # WiFi/Bluetooth Driver Matcher

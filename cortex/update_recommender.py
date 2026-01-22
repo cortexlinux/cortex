@@ -1,0 +1,760 @@
+#!/usr/bin/env python3
+"""
+Smart Update Recommender for Cortex Linux
+
+AI-powered system to recommend when and what to update.
+Analyzes installed packages, checks for available updates,
+assesses risks, and provides intelligent timing recommendations.
+
+Issue: #91 - Smart Update Recommendations
+"""
+
+import logging
+import re
+import subprocess
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from typing import Any
+
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+
+from cortex.i18n.translator import t
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+console = Console()
+
+
+class RiskLevel(Enum):
+    """Risk level for package updates."""
+
+    LOW = 1
+    MEDIUM = 2
+    HIGH = 3
+    CRITICAL = 4
+
+    @property
+    def value_str(self) -> str:
+        """Get string value for translation keys."""
+        return {1: "low", 2: "medium", 3: "high", 4: "critical"}[self.value]
+
+
+class UpdateCategory(Enum):
+    """Category of update based on recommended timing."""
+
+    IMMEDIATE = "immediate"  # Safe to update now
+    SCHEDULED = "scheduled"  # Recommended for maintenance window
+    DEFERRED = "deferred"  # Hold for now
+    SECURITY = "security"  # Security update - prioritize
+
+
+class ChangeType(Enum):
+    """Type of version change."""
+
+    PATCH = "patch"  # Bug fixes only
+    MINOR = "minor"  # New features, backward compatible
+    MAJOR = "major"  # Breaking changes possible
+    SECURITY = "security"  # Security fix
+    UNKNOWN = "unknown"
+
+
+@dataclass
+class PackageVersion:
+    """Represents a package version with parsed components."""
+
+    raw: str
+    major: int = 0
+    minor: int = 0
+    patch: int = 0
+    prerelease: str = ""
+    epoch: int = 0
+
+    @classmethod
+    def parse(cls, version_str: str) -> "PackageVersion":
+        """Parse a version string into components."""
+        if not version_str:
+            return cls(raw="0.0.0")
+
+        raw = version_str.strip()
+
+        # Handle epoch (e.g., "1:2.3.4")
+        epoch = 0
+        if ":" in raw:
+            epoch_str, raw = raw.split(":", 1)
+            try:
+                epoch = int(epoch_str)
+            except ValueError:
+                epoch = 0
+
+        # Remove common suffixes like -1ubuntu1, +dfsg, etc.
+        clean_version = re.sub(r"[-+~].*$", "", raw)
+
+        # Parse major.minor.patch
+        parts, major, minor, patch = clean_version.split("."), 0, 0, 0
+        try:
+            if len(parts) >= 1:
+                # Strip leading non-digits (e.g., 'v1' -> '1')
+                major_clean = re.sub(r"^\D+", "", parts[0])
+                major = int(re.sub(r"\D.*", "", major_clean) or 0)
+            if len(parts) >= 2:
+                minor = int(re.sub(r"\D.*", "", parts[1]) or 0)
+            if len(parts) >= 3:
+                # Handle alphanumeric patches like "1f" by taking the number
+                patch_match = re.search(r"(\d+)", parts[2])
+                patch = int(patch_match.group(1)) if patch_match else 0
+        except (ValueError, IndexError):
+            pass
+
+        pr_match = re.search(r"[-+](alpha|beta|rc|dev|pre)[\d.]*", raw, re.I)
+        return cls(version_str, major, minor, patch, pr_match.group(0) if pr_match else "", epoch)
+
+    def __str__(self) -> str:
+        return self.raw
+
+    def __lt__(self, other: "PackageVersion") -> bool:
+        if self.epoch != other.epoch:
+            return self.epoch < other.epoch
+        if self.major != other.major:
+            return self.major < other.major
+        if self.minor != other.minor:
+            return self.minor < other.minor
+        if self.patch != other.patch:
+            return self.patch < other.patch
+
+        # If numeric versions are same, a pre-release is "less" than a final release
+        if self.prerelease and not other.prerelease:
+            return True
+        if not self.prerelease and other.prerelease:
+            return False
+
+        return False
+
+
+@dataclass
+class UpdateInfo:
+    """Information about a package update."""
+
+    package_name: str
+    current_version: PackageVersion
+    new_version: PackageVersion
+    change_type: ChangeType
+    risk_level: RiskLevel
+    category: UpdateCategory
+    description: str = ""
+    changelog: str = ""
+    dependencies: list[str] = field(default_factory=list)
+    is_security: bool = False
+    breaking_changes: list[str] = field(default_factory=list)
+    recommended_action: str = ""
+    group: str = ""  # For grouping related updates
+
+
+@dataclass
+class UpdateRecommendation:
+    """Full update recommendation for a system."""
+
+    timestamp: str
+    total_updates: int
+    immediate_updates: list[UpdateInfo] = field(default_factory=list)
+    scheduled_updates: list[UpdateInfo] = field(default_factory=list)
+    deferred_updates: list[UpdateInfo] = field(default_factory=list)
+    security_updates: list[UpdateInfo] = field(default_factory=list)
+    groups: dict[str, list[UpdateInfo]] = field(default_factory=dict)
+    llm_analysis: str = ""
+    overall_risk: RiskLevel = RiskLevel.LOW
+
+
+class UpdateRecommender:
+    """
+    AI-powered update recommendation system.
+
+    Analyzes installed packages, checks for updates, assesses risks,
+    and provides intelligent recommendations on when and what to update.
+    """
+
+    # Package groups for related updates
+    PACKAGE_GROUPS = {
+        "python": ["python3", "python3-pip", "python3-dev", "python3-venv"],
+        "docker": ["docker.io", "docker-ce", "docker-compose", "containerd"],
+        "postgresql": ["postgresql", "postgresql-client", "postgresql-contrib"],
+        "mysql": ["mysql-server", "mysql-client", "mariadb-server"],
+        "nginx": ["nginx", "nginx-common", "nginx-core"],
+        "nodejs": ["nodejs", "npm", "node-gyp"],
+        "php": ["php", "php-fpm", "php-mysql", "php-pgsql", "php-cli"],
+        "kernel": ["linux-image", "linux-headers", "linux-modules"],
+        "gcc": ["gcc", "g++", "cpp", "build-essential"],
+        "ssl": ["openssl", "libssl-dev", "ca-certificates"],
+    }
+
+    # Known high-risk packages
+    HIGH_RISK_PACKAGES = {
+        "linux-image": "Kernel update - requires reboot",
+        "linux-headers": "Kernel headers - may break compiled modules",
+        "glibc": "Core library - system-wide impact",
+        "libc6": "Core library - system-wide impact",
+        "systemd": "Init system - critical for boot",
+        "grub": "Bootloader - could affect boot",
+        "docker": "Container runtime - affects running containers",
+        "postgresql": "Database - may require dump/restore",
+        "mysql": "Database - may require migration",
+        "openssl": "Encryption - may affect all TLS connections",
+    }
+
+    # Security update indicators
+    SECURITY_INDICATORS = [
+        "security",
+        "cve",
+        "vulnerability",
+        "exploit",
+        "patch",
+        "critical",
+        "urgent",
+    ]
+
+    def __init__(
+        self,
+        llm_router: Any | None = None,
+        verbose: bool = False,
+    ):
+        """
+        Initialize the Update Recommender.
+
+        Args:
+            llm_router: Optional LLM router for AI-powered analysis
+            verbose: Enable verbose output
+        """
+        self.llm_router = llm_router
+        self.verbose = verbose
+
+    def _run_pkg_cmd(self, cmd: list[str]) -> str | None:
+        """Internal helper to run package manager commands."""
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            return result.stdout.strip() if result.returncode == 0 else None
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return None
+
+    def get_installed_packages(self) -> dict[str, PackageVersion]:
+        """Get all installed packages with their versions."""
+        packages = {}
+
+        # Query installed packages via dpkg-query (Debian/Ubuntu)
+        output = self._run_pkg_cmd(["dpkg-query", "-W", "-f=${Package} ${Version}\n"])
+        if output:
+            for line in output.split("\n"):
+                parts = line.split(" ", 1)
+                if len(parts) == 2:
+                    packages[parts[0]] = PackageVersion.parse(parts[1])
+            return packages
+
+        # Fallback to RPM query for RHEL/Fedora/Suse systems
+        output = self._run_pkg_cmd(["rpm", "-qa", "--qf", "%{NAME} %{VERSION}-%{RELEASE}\n"])
+        if output:
+            for line in output.split("\n"):
+                parts = line.split(" ", 1)
+                if len(parts) == 2:
+                    packages[parts[0]] = PackageVersion.parse(parts[1])
+        return packages
+
+    def get_available_updates(self) -> list[tuple[str, str, str]]:
+        """Get list of packages with available updates."""
+        updates = []
+
+        # Attempt update check via APT (Debian/Ubuntu)
+        if self._run_pkg_cmd(["apt-get", "update", "-q"]) is not None:
+            output = self._run_pkg_cmd(["apt", "list", "--upgradable"])
+            if output:
+                for line in output.splitlines():
+                    match = re.search(
+                        r"^(\S+)/\S+\s+(\S+)\s+\S+\s+\[upgradable from:\s+(\S+)\]", line
+                    )
+                    if match:
+                        updates.append(match.groups())
+                return updates
+
+        # Fallback check via DNF/YUM (RHEL/Fedora/Amazon Linux)
+        for pm in ("dnf", "yum"):
+            # pm check-update returns 100 if updates available
+            try:
+                result = subprocess.run(
+                    [pm, "check-update", "-q"], capture_output=True, text=True, timeout=120
+                )
+                if result.returncode in (0, 100) and result.stdout:
+                    for line in result.stdout.strip().splitlines():
+                        if line and not line.startswith(" "):
+                            parts = line.split()
+                            if len(parts) >= 2:
+                                name, new_ver = parts[0].rsplit(".", 1)[0], parts[1]
+                                # Get current version
+                                info = self._run_pkg_cmd([pm, "info", "installed", name]) or ""
+                                old_ver = next(
+                                    (
+                                        l.split(":", 1)[1].strip()
+                                        for l in info.splitlines()
+                                        if l.startswith("Version")
+                                    ),
+                                    "0.0.0",
+                                )
+                                updates.append((name, old_ver, new_ver))
+                    if updates:
+                        return updates
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                continue
+
+        return updates
+
+    def analyze_change_type(self, current: PackageVersion, new: PackageVersion) -> ChangeType:
+        if new.major > current.major:
+            return ChangeType.MAJOR
+        if new.minor > current.minor:
+            return ChangeType.MINOR
+        if new.patch > current.patch:
+            return ChangeType.PATCH
+        if str(new) != str(current):
+            return ChangeType.PATCH  # Tie-breaker for alphanumeric patches
+        return ChangeType.UNKNOWN
+
+    def assess_risk(
+        self, package_name: str, current: PackageVersion, new: PackageVersion, changelog: str = ""
+    ) -> tuple[RiskLevel, list[str]]:
+        """Assess update risk."""
+        warnings, score = [], 0
+
+        # Score penalty for known high-impact system packages
+        for pkg, reason in self.HIGH_RISK_PACKAGES.items():
+            if pkg in package_name.lower():
+                score += 30
+                warnings.append(reason)
+                break
+
+        # Score penalty based on Semantic Versioning delta severity
+        ctype = self.analyze_change_type(current, new)
+        score += {ChangeType.MAJOR: 40, ChangeType.MINOR: 15, ChangeType.PATCH: 5}.get(ctype, 0)
+        if ctype == ChangeType.MAJOR:
+            warnings.append(f"Major version change ({current.major} → {new.major})")
+
+        # Additional penalty for unstable pre-release versions
+        if new.prerelease:
+            score += 25
+            warnings.append(f"Pre-release version: {new.prerelease}")
+
+        # Scan changelogs for keyword indicators of breaking changes
+        for ind in [
+            "breaking change",
+            "backwards incompatible",
+            "deprecated",
+            "removed",
+            "migration required",
+            "manual action",
+        ]:
+            if ind in changelog.lower():
+                score += 15
+                warnings.append(f"Changelog mentions: {ind}")
+
+        # Map aggregate score to RiskLevel enum
+        level = (
+            RiskLevel.HIGH if score >= 60 else RiskLevel.MEDIUM if score >= 35 else RiskLevel.LOW
+        )
+        return level, warnings
+
+    def is_security_update(
+        self, package_name: str, changelog: str = "", description: str = ""
+    ) -> bool:
+        """
+        Determine if an update is security-related.
+
+        Args:
+            package_name: Name of the package
+            changelog: Changelog content
+            description: Update description
+
+        Returns:
+            True if this appears to be a security update
+        """
+        combined_text = f"{package_name} {changelog} {description}".lower()
+
+        for indicator in self.SECURITY_INDICATORS:
+            if indicator in combined_text:
+                return True
+
+        # Check for CVE pattern
+        if re.search(r"cve-\d{4}-\d+", combined_text, re.I):
+            return True
+
+        return False
+
+    def get_package_group(self, package_name: str) -> str:
+        """
+        Get the group a package belongs to.
+
+        Args:
+            package_name: Name of the package
+
+        Returns:
+            Group name or empty string if not in a group
+        """
+        for group_name, packages in self.PACKAGE_GROUPS.items():
+            for pkg in packages:
+                if pkg in package_name.lower() or package_name.lower().startswith(pkg):
+                    return group_name
+        return ""
+
+    def categorize_update(
+        self,
+        risk_level: RiskLevel,
+        is_security: bool,
+        change_type: ChangeType,
+    ) -> UpdateCategory:
+        """
+        Determine the recommended update category/timing.
+
+        Args:
+            risk_level: Assessed risk level
+            is_security: Whether it's a security update
+            change_type: Type of version change
+
+        Returns:
+            UpdateCategory for recommended timing
+        """
+        # Security updates should be applied ASAP
+        if is_security:
+            return UpdateCategory.SECURITY
+
+        # High risk or major updates should be deferred
+        if risk_level == RiskLevel.HIGH or change_type == ChangeType.MAJOR:
+            return UpdateCategory.DEFERRED
+
+        # Low risk updates can go immediately
+        if risk_level == RiskLevel.LOW and change_type in (
+            ChangeType.PATCH,
+            ChangeType.MINOR,
+        ):
+            return UpdateCategory.IMMEDIATE
+
+        # Medium risk or minor updates for scheduled maintenance
+        if risk_level == RiskLevel.MEDIUM or change_type == ChangeType.MINOR:
+            return UpdateCategory.SCHEDULED
+
+        # Default to scheduled for unknown cases
+        return UpdateCategory.SCHEDULED
+
+    def generate_recommendation_text(self, update: UpdateInfo) -> str:
+        """Generate human-readable recommendation for an update."""
+        res = [
+            t(
+                f"update_recommend.recommendations.{'security_urgent' if update.category == UpdateCategory.SECURITY else 'safe_immediate' if update.category == UpdateCategory.IMMEDIATE else 'maintenance_window' if update.category == UpdateCategory.SCHEDULED else 'consider_deferring'}"
+            )
+        ]
+        if update.change_type == ChangeType.MAJOR:
+            res.append(
+                t(
+                    "update_recommend.recommendations.major_upgrade",
+                    current=str(update.current_version),
+                    new=str(update.new_version),
+                )
+            )
+        if update.breaking_changes:
+            res.append(t("update_recommend.recommendations.potential_breaking"))
+            res.extend(f"  - {bc}" for bc in update.breaking_changes[:3])
+        if update.group:
+            res.append(t("update_recommend.recommendations.part_of_group", group=update.group))
+        return "\n".join(res)
+
+    # Risk colors for display
+    RISK_COLORS = {
+        RiskLevel.LOW: "green",
+        RiskLevel.MEDIUM: "yellow",
+        RiskLevel.HIGH: "red",
+        RiskLevel.CRITICAL: "bold red",
+    }
+
+    def analyze_with_llm(self, updates: list[UpdateInfo]) -> str:
+        """
+        Use LLM to provide additional analysis of updates.
+
+        Args:
+            updates: List of update information
+
+        Returns:
+            LLM analysis text
+        """
+        if not self.llm_router or not updates:
+            return ""
+
+        try:
+            # Build a summary for the LLM
+            update_summary = []
+            for u in updates[:10]:  # Limit to first 10 for context length
+                update_summary.append(
+                    f"- {u.package_name}: {u.current_version} → {u.new_version} "
+                    f"({u.change_type.value}, {u.risk_level.value} risk)"
+                )
+
+            prompt = f"""Analyze these pending system updates and provide a brief recommendation:
+
+{chr(10).join(update_summary)}
+
+Provide:
+1. Overall assessment (1-2 sentences)
+2. Any specific concerns or recommendations
+3. Suggested update order if dependencies exist
+
+Keep response concise (under 150 words)."""
+
+            from cortex.llm_router import TaskType
+
+            response = self.llm_router.complete(
+                messages=[{"role": "user", "content": prompt}],
+                task_type=TaskType.SYSTEM_OPERATION,
+                temperature=0.3,
+                max_tokens=300,
+            )
+
+            return response.content
+
+        except Exception as e:
+            logger.warning(f"LLM analysis failed: {e}")
+            return ""
+
+    def get_recommendations(self, use_llm: bool = True) -> UpdateRecommendation:
+        """
+        Get complete update recommendations for the system.
+
+        Args:
+            use_llm: Whether to use LLM for additional analysis
+
+        Returns:
+            UpdateRecommendation with categorized updates
+        """
+        timestamp = datetime.now().isoformat()
+        updates = self.get_available_updates()
+
+        if not updates:
+            return UpdateRecommendation(
+                timestamp=timestamp,
+                total_updates=0,
+            )
+
+        update_infos = []
+        groups: dict[str, list[UpdateInfo]] = {}
+
+        for pkg_name, old_ver, new_ver in updates:
+            current, new = PackageVersion.parse(old_ver), PackageVersion.parse(new_ver)
+            change_type = self.analyze_change_type(current, new)
+            risk_level, breaking_changes = self.assess_risk(pkg_name, current, new)
+            group = self.get_package_group(pkg_name)
+            is_security = self.is_security_update(pkg_name)
+            info = UpdateInfo(
+                pkg_name,
+                current,
+                new,
+                change_type,
+                risk_level,
+                self.categorize_update(risk_level, is_security, change_type),
+                breaking_changes=breaking_changes,
+                group=group,
+                is_security=is_security,
+            )
+            info.recommended_action = self.generate_recommendation_text(info)
+            update_infos.append(info)
+            if group:
+                groups.setdefault(group, []).append(info)
+
+        # Categorize updates
+        immediate = [u for u in update_infos if u.category == UpdateCategory.IMMEDIATE]
+        scheduled = [u for u in update_infos if u.category == UpdateCategory.SCHEDULED]
+        deferred = [u for u in update_infos if u.category == UpdateCategory.DEFERRED]
+        security = [u for u in update_infos if u.category == UpdateCategory.SECURITY]
+
+        # Determine overall risk
+        overall_risk = max(
+            (u.risk_level for u in update_infos), key=lambda x: x.value, default=RiskLevel.LOW
+        )
+
+        # Get LLM analysis if requested
+        llm_analysis = ""
+        if use_llm and self.llm_router:
+            llm_analysis = self.analyze_with_llm(update_infos)
+
+        return UpdateRecommendation(
+            timestamp=timestamp,
+            total_updates=len(update_infos),
+            immediate_updates=immediate,
+            scheduled_updates=scheduled,
+            deferred_updates=deferred,
+            security_updates=security,
+            groups=groups,
+            llm_analysis=llm_analysis,
+            overall_risk=overall_risk,
+        )
+
+    def display_recommendations(self, recommendation: UpdateRecommendation) -> None:
+        """
+        Display recommendations in a formatted output.
+
+        Args:
+            recommendation: The update recommendation to display
+        """
+        if recommendation.total_updates == 0:
+            console.print(f"[green]✅ {t('update_recommend.no_updates')}[/green]")
+            return
+
+        console.print()
+        overall_risk_display = t(f"update_recommend.risks.{recommendation.overall_risk.value_str}")
+        color = self.RISK_COLORS.get(recommendation.overall_risk, "white")
+        console.print(
+            Panel(
+                f"[bold cyan]📊 {t('update_recommend.header')}[/bold cyan]\n"
+                f"{t('update_recommend.total_updates', count=recommendation.total_updates)}\n"
+                f"{t('update_recommend.overall_risk', risk=f'[{color}]{overall_risk_display}[/]')}",
+                title="Cortex Update Recommender",
+            )
+        )
+
+        # Security updates (highest priority)
+        if recommendation.security_updates:
+            console.print()
+            console.print(f"[bold red]🔒 {t('update_recommend.categories.security')}:[/bold red]")
+            self._display_update_table(recommendation.security_updates)
+
+        # Immediate updates
+        if recommendation.immediate_updates:
+            console.print()
+            console.print(
+                f"[bold green]✅ {t('update_recommend.categories.immediate')}:[/bold green]"
+            )
+            self._display_update_table(recommendation.immediate_updates)
+
+        # Scheduled updates
+        if recommendation.scheduled_updates:
+            console.print()
+            console.print(
+                f"[bold yellow]📅 {t('update_recommend.categories.scheduled')}:[/bold yellow]"
+            )
+            self._display_update_table(recommendation.scheduled_updates)
+
+        # Deferred updates
+        if recommendation.deferred_updates:
+            console.print()
+            console.print(
+                f"[bold magenta]⏸️ {t('update_recommend.categories.deferred')}:[/bold magenta]"
+            )
+            self._display_update_table(recommendation.deferred_updates)
+
+        # Related update groups
+        if recommendation.groups:
+            console.print()
+            console.print(f"[bold cyan]📦 {t('update_recommend.categories.groups')}:[/bold cyan]")
+            for group_name, group_updates in recommendation.groups.items():
+                update_names = [u.package_name for u in group_updates]
+                console.print(
+                    f"  [cyan]{group_name}[/cyan]: {', '.join(update_names[:5])}"
+                    + (f" +{len(update_names) - 5} more" if len(update_names) > 5 else "")
+                )
+
+        # LLM Analysis
+        if recommendation.llm_analysis:
+            console.print()
+            console.print(
+                Panel(
+                    recommendation.llm_analysis,
+                    title=f"[bold]🤖 {t('update_recommend.ai_analysis')}[/bold]",
+                    border_style="blue",
+                )
+            )
+
+    def _display_update_table(self, updates: list[UpdateInfo]) -> None:
+        """Display a table of updates."""
+        table = Table(show_header=True, header_style="bold", box=None)
+        table.add_column("Package", style="cyan")
+        table.add_column("Current", style="dim")
+        table.add_column("New", style="green")
+        table.add_column("Type")
+        table.add_column("Risk")
+        table.add_column("Notes")
+
+        for update in updates[:10]:  # Limit display
+            risk_color = self.RISK_COLORS.get(update.risk_level, "white")
+            risk_display = t(f"update_recommend.risks.{update.risk_level.value_str}")
+            type_str = update.change_type.value
+
+            notes = []
+            if update.is_security:
+                notes.append(f"🔒 {t('update_recommend.notes.security')}")
+            if update.breaking_changes:
+                notes.append(
+                    f"⚠️ {t('update_recommend.notes.warnings', count=len(update.breaking_changes))}"
+                )
+            if update.group:
+                notes.append(f"📦 {t('update_recommend.notes.group', name=update.group)}")
+
+            table.add_row(
+                update.package_name,
+                str(update.current_version),
+                str(update.new_version),
+                type_str,
+                f"[{risk_color}]{risk_display}[/]",
+                " | ".join(notes) if notes else "-",
+            )
+
+        if len(updates) > 10:
+            table.add_row(
+                t("update_recommend.more_updates", count=len(updates) - 10),
+                "",
+                "",
+                "",
+                "",
+                "",
+            )
+
+        console.print(table)
+
+
+def recommend_updates(
+    use_llm: bool = True,
+    verbose: bool = False,
+) -> int:
+    """
+    Convenience function to run update recommendations.
+
+    Args:
+        use_llm: Whether to use LLM for analysis
+        verbose: Enable verbose output
+
+    Returns:
+        Exit code (0 for success)
+    """
+    try:
+        # Try to get LLM router if available
+        llm_router = None
+        if use_llm:
+            try:
+                from cortex.llm_router import LLMRouter
+
+                llm_router = LLMRouter()
+            except Exception as e:
+                logger.debug(f"LLM router not available: {e}")
+
+        recommender = UpdateRecommender(
+            llm_router=llm_router,
+            verbose=verbose,
+        )
+
+        recommendation = recommender.get_recommendations(use_llm=use_llm)
+        recommender.display_recommendations(recommendation)
+
+        return 0
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        if verbose:
+            import traceback
+
+            traceback.print_exc()
+        return 1
