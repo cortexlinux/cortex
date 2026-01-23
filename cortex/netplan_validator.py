@@ -627,6 +627,9 @@ class NetplanValidator:
         Returns:
             True if network is working
         """
+        # noinspection PyUnresolvedReference
+        # Using public DNS servers (Google: 8.8.8.8, Cloudflare: 1.1.1.1) for network testing
+        # These are standard, public, well-known DNS endpoints for connectivity checks
         test_hosts = ["8.8.8.8", "1.1.1.1"]
 
         for host in test_hosts:
