@@ -185,8 +185,9 @@ class TestIPAddressValidation:
     def test_cidr_when_not_allowed(self, netplan_validator):
         """Test CIDR notation when allow_cidr=False."""
         valid, error = netplan_validator.validate_ip_address("192.168.1.1/24", allow_cidr=False)
-        # Should still validate the IP part
-        assert valid is True
+        # CIDR should be invalid when allow_cidr=False
+        assert valid is False
+        assert "cidr" in error.lower() or "not allowed" in error.lower()
 
 
 class TestRouteValidation:
@@ -611,7 +612,7 @@ class TestEdgeCases:
         monkeypatch.setattr(NetplanValidator, "NETPLAN_DIR", temp_netplan_dir)
         monkeypatch.setattr(NetplanValidator, "BACKUP_DIR", temp_backup_dir)
 
-        with pytest.raises(FileNotFoundError, match="No .yaml files"):
+        with pytest.raises(FileNotFoundError, match="No .yaml or .yml files"):
             NetplanValidator(None)
 
     def test_wifi_interface_validation(self, netplan_validator):
@@ -961,13 +962,7 @@ class TestShowDiff:
 
     def test_show_diff_with_all_line_types(self, temp_netplan_dir, netplan_validator):
         """Test showing diff with all different line types including @@ markers."""
-        # Create original and modified configs
-        original = """network:
-  version: 2
-  ethernets:
-    eth0:
-      dhcp4: true
-"""
+        # Create modified config
         modified = """network:
   version: 2
   ethernets:
@@ -1203,15 +1198,7 @@ class TestShowDiffElseBranch:
 
     def test_show_diff_with_unchanged_lines(self, temp_netplan_dir, netplan_validator):
         """Test diff display with unchanged context lines."""
-        # Create configs with some changes
-        original = """network:
-  version: 2
-  ethernets:
-    eth0:
-      dhcp4: true
-      addresses:
-        - 192.168.1.100/24
-"""
+        # Create modified config
         modified = """network:
   version: 2
   ethernets:

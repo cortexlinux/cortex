@@ -11,22 +11,18 @@ Addresses GitHub Issue #445 - Network Config Validator
 import difflib
 import ipaddress
 import logging
-import os
 import re
 import shutil
 import subprocess
-import tempfile
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
 from rich.console import Console
 from rich.panel import Panel
-from rich.syntax import Syntax
-from rich.table import Table
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -49,20 +45,11 @@ class NetworkInterface:
     name: str
     dhcp4: bool = False
     dhcp6: bool = False
-    addresses: list[str] = None
+    addresses: list[str] = field(default_factory=list)
     gateway4: str | None = None
     gateway6: str | None = None
-    nameservers: dict[str, Any] | None = None
-    routes: list[dict[str, str]] | None = None
-
-    def __post_init__(self):
-        """Initialize default values."""
-        if self.addresses is None:
-            self.addresses = []
-        if self.nameservers is None:
-            self.nameservers = {}
-        if self.routes is None:
-            self.routes = []
+    nameservers: dict[str, Any] = field(default_factory=dict)
+    routes: list[dict[str, str]] = field(default_factory=list)
 
 
 class NetplanValidator:
@@ -107,11 +94,15 @@ class NetplanValidator:
             raise FileNotFoundError(f"Netplan directory {self.NETPLAN_DIR} not found")
 
         yaml_files = list(self.NETPLAN_DIR.glob("*.yaml"))
-        if not yaml_files:
-            raise FileNotFoundError(f"No .yaml files found in {self.NETPLAN_DIR}")
+        # Also check for .yml extension
+        yml_files = list(self.NETPLAN_DIR.glob("*.yml"))
+        all_files = yaml_files + yml_files
+        
+        if not all_files:
+            raise FileNotFoundError(f"No .yaml or .yml files found in {self.NETPLAN_DIR}")
 
         # Use the first yaml file (typically 00-installer-config.yaml or 01-netcfg.yaml)
-        return sorted(yaml_files)[0]
+        return sorted(all_files)[0]
 
     def validate_yaml_syntax(self, content: str) -> ValidationResult:
         """
@@ -161,12 +152,14 @@ class NetplanValidator:
             Tuple of (is_valid, error_message)
         """
         try:
-            if allow_cidr and "/" in ip_str:
+            if "/" in ip_str:
+                if not allow_cidr:
+                    return False, f"CIDR notation not allowed for '{ip_str}'"
                 # Validate CIDR notation
                 ipaddress.ip_network(ip_str, strict=False)
             else:
                 # Validate plain IP
-                ipaddress.ip_address(ip_str.split("/")[0] if "/" in ip_str else ip_str)
+                ipaddress.ip_address(ip_str)
             return True, ""
         except ValueError as e:
             return False, f"Invalid IP address '{ip_str}': {str(e)}"
@@ -232,18 +225,27 @@ class NetplanValidator:
 
         # Validate ethernet interfaces
         if "ethernets" in network:
-            for iface_name, iface_config in network["ethernets"].items():
-                self._validate_interface(iface_name, iface_config, errors, warnings, info)
+            if not isinstance(network["ethernets"], dict):
+                errors.append("'ethernets' must be a mapping/dictionary")
+            else:
+                for iface_name, iface_config in network["ethernets"].items():
+                    self._validate_interface(iface_name, iface_config, errors, warnings, info)
 
         # Validate WiFi interfaces
         if "wifis" in network:
-            for iface_name, iface_config in network["wifis"].items():
-                self._validate_interface(iface_name, iface_config, errors, warnings, info)
+            if not isinstance(network["wifis"], dict):
+                errors.append("'wifis' must be a mapping/dictionary")
+            else:
+                for iface_name, iface_config in network["wifis"].items():
+                    self._validate_interface(iface_name, iface_config, errors, warnings, info)
 
         # Validate bridges
         if "bridges" in network:
-            for bridge_name, bridge_config in network["bridges"].items():
-                self._validate_interface(bridge_name, bridge_config, errors, warnings, info)
+            if not isinstance(network["bridges"], dict):
+                errors.append("'bridges' must be a mapping/dictionary")
+            else:
+                for bridge_name, bridge_config in network["bridges"].items():
+                    self._validate_interface(bridge_name, bridge_config, errors, warnings, info)
 
         if not errors:
             info.append("✓ Semantic validation passed")
@@ -268,6 +270,13 @@ class NetplanValidator:
             warnings: List to append warnings to
             info: List to append info messages to
         """
+        # Type check: ensure iface_config is a mapping/dict
+        if not isinstance(iface_config, dict):
+            errors.append(
+                f"Interface '{iface_name}' config must be a mapping/dictionary, got {type(iface_config).__name__}"
+            )
+            return
+        
         # Validate interface name format
         if not re.match(r"^[a-zA-Z0-9_-]+$", iface_name):
             errors.append(
@@ -483,23 +492,46 @@ class NetplanValidator:
                 return False, f"Backup failed: {str(e)}"
 
         # Apply configuration
+        backup_path = None
         try:
+            # Get backup path before applying
+            if backup:
+                backup_files = sorted(self.backup_dir.glob("*.yaml"))
+                if backup_files:
+                    backup_path = backup_files[-1]  # Most recent backup
+            
             # Copy new config to netplan directory
             shutil.copy2(new_path, self.config_file)
 
             # Run netplan apply
             result = subprocess.run(
-                ["netplan", "apply"], capture_output=True, text=True, timeout=30
+                ["netplan", "apply"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                shell=False,
             )
 
             if result.returncode == 0:
                 return True, "Configuration applied successfully"
             else:
+                # Revert to backup if apply failed
+                if backup and backup_path and backup_path.exists():
+                    shutil.copy2(backup_path, self.config_file)
+                    console.print("[yellow]Reverted to backup after netplan apply failure[/yellow]")
                 return False, f"netplan apply failed: {result.stderr}"
 
         except subprocess.TimeoutExpired:
+            # Revert to backup on timeout
+            if backup and backup_path and backup_path.exists():
+                shutil.copy2(backup_path, self.config_file)
+                console.print("[yellow]Reverted to backup after timeout[/yellow]")
             return False, "netplan apply timed out"
         except Exception as e:
+            # Revert to backup on any error
+            if backup and backup_path and backup_path.exists():
+                shutil.copy2(backup_path, self.config_file)
+                console.print("[yellow]Reverted to backup after error[/yellow]")
             return False, f"Failed to apply config: {str(e)}"
 
     def dry_run_with_revert(
@@ -547,6 +579,10 @@ class NetplanValidator:
         success, message = self.apply_config(new_config_file, backup=False)
         if not success:
             console.print(f"\n[bold red]Apply failed:[/bold red] {message}")
+            # Revert to backup since apply failed
+            if backup_path.exists():
+                console.print("[yellow]Reverting to backup...[/yellow]")
+                self._revert_config(backup_path)
             return False
 
         console.print("\n[bold green]✓[/bold green] Configuration applied")
@@ -596,7 +632,10 @@ class NetplanValidator:
         for host in test_hosts:
             try:
                 result = subprocess.run(
-                    ["ping", "-c", "1", "-W", "2", host], capture_output=True, timeout=3
+                    ["ping", "-c", "1", "-W", "2", host],
+                    capture_output=True,
+                    timeout=3,
+                    shell=False,
                 )
                 if result.returncode == 0:
                     return True
@@ -617,7 +656,7 @@ class NetplanValidator:
         """
         console.print(f"[bold]Press 'y' to keep changes, or wait {timeout}s to auto-revert[/bold]")
 
-        confirmed = [False]
+        confirmed = threading.Event()
 
         def wait_for_input():
             try:
@@ -631,14 +670,15 @@ class NetplanValidator:
                     tty.setraw(sys.stdin.fileno())
                     ch = sys.stdin.read(1)
                     if ch.lower() == "y":
-                        confirmed[0] = True
+                        confirmed.set()
                 finally:
                     termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-            except Exception:
+            except (IOError, AttributeError, OSError) as e:
                 # Fallback for non-Unix systems or no TTY
+                # IOError/OSError: stdin issues, AttributeError: termios missing
                 response = input().strip().lower()
                 if response == "y":
-                    confirmed[0] = True
+                    confirmed.set()
 
         # Start input thread
         input_thread = threading.Thread(target=wait_for_input, daemon=True)
@@ -646,13 +686,13 @@ class NetplanValidator:
 
         # Countdown
         for remaining in range(timeout, 0, -1):
-            if confirmed[0]:
+            if confirmed.is_set():
                 break
-            console.print(f"\rReverting in {remaining} seconds... ", end="")
+            console.print(f"\r⏱ Reverting in [{remaining}] seconds... ", end="")
             time.sleep(1)
 
         console.print()  # New line
-        return confirmed[0]
+        return confirmed.is_set()
 
     def _revert_config(self, backup_path: Path) -> bool:
         """
@@ -671,7 +711,11 @@ class NetplanValidator:
 
             # Apply the reverted configuration
             result = subprocess.run(
-                ["netplan", "apply"], capture_output=True, text=True, timeout=30
+                ["netplan", "apply"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                shell=False,
             )
 
             # Check if netplan apply succeeded
