@@ -549,8 +549,8 @@ class LLMRouter:
         last_error: Exception | None = None
         for index, key in enumerate(self.openai_api_keys):
             try:
-                client = self.openai_client if index == 0 and self.openai_client else OpenAI(
-                    api_key=key
+                client = (
+                    self.openai_client if index == 0 and self.openai_client else OpenAI(api_key=key)
                 )
                 kwargs = {
                     "model": self.openai_model,
@@ -577,9 +577,7 @@ class LLMRouter:
                     tokens_used=input_tokens + output_tokens,
                     cost_usd=cost,
                     latency_seconds=0.0,  # Set by caller
-                    raw_response=response.model_dump()
-                    if hasattr(response, "model_dump")
-                    else None,
+                    raw_response=response.model_dump() if hasattr(response, "model_dump") else None,
                 )
             except Exception as e:
                 last_error = e
@@ -930,9 +928,7 @@ class LLMRouter:
                     tokens_used=input_tokens + output_tokens,
                     cost_usd=cost,
                     latency_seconds=0.0,  # Set by caller
-                    raw_response=response.model_dump()
-                    if hasattr(response, "model_dump")
-                    else None,
+                    raw_response=response.model_dump() if hasattr(response, "model_dump") else None,
                 )
             except Exception as e:
                 last_error = e

@@ -197,9 +197,7 @@ class CortexCLI:
         # 2b. Fallback: allow multiple OpenAI keys in OPENAI_API_KEYS
         openai_keys = os.environ.get("OPENAI_API_KEYS")
         if openai_keys:
-            parsed_keys = [
-                k.strip() for k in re.split(r"[\s,;]+", openai_keys) if k.strip()
-            ]
+            parsed_keys = [k.strip() for k in re.split(r"[\s,;]+", openai_keys) if k.strip()]
             if parsed_keys:
                 self._debug("Using OpenAI API key from OPENAI_API_KEYS")
                 self._detected_provider = "openai"
