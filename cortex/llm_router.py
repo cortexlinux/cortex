@@ -552,33 +552,10 @@ class LLMRouter:
                 client = (
                     self.openai_client if index == 0 and self.openai_client else OpenAI(api_key=key)
                 )
-                kwargs = {
-                    "model": self.openai_model,
-                    "messages": messages,
-                    "temperature": temperature,
-                    "max_tokens": max_tokens,
-                }
-
-                if tools:
-                    kwargs["tools"] = tools
-                    kwargs["tool_choice"] = "auto"
+                kwargs = self._build_openai_kwargs(messages, temperature, max_tokens, tools)
 
                 response = client.chat.completions.create(**kwargs)
-                content = response.choices[0].message.content or ""
-
-                input_tokens = response.usage.prompt_tokens
-                output_tokens = response.usage.completion_tokens
-                cost = self._calculate_cost(LLMProvider.OPENAI, input_tokens, output_tokens)
-
-                return LLMResponse(
-                    content=content,
-                    provider=LLMProvider.OPENAI,
-                    model=self.openai_model,
-                    tokens_used=input_tokens + output_tokens,
-                    cost_usd=cost,
-                    latency_seconds=0.0,  # Set by caller
-                    raw_response=response.model_dump() if hasattr(response, "model_dump") else None,
-                )
+                return self._openai_response_to_llmresponse(response)
             except Exception as e:
                 last_error = e
                 if index < len(self.openai_api_keys) - 1:
@@ -590,6 +567,42 @@ class LLMRouter:
         raise RuntimeError(
             "OpenAI API request failed. Check your OpenAI API key or billing."
         ) from last_error
+
+    def _build_openai_kwargs(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float,
+        max_tokens: int,
+        tools: list[dict] | None = None,
+    ) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {
+            "model": self.openai_model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+
+        if tools:
+            kwargs["tools"] = tools
+            kwargs["tool_choice"] = "auto"
+
+        return kwargs
+
+    def _openai_response_to_llmresponse(self, response: Any) -> LLMResponse:
+        content = response.choices[0].message.content or ""
+        input_tokens = response.usage.prompt_tokens
+        output_tokens = response.usage.completion_tokens
+        cost = self._calculate_cost(LLMProvider.OPENAI, input_tokens, output_tokens)
+
+        return LLMResponse(
+            content=content,
+            provider=LLMProvider.OPENAI,
+            model=self.openai_model,
+            tokens_used=input_tokens + output_tokens,
+            cost_usd=cost,
+            latency_seconds=0.0,  # Set by caller
+            raw_response=response.model_dump() if hasattr(response, "model_dump") else None,
+        )
 
     def _complete_ollama(
         self,
@@ -903,33 +916,10 @@ class LLMRouter:
                     if index == 0 and self.openai_client_async
                     else AsyncOpenAI(api_key=key)
                 )
-                kwargs = {
-                    "model": self.openai_model,
-                    "messages": messages,
-                    "temperature": temperature,
-                    "max_tokens": max_tokens,
-                }
-
-                if tools:
-                    kwargs["tools"] = tools
-                    kwargs["tool_choice"] = "auto"
+                kwargs = self._build_openai_kwargs(messages, temperature, max_tokens, tools)
 
                 response = await client.chat.completions.create(**kwargs)
-                content = response.choices[0].message.content or ""
-
-                input_tokens = response.usage.prompt_tokens
-                output_tokens = response.usage.completion_tokens
-                cost = self._calculate_cost(LLMProvider.OPENAI, input_tokens, output_tokens)
-
-                return LLMResponse(
-                    content=content,
-                    provider=LLMProvider.OPENAI,
-                    model=self.openai_model,
-                    tokens_used=input_tokens + output_tokens,
-                    cost_usd=cost,
-                    latency_seconds=0.0,  # Set by caller
-                    raw_response=response.model_dump() if hasattr(response, "model_dump") else None,
-                )
+                return self._openai_response_to_llmresponse(response)
             except Exception as e:
                 last_error = e
                 if index < len(self.openai_api_keys) - 1:
