@@ -648,6 +648,9 @@ std::vector<Alert> AlertManager::get_alerts(const AlertFilter& filter) {
     
     select_sql += " ORDER BY timestamp DESC";
     
+    // Protect database access with mutex (SQLite connections need protection for concurrent operations)
+    std::lock_guard<std::mutex> lock(stmt_mutex_);
+    
     sqlite3_stmt* stmt;
     int rc = sqlite3_prepare_v2(db, select_sql.c_str(), -1, &stmt, nullptr);
     
@@ -719,6 +722,7 @@ std::vector<Alert> AlertManager::get_alerts(const AlertFilter& filter) {
     }
     
     sqlite3_finalize(stmt);
+    // Lock released here when lock_guard goes out of scope
     return alerts;
 }
 

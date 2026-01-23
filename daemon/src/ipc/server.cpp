@@ -122,8 +122,11 @@ void RateLimiter::reset() {
      running_ = false;
      
      // Shutdown socket to unblock accept() and stop new connections
-     if (server_fd_ != -1) {
-         shutdown(server_fd_, SHUT_RDWR);
+     {
+         std::lock_guard<std::mutex> lock(server_fd_mutex_);
+         if (server_fd_ != -1) {
+             shutdown(server_fd_, SHUT_RDWR);
+         }
      }
      
      // Wait for accept thread
@@ -145,6 +148,7 @@ void RateLimiter::reset() {
  }
  
  bool IPCServer::is_healthy() const {
+     std::lock_guard<std::mutex> lock(server_fd_mutex_);
      return running_.load() && server_fd_ != -1;
  }
  
@@ -155,6 +159,8 @@ void IPCServer::register_handler(const std::string& method, RequestHandler handl
 }
  
  bool IPCServer::create_socket() {
+     std::lock_guard<std::mutex> lock(server_fd_mutex_);
+     
      // Create socket
      server_fd_ = socket(AF_UNIX, SOCK_STREAM, 0);
      if (server_fd_ == -1) {
@@ -225,6 +231,7 @@ bool IPCServer::setup_permissions() {
 }
  
  void IPCServer::cleanup_socket() {
+     std::lock_guard<std::mutex> lock(server_fd_mutex_);
      if (server_fd_ != -1) {
          close(server_fd_);
          server_fd_ = -1;
@@ -239,7 +246,19 @@ bool IPCServer::setup_permissions() {
      LOG_DEBUG("IPCServer", "Accept loop started");
      
      while (running_) {
-         int client_fd = accept(server_fd_, nullptr, nullptr);
+         int fd_to_accept = -1;
+         {
+             std::lock_guard<std::mutex> lock(server_fd_mutex_);
+             fd_to_accept = server_fd_;
+         }
+         
+         if (fd_to_accept == -1) {
+             // Socket not ready yet or closed
+             std::this_thread::sleep_for(std::chrono::milliseconds(10));
+             continue;
+         }
+         
+         int client_fd = accept(fd_to_accept, nullptr, nullptr);
          
          if (client_fd == -1) {
              if (running_) {

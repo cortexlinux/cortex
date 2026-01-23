@@ -12,19 +12,21 @@
  
  namespace cortexd {
  
- // Volatile flags for async-signal-safe signal handling
- // Signal handlers should only set flags, not call complex functions
- static volatile sig_atomic_t g_shutdown_requested = 0;
- static volatile sig_atomic_t g_reload_requested = 0;
+// Atomic flags for async-signal-safe signal handling
+// Signal handlers should only set flags, not call complex functions
+// Using atomic instead of volatile for proper memory ordering
+static std::atomic<sig_atomic_t> g_shutdown_requested{0};
+static std::atomic<sig_atomic_t> g_reload_requested{0};
  
- // Signal handler function - only sets flags (async-signal-safe)
- static void signal_handler(int sig) {
-     if (sig == SIGTERM || sig == SIGINT) {
-         g_shutdown_requested = 1;
-     } else if (sig == SIGHUP) {
-         g_reload_requested = 1;
-     }
- }
+// Signal handler function - only sets flags (async-signal-safe)
+// Using store with memory_order_relaxed for signal handlers (async-signal-safe)
+static void signal_handler(int sig) {
+    if (sig == SIGTERM || sig == SIGINT) {
+        g_shutdown_requested.store(1, std::memory_order_relaxed);
+    } else if (sig == SIGHUP) {
+        g_reload_requested.store(1, std::memory_order_relaxed);
+    }
+}
  
  Daemon& Daemon::instance() {
      static Daemon instance;
@@ -62,7 +64,10 @@
  int Daemon::run() {
      auto startup_start = std::chrono::steady_clock::now();
      LOG_INFO("Daemon", "Starting daemon");
-     start_time_ = std::chrono::steady_clock::now();
+     {
+         std::lock_guard<std::mutex> lock(start_time_mutex_);
+         start_time_ = std::chrono::steady_clock::now();
+     }
      
      // Start all services
      if (!start_services()) {
@@ -128,6 +133,7 @@ void Daemon::request_shutdown() {
  }
  
  std::chrono::seconds Daemon::uptime() const {
+     std::lock_guard<std::mutex> lock(start_time_mutex_);
      auto now = std::chrono::steady_clock::now();
      return std::chrono::duration_cast<std::chrono::seconds>(now - start_time_);
  }
@@ -185,7 +191,10 @@ bool Daemon::reload_config() {
     running_.store(false, std::memory_order_relaxed);
     
     // Reset start time
-    start_time_ = std::chrono::steady_clock::time_point{};
+    {
+        std::lock_guard<std::mutex> lock(start_time_mutex_);
+        start_time_ = std::chrono::steady_clock::time_point{};
+    }
     
     LOG_DEBUG("Daemon", "Daemon state reset for testing");
 }
@@ -265,15 +274,16 @@ bool Daemon::reload_config() {
  void Daemon::event_loop() {
      // Check signal flags set by the async-signal-safe handler
      // Perform the actual operations here in a normal thread context
-     if (g_shutdown_requested) {
-         g_shutdown_requested = 0;
+     // Use memory_order_acquire to ensure we see the flag after it's set
+     if (g_shutdown_requested.load(std::memory_order_acquire)) {
+         g_shutdown_requested.store(0, std::memory_order_release);
          LOG_INFO("Daemon", "Received shutdown signal");
          request_shutdown();
          return;
      }
      
-     if (g_reload_requested) {
-         g_reload_requested = 0;
+     if (g_reload_requested.load(std::memory_order_acquire)) {
+         g_reload_requested.store(0, std::memory_order_release);
          LOG_INFO("Daemon", "Received SIGHUP, reloading configuration");
          reload_config();
      }

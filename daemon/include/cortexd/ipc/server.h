@@ -93,6 +93,7 @@ private:
  private:
      std::string socket_path_;
      int server_fd_ = -1;
+     mutable std::mutex server_fd_mutex_;  // Protect server_fd_ access
      std::atomic<bool> running_{false};
      std::unique_ptr<std::thread> accept_thread_;
      

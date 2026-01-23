@@ -134,6 +134,7 @@ class IPCServer;
      mutable std::shared_mutex services_mutex_;  // Protect services_ vector access
      std::atomic<bool> running_{false};
      std::atomic<bool> shutdown_requested_{false};
+     mutable std::mutex start_time_mutex_;  // Protect start_time_ access
      std::chrono::steady_clock::time_point start_time_;
      
      /**

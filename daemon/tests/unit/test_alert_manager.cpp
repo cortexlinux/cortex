@@ -8,6 +8,11 @@
 #include <filesystem>
 #include <fstream>
 #include <cstdio>
+#include <thread>
+#include <vector>
+#include <atomic>
+#include <chrono>
+#include <unordered_set>
 
 using namespace cortexd;
 
@@ -212,6 +217,181 @@ TEST_F(AlertManagerTest, DismissAll) {
     dismissed_filter.status = AlertStatus::DISMISSED;
     auto dismissed_alerts = alert_manager_->get_alerts(dismissed_filter);
     ASSERT_GE(dismissed_alerts.size(), 3);
+}
+
+TEST_F(AlertManagerTest, ConcurrentAccess) {
+    const int num_threads = 10;
+    const int alerts_per_thread = 50;
+    std::vector<std::thread> threads;
+    std::atomic<int> success_count{0};
+    std::atomic<int> read_count{0};
+    
+    // Concurrent writes
+    for (int i = 0; i < num_threads; ++i) {
+        threads.emplace_back([this, i, alerts_per_thread, &success_count]() {
+            for (int j = 0; j < alerts_per_thread; ++j) {
+                Alert alert;
+                alert.severity = static_cast<AlertSeverity>(j % 4);
+                alert.category = static_cast<AlertCategory>(j % 7);
+                alert.source = "thread_" + std::to_string(i);
+                alert.message = "Alert " + std::to_string(j);
+                alert.status = AlertStatus::ACTIVE;
+                
+                auto created = alert_manager_->create_alert(alert);
+                if (created.has_value()) {
+                    success_count.fetch_add(1, std::memory_order_relaxed);
+                }
+            }
+        });
+    }
+    
+    // Concurrent reads
+    for (int i = 0; i < num_threads; ++i) {
+        threads.emplace_back([this, &read_count]() {
+            for (int j = 0; j < 100; ++j) {
+                AlertFilter filter;
+                auto alerts = alert_manager_->get_alerts(filter);
+                read_count.fetch_add(1, std::memory_order_relaxed);
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        });
+    }
+    
+    // Concurrent acknowledge/dismiss operations
+    for (int i = 0; i < num_threads / 2; ++i) {
+        threads.emplace_back([this]() {
+            for (int j = 0; j < 20; ++j) {
+                AlertFilter filter;
+                filter.status = AlertStatus::ACTIVE;
+                auto alerts = alert_manager_->get_alerts(filter);
+                if (!alerts.empty()) {
+                    alert_manager_->acknowledge_alert(alerts[0].uuid);
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            }
+        });
+    }
+    
+    // Wait for all threads
+    for (auto& t : threads) {
+        t.join();
+    }
+    
+    // Verify data integrity
+    auto all_alerts = alert_manager_->get_alerts(AlertFilter{});
+    ASSERT_GT(all_alerts.size(), 0);
+    ASSERT_GE(success_count.load(), num_threads * alerts_per_thread * 0.9); // Allow some failures due to duplicates
+    ASSERT_GE(read_count.load(), num_threads * 100);
+    
+    // Verify no duplicate UUIDs
+    std::unordered_set<std::string> uuids;
+    for (const auto& alert : all_alerts) {
+        ASSERT_TRUE(uuids.insert(alert.uuid).second) << "Duplicate UUID found: " << alert.uuid;
+    }
+}
+
+TEST_F(AlertManagerTest, DatabaseCorruptionRecovery) {
+    // Create some alerts first
+    for (int i = 0; i < 10; ++i) {
+        Alert alert;
+        alert.severity = AlertSeverity::WARNING;
+        alert.category = AlertCategory::CPU;
+        alert.source = "test";
+        alert.message = "Alert " + std::to_string(i);
+        alert.status = AlertStatus::ACTIVE;
+        alert_manager_->create_alert(alert);
+    }
+    
+    // Corrupt the database by writing invalid data
+    std::ofstream corrupt_file(test_db_path_, std::ios::binary | std::ios::trunc);
+    corrupt_file << "CORRUPTED DATABASE DATA";
+    corrupt_file.close();
+    
+    // Try to create a new AlertManager with the corrupted database
+    // SQLite should handle corruption gracefully
+    AlertManager corrupted_manager(test_db_path_);
+    
+    // Initialize should either succeed (SQLite recovers) or fail gracefully
+    bool init_result = corrupted_manager.initialize();
+    
+    if (init_result) {
+        // If initialization succeeded, SQLite may have recovered or created a new database
+        // Try to create an alert to verify it works
+        Alert alert;
+        alert.severity = AlertSeverity::INFO;
+        alert.category = AlertCategory::SYSTEM;
+        alert.source = "recovery_test";
+        alert.message = "Recovery test";
+        alert.status = AlertStatus::ACTIVE;
+        
+        auto created = corrupted_manager.create_alert(alert);
+        ASSERT_TRUE(created.has_value()) << "AlertManager should be able to create alerts after recovery";
+    } else {
+        // If initialization failed, that's also acceptable - the corruption was detected
+        // The important thing is that it failed gracefully without crashing
+        GTEST_LOG_(INFO) << "Database corruption detected and initialization failed gracefully (expected behavior)";
+    }
+}
+
+TEST_F(AlertManagerTest, StressTestLargeNumberOfAlerts) {
+    const int num_alerts = 10000;
+    std::vector<std::string> created_uuids;
+    created_uuids.reserve(num_alerts);
+    
+    auto start = std::chrono::steady_clock::now();
+    
+    // Create a large number of alerts
+    for (int i = 0; i < num_alerts; ++i) {
+        Alert alert;
+        alert.severity = static_cast<AlertSeverity>(i % 4);
+        alert.category = static_cast<AlertCategory>(i % 7);
+        alert.source = "stress_test";
+        alert.message = "Stress test alert " + std::to_string(i);
+        alert.description = "Description for alert " + std::to_string(i);
+        alert.status = AlertStatus::ACTIVE;
+        
+        auto created = alert_manager_->create_alert(alert);
+        ASSERT_TRUE(created.has_value()) << "Failed to create alert " << i;
+        created_uuids.push_back(created->uuid);
+    }
+    
+    auto create_end = std::chrono::steady_clock::now();
+    auto create_duration = std::chrono::duration_cast<std::chrono::milliseconds>(create_end - start);
+    
+    // Verify all alerts were created
+    auto all_alerts = alert_manager_->get_alerts(AlertFilter{});
+    ASSERT_GE(all_alerts.size(), num_alerts);
+    
+    // Verify we can retrieve specific alerts
+    for (int i = 0; i < std::min(100, num_alerts); ++i) {
+        auto retrieved = alert_manager_->get_alert(created_uuids[i]);
+        ASSERT_TRUE(retrieved.has_value()) << "Failed to retrieve alert " << i;
+        ASSERT_EQ(retrieved->uuid, created_uuids[i]);
+    }
+    
+    // Test filtering with large dataset
+    AlertFilter filter;
+    filter.severity = AlertSeverity::WARNING;
+    auto warning_alerts = alert_manager_->get_alerts(filter);
+    ASSERT_GT(warning_alerts.size(), 0);
+    
+    // Test acknowledge operations on large dataset
+    size_t ack_count = alert_manager_->acknowledge_all();
+    ASSERT_GT(ack_count, 0);
+    
+    // Verify counts are correct
+    auto counts = alert_manager_->get_alert_counts();
+    ASSERT_EQ(counts["total"], 0) << "All alerts should be acknowledged";
+    
+    auto end = std::chrono::steady_clock::now();
+    auto total_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    
+    GTEST_LOG_(INFO) << "Created " << num_alerts << " alerts in " << create_duration.count() << "ms";
+    GTEST_LOG_(INFO) << "Total test duration: " << total_duration.count() << "ms";
+    
+    // Performance check: should be able to create at least 100 alerts per second
+    double alerts_per_second = (num_alerts * 1000.0) / create_duration.count();
+    ASSERT_GT(alerts_per_second, 100.0) << "Performance too slow: " << alerts_per_second << " alerts/sec";
 }
 
 TEST_F(AlertManagerTest, GetAlertCounts) {

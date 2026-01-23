@@ -93,6 +93,9 @@ public:
     /**
      * @brief Construct alert manager
      * @param db_path Path to SQLite database
+     * 
+     * Default path is /var/lib/cortex/alerts.db (requires root).
+     * If root access is unavailable, automatically falls back to ~/.cortex/alerts.db
      */
     explicit AlertManager(const std::string& db_path = "/var/lib/cortex/alerts.db");
     

@@ -10,6 +10,8 @@
 #include "cortexd/monitor/system_monitor.h"
 #include "cortexd/alerts/alert_manager.h"
 #include "cortexd/ipc/server.h"
+#include <algorithm>
+#include <cctype>
 
 namespace cortexd {
 
@@ -153,17 +155,47 @@ Response Handlers::handle_alerts_get(const Request& req, std::shared_ptr<AlertMa
     if (req.params.is_object()) {
         if (req.params.contains("severity")) {
             std::string severity_str = req.params["severity"].get<std::string>();
-            filter.severity = AlertManager::string_to_severity(severity_str);
+            // Normalize to lowercase for comparison
+            std::string severity_lower = severity_str;
+            std::transform(severity_lower.begin(), severity_lower.end(), severity_lower.begin(),
+                          [](unsigned char c) { return std::tolower(c); });
+            
+            // Validate against known severities
+            if (severity_lower != "info" && severity_lower != "warning" && 
+                severity_lower != "error" && severity_lower != "critical") {
+                return Response::err("Invalid severity: " + severity_str + " (valid: info, warning, error, critical)", ErrorCodes::INVALID_PARAMS);
+            }
+            filter.severity = AlertManager::string_to_severity(severity_lower);
         }
         
         if (req.params.contains("category")) {
             std::string category_str = req.params["category"].get<std::string>();
-            filter.category = AlertManager::string_to_category(category_str);
+            // Normalize to lowercase for comparison
+            std::string category_lower = category_str;
+            std::transform(category_lower.begin(), category_lower.end(), category_lower.begin(),
+                          [](unsigned char c) { return std::tolower(c); });
+            
+            // Validate against known categories
+            if (category_lower != "cpu" && category_lower != "memory" && category_lower != "disk" &&
+                category_lower != "apt" && category_lower != "cve" && category_lower != "service" && 
+                category_lower != "system") {
+                return Response::err("Invalid category: " + category_str + " (valid: cpu, memory, disk, apt, cve, service, system)", ErrorCodes::INVALID_PARAMS);
+            }
+            filter.category = AlertManager::string_to_category(category_lower);
         }
         
         if (req.params.contains("status")) {
             std::string status_str = req.params["status"].get<std::string>();
-            filter.status = AlertManager::string_to_status(status_str);
+            // Normalize to lowercase for comparison
+            std::string status_lower = status_str;
+            std::transform(status_lower.begin(), status_lower.end(), status_lower.begin(),
+                          [](unsigned char c) { return std::tolower(c); });
+            
+            // Validate against known statuses
+            if (status_lower != "active" && status_lower != "acknowledged" && status_lower != "dismissed") {
+                return Response::err("Invalid status: " + status_str + " (valid: active, acknowledged, dismissed)", ErrorCodes::INVALID_PARAMS);
+            }
+            filter.status = AlertManager::string_to_status(status_lower);
         }
         
         if (req.params.contains("source")) {

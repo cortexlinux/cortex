@@ -15,6 +15,7 @@
 #include <mutex>
 #include <thread>
 #include <chrono>
+#include <climits>
 
 namespace cortexd {
 
@@ -160,7 +161,8 @@ SystemHealth SystemMonitor::check_health() {
     health.cpu_usage_percent = get_cpu_usage();
     long cores = sysconf(_SC_NPROCESSORS_ONLN);
     // sysconf returns -1 on error, ensure at least 1 core
-    health.cpu_cores = (cores > 0) ? static_cast<int>(cores) : 1;
+    // Add bounds check to prevent integer overflow
+    health.cpu_cores = (cores > 0) ? static_cast<int>(std::min(cores, static_cast<long>(INT_MAX))) : 1;
     
     // Memory
     get_memory_usage(health.memory_total_bytes, 
@@ -598,20 +600,40 @@ void SystemMonitor::create_basic_alert(
                            std::to_string(static_cast<int>(severity)) + ":" + 
                            source + ":" + message;
     
-    // Fix race condition: use atomic check-and-insert pattern
-    // This prevents two threads from both creating the same alert
+    // RAII guard to ensure key is removed if alert creation fails
+    // This prevents the key from remaining in the set forever if create_alert fails
+    struct AlertKeyGuard {
+        std::string key;
+        std::unordered_set<std::string>& keys;
+        std::mutex& mutex;
+        bool committed = false;
+        
+        AlertKeyGuard(const std::string& k, std::unordered_set<std::string>& ks, std::mutex& m)
+            : key(k), keys(ks), mutex(m) {}
+        
+        ~AlertKeyGuard() {
+            if (!committed) {
+                std::lock_guard<std::mutex> lock(mutex);
+                keys.erase(key);
+            }
+        }
+        
+        void commit() { committed = true; }
+    };
+    
+    // Check if already exists and insert if not
     {
         std::lock_guard<std::mutex> lock(alert_keys_mutex_);
-        // Check if already exists
         if (active_alert_keys_.find(alert_key) != active_alert_keys_.end()) {
             // Alert already exists, don't create duplicate
             return;
         }
-        
         // Insert BEFORE creating alert to prevent race condition
-        // If creation fails, we'll remove it below
         active_alert_keys_.insert(alert_key);
     }
+    
+    // Create RAII guard - will remove key if we return early or throw
+    AlertKeyGuard guard(alert_key, active_alert_keys_, alert_keys_mutex_);
     
     Alert alert;
     alert.severity = severity;
@@ -624,12 +646,12 @@ void SystemMonitor::create_basic_alert(
     
     auto created = alert_manager_->create_alert(alert);
     if (!created.has_value()) {
-        // Creation failed - remove from hash set
-        std::lock_guard<std::mutex> lock(alert_keys_mutex_);
-        active_alert_keys_.erase(alert_key);
+        // Creation failed - guard will remove key in destructor
         return;
     }
     
+    // Success - commit the guard so key remains in set
+    guard.commit();
     LOG_DEBUG("SystemMonitor", "Created alert: " + message);
 }
 
