@@ -1,32 +1,119 @@
 import logging
+import os
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from cortex.error_parser import ErrorCategory, ErrorParser
 
 logger = logging.getLogger(__name__)
 
+# Default maximum number of retries for the global retry setting
+DEFAULT_MAX_RETRIES = 5
+
+
+@dataclass
+class RetryStrategy:
+    """Configuration for how to retry a specific error type."""
+
+    max_retries: int
+    backoff_factor: float
+    description: str
+
+
+# Default strategies for each retryable error category
+DEFAULT_STRATEGIES: dict[ErrorCategory, RetryStrategy] = {
+    ErrorCategory.NETWORK_ERROR: RetryStrategy(
+        max_retries=DEFAULT_MAX_RETRIES,
+        backoff_factor=1.0,
+        description="Network issues - retry aggressively with short backoff",
+    ),
+    ErrorCategory.LOCK_ERROR: RetryStrategy(
+        max_retries=3,
+        backoff_factor=5.0,
+        description="Lock contention - wait longer between retries",
+    ),
+    ErrorCategory.UNKNOWN: RetryStrategy(
+        max_retries=2,
+        backoff_factor=2.0,
+        description="Unknown errors - conservative retry",
+    ),
+}
+
+# Permanent error categories that should never be retried
+PERMANENT_ERRORS: set[ErrorCategory] = {
+    ErrorCategory.PERMISSION_DENIED,
+    ErrorCategory.PACKAGE_NOT_FOUND,
+    ErrorCategory.CONFIGURATION_ERROR,
+    ErrorCategory.DEPENDENCY_MISSING,
+    ErrorCategory.CONFLICT,
+    ErrorCategory.DISK_SPACE,
+}
+
+
+def load_strategies_from_env() -> dict[ErrorCategory, RetryStrategy]:
+    """
+    Load retry strategies from environment variables, falling back to defaults.
+
+    Environment variables:
+        CORTEX_RETRY_NETWORK_MAX: Max retries for network errors (default: 5)
+        CORTEX_RETRY_NETWORK_BACKOFF: Backoff factor for network errors (default: 1.0)
+        CORTEX_RETRY_LOCK_MAX: Max retries for lock errors (default: 3)
+        CORTEX_RETRY_LOCK_BACKOFF: Backoff factor for lock errors (default: 5.0)
+        CORTEX_RETRY_UNKNOWN_MAX: Max retries for unknown errors (default: 2)
+        CORTEX_RETRY_UNKNOWN_BACKOFF: Backoff factor for unknown errors (default: 2.0)
+    """
+    strategies = dict(DEFAULT_STRATEGIES)
+
+    # Network error overrides
+    if os.getenv("CORTEX_RETRY_NETWORK_MAX") or os.getenv("CORTEX_RETRY_NETWORK_BACKOFF"):
+        strategies[ErrorCategory.NETWORK_ERROR] = RetryStrategy(
+            max_retries=int(os.getenv("CORTEX_RETRY_NETWORK_MAX", "5")),
+            backoff_factor=float(os.getenv("CORTEX_RETRY_NETWORK_BACKOFF", "1.0")),
+            description="Network issues (user-configured)",
+        )
+
+    # Lock error overrides
+    if os.getenv("CORTEX_RETRY_LOCK_MAX") or os.getenv("CORTEX_RETRY_LOCK_BACKOFF"):
+        strategies[ErrorCategory.LOCK_ERROR] = RetryStrategy(
+            max_retries=int(os.getenv("CORTEX_RETRY_LOCK_MAX", "3")),
+            backoff_factor=float(os.getenv("CORTEX_RETRY_LOCK_BACKOFF", "5.0")),
+            description="Lock contention (user-configured)",
+        )
+
+    # Unknown error overrides
+    if os.getenv("CORTEX_RETRY_UNKNOWN_MAX") or os.getenv("CORTEX_RETRY_UNKNOWN_BACKOFF"):
+        strategies[ErrorCategory.UNKNOWN] = RetryStrategy(
+            max_retries=int(os.getenv("CORTEX_RETRY_UNKNOWN_MAX", "2")),
+            backoff_factor=float(os.getenv("CORTEX_RETRY_UNKNOWN_BACKOFF", "2.0")),
+            description="Unknown errors (user-configured)",
+        )
+
+    return strategies
+
 
 class SmartRetry:
     """
     Implements smart retry logic with exponential backoff.
     Uses ErrorParser to distinguish between transient and permanent errors.
+    Supports different retry strategies per error category.
     """
 
     def __init__(
         self,
-        max_retries: int = 5,
-        backoff_factor: float = 1.0,
+        strategies: dict[ErrorCategory, RetryStrategy] | None = None,
         status_callback: Callable[[str], None] | None = None,
     ):
-        if not isinstance(max_retries, int) or max_retries < 0:
-            raise ValueError("max_retries must be a non-negative integer")
-        if not isinstance(backoff_factor, (int, float)) or backoff_factor < 0:
-            raise ValueError("backoff_factor must be a non-negative number")
+        """
+        Initialize SmartRetry with optional custom strategies.
 
-        self.max_retries = max_retries
-        self.backoff_factor = float(backoff_factor)
+        Args:
+            strategies: Custom retry strategies per error category.
+                        If None, loads from environment or uses defaults.
+            status_callback: Optional callback for status messages.
+        """
+        self.strategies = strategies if strategies is not None else load_strategies_from_env()
         self.status_callback = status_callback
         self.error_parser = ErrorParser()
 
@@ -45,8 +132,9 @@ class SmartRetry:
         attempt = 0
         last_exception = None
         last_result = None
+        current_strategy: RetryStrategy | None = None
 
-        while attempt <= self.max_retries:
+        while True:
             try:
                 result = func()
                 last_result = result
@@ -62,22 +150,34 @@ class SmartRetry:
                 elif hasattr(result, "stdout") and result.stdout:
                     error_msg = result.stdout
 
-                if not self._should_retry(error_msg):
+                category = self._get_error_category(error_msg)
+                current_strategy = self._get_strategy(category)
+
+                if current_strategy is None:
+                    # Permanent error - fail fast
                     return result
 
             except Exception as e:
                 last_exception = e
-                if not self._should_retry(str(e)):
+                category = self._get_error_category(str(e))
+                current_strategy = self._get_strategy(category)
+
+                if current_strategy is None:
+                    # Permanent error - fail fast
                     raise
 
-            # If we are here, we need to retry (unless max retries reached)
-            if attempt == self.max_retries:
+            # Check if we've exhausted retries for this strategy
+            if current_strategy is None or attempt >= current_strategy.max_retries:
                 break
 
             attempt += 1
-            sleep_time = self.backoff_factor * (2 ** (attempt - 1))
+            sleep_time = current_strategy.backoff_factor * (2 ** (attempt - 1))
 
-            msg = f"⚠️ Transient error detected. Retrying in {sleep_time}s... (Attempt {attempt}/{self.max_retries})"
+            category_name = category.name if category else "UNKNOWN"
+            msg = (
+                f"⚠️ {category_name} detected. "
+                f"Retrying in {sleep_time}s... (Attempt {attempt}/{current_strategy.max_retries})"
+            )
             logger.warning(msg)
             if self.status_callback:
                 self.status_callback(msg)
@@ -88,39 +188,28 @@ class SmartRetry:
             raise last_exception
         return last_result
 
-    def _should_retry(self, error_message: str) -> bool:
-        """
-        Determine if we should retry based on the error message.
-        """
+    def _get_error_category(self, error_message: str) -> ErrorCategory | None:
+        """Classify the error message into a category."""
         if not error_message:
-            # If no error message, assume it's a generic failure that might be transient
-            return True
+            return ErrorCategory.UNKNOWN
 
         analysis = self.error_parser.parse_error(error_message)
-        category = analysis.primary_category
 
-        # If the error is explicitly marked as not fixable, fail fast
+        # If the error is explicitly marked as not fixable, treat as permanent
         if not analysis.is_fixable:
-            return False
+            return None
 
-        # Retry on network errors, lock errors, or unknown errors (conservative)
-        if category in [
-            ErrorCategory.NETWORK_ERROR,
-            ErrorCategory.LOCK_ERROR,
-            ErrorCategory.UNKNOWN,
-        ]:
-            return True
+        return analysis.primary_category
 
-        # Fail fast on permanent errors
-        if category in [
-            ErrorCategory.PERMISSION_DENIED,
-            ErrorCategory.PACKAGE_NOT_FOUND,
-            ErrorCategory.CONFIGURATION_ERROR,
-            ErrorCategory.DEPENDENCY_MISSING,
-            ErrorCategory.CONFLICT,
-            ErrorCategory.DISK_SPACE,
-        ]:
-            return False
+    def _get_strategy(self, category: ErrorCategory | None) -> RetryStrategy | None:
+        """
+        Get the retry strategy for a given error category.
+        Returns None for permanent errors (should not retry).
+        """
+        if category is None:
+            return None
 
-        # Default to retry for safety if not explicitly categorized as permanent
-        return True
+        if category in PERMANENT_ERRORS:
+            return None
+
+        return self.strategies.get(category)

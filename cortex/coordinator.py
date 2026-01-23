@@ -9,7 +9,12 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from cortex.utils.retry import SmartRetry
+from cortex.utils.retry import (
+    DEFAULT_MAX_RETRIES,
+    ErrorCategory,
+    SmartRetry,
+    load_strategies_from_env,
+)
 from cortex.validators import DANGEROUS_PATTERNS
 
 logger = logging.getLogger(__name__)
@@ -61,7 +66,7 @@ class InstallationCoordinator:
         enable_rollback: bool = False,
         log_file: str | None = None,
         progress_callback: Callable[[int, int, InstallationStep], None] | None = None,
-        max_retries: int = 5,
+        max_retries: int = DEFAULT_MAX_RETRIES,
     ):
         """Initialize an installation run with optional logging and rollback."""
         self.timeout = timeout
@@ -192,8 +197,13 @@ class InstallationCoordinator:
             # Also print to stdout so the user sees the retry happening
             print(msg)
 
+        # Load strategies and apply CLI override for network errors
+        strategies = load_strategies_from_env()
+        if ErrorCategory.NETWORK_ERROR in strategies:
+            strategies[ErrorCategory.NETWORK_ERROR].max_retries = self.max_retries
+
         retry_handler = SmartRetry(
-            max_retries=self.max_retries,
+            strategies=strategies,
             status_callback=status_callback,
         )
 

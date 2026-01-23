@@ -20,6 +20,7 @@ from cortex.api_key_detector import auto_detect_api_key, setup_api_key
 from cortex.ask import AskHandler
 from cortex.branding import VERSION, console, cx_header, cx_print, show_banner
 from cortex.coordinator import InstallationCoordinator, InstallationStep, StepStatus
+from cortex.utils.retry import DEFAULT_MAX_RETRIES
 from cortex.demo import run_demo
 from cortex.dependency_importer import DependencyImporter, PackageEcosystem, ParseResult
 from cortex.env_manager import EnvironmentManager, get_env_manager
@@ -1445,6 +1446,7 @@ class CortexCLI:
         dry_run: bool = False,
         parallel: bool = False,
         json_output: bool = False,
+        max_retries: int = DEFAULT_MAX_RETRIES,
     ) -> int:
         """Install software using the LLM-powered package manager."""
         # Initialize installation history
@@ -1670,7 +1672,7 @@ class CortexCLI:
                     timeout=300,
                     stop_on_error=True,
                     progress_callback=progress_callback,
-                    max_retries=5,
+                    max_retries=max_retries,
                 )
 
                 result = coordinator.execute()
