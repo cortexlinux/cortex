@@ -138,7 +138,10 @@ class LLMRouter:
         Args:
             claude_api_key: Anthropic API key (defaults to ANTHROPIC_API_KEY env)
             kimi_api_key: Moonshot API key (defaults to MOONSHOT_API_KEY env)
-            openai_api_key: OpenAI API key (defaults to OPENAI_API_KEY env)
+            openai_api_key: OpenAI API key or delimited list (defaults to OPENAI_API_KEY/OPENAI_API_KEYS env)
+                Multiple keys are supported for rotation/fallback. Accepted delimiters for
+                openai_api_key/OPENAI_API_KEYS are commas, semicolons, or spaces. The
+                loader prefers OPENAI_API_KEYS when present and falls back to OPENAI_API_KEY.
             ollama_base_url: Ollama API base URL (defaults to http://localhost:11434)
             ollama_model: Ollama model to use (defaults to llama3.2)
             openai_model: OpenAI model to use (defaults to gpt-4o-mini)
