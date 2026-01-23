@@ -346,10 +346,12 @@ class UpdateRecommender:
             logger.warning("Context memory unavailable: %s", e)
             self.memory = None
 
-    def _run_pkg_cmd(self, cmd: list[str]) -> str | None:
+    def _run_pkg_cmd(self, cmd: list[str], timeout: int | None = None) -> str | None:
         """Internal helper to run package manager commands."""
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=self.timeout)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=timeout or self.timeout
+            )
             return result.stdout.strip() if result.returncode == 0 else None
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return None
@@ -438,11 +440,11 @@ class UpdateRecommender:
     def _get_apt_updates(self) -> list[dict[str, Any]]:
         """Helper to get updates via APT."""
         updates = []
-        if self._run_pkg_cmd(["apt-get", "update", "-q"]) is None:
+        if self._run_pkg_cmd(["apt-get", "update", "-q"], timeout=self.check_timeout) is None:
             logger.warning("APT update check failed. Skipping APT updates.")
             return updates
 
-        output = self._run_pkg_cmd(["apt", "list", "--upgradable"])
+        output = self._run_pkg_cmd(["apt", "list", "--upgradable"], timeout=self.check_timeout)
         if not output:
             return updates
 
