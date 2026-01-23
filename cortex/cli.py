@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import select
 import sys
 import time
@@ -193,6 +194,17 @@ class CortexCLI:
             self._detected_provider = detected_provider
             return key
 
+        # 2b. Fallback: allow multiple OpenAI keys in OPENAI_API_KEYS
+        openai_keys = os.environ.get("OPENAI_API_KEYS")
+        if openai_keys:
+            parsed_keys = [
+                k.strip() for k in re.split(r"[\s,;]+", openai_keys) if k.strip()
+            ]
+            if parsed_keys:
+                self._debug("Using OpenAI API key from OPENAI_API_KEYS")
+                self._detected_provider = "openai"
+                return parsed_keys[0]
+
         # Still no key
         self._print_error(t("api_key.not_found"))
         cx_print(t("api_key.configure_prompt"), "info")
@@ -216,7 +228,7 @@ class CortexCLI:
         # 3. Check env vars (may have been set by auto-detect)
         if os.environ.get("ANTHROPIC_API_KEY"):
             return "claude"
-        elif os.environ.get("OPENAI_API_KEY"):
+        elif os.environ.get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEYS"):
             return "openai"
 
         # 4. Fallback to Ollama for offline mode
