@@ -725,7 +725,9 @@ class NetplanValidator:
             console.print("\n[bold yellow]Configuration State:[/bold yellow]")
             console.print(f"  Current config: {self.config_file}")
             console.print(f"  Backup location: {backup_path}")
-            console.print("\n[bold red]⚠️  MANUAL RECOVERY REQUIRED (timeout after 30s):[/bold red]")
+            console.print(
+                "\n[bold red]⚠️  MANUAL RECOVERY REQUIRED (timeout after 30s):[/bold red]"
+            )
             console.print("  1. Try applying manually:")
             console.print("     [cyan]sudo netplan apply[/cyan]")
             console.print("  2. Restart networking:")
