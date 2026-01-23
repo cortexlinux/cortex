@@ -114,7 +114,7 @@ class SmartRetry:
             status_callback: Optional callback for status messages.
         """
         self.strategies = strategies if strategies is not None else load_strategies_from_env()
-        
+
         # Validate strategies
         for category, strategy in self.strategies.items():
             if strategy.max_retries < 0:
