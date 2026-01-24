@@ -9,17 +9,30 @@ from typing import TYPE_CHECKING
 
 from cortex.cli.handlers import (
     AskHandlerWrapper,
+    BenchmarkHandler,
+    CacheHandler,
     ConfigHandler,
     DaemonHandler,
+    DashboardHandler,
+    DemoHandler,
+    DoctorHandler,
+    DockerHandler,
     EnvHandler,
     HistoryHandler,
     ImportDepHandler,
     InstallHandler,
+    MiscHandler,
+    NotifyHandler,
     RemoveHandler,
+    RoleHandler,
     SandboxHandler,
     StackHandler,
+    StatusHandler,
+    SystemHandler,
     TroubleshootHandler,
     UpdateHandler,
+    VoiceHandler,
+    WizardHandler,
 )
 from cortex.predictive_prevention import RiskLevel
 
@@ -53,6 +66,20 @@ class CortexCLI:
         self._history_handler = HistoryHandler(verbose=verbose)
         self._troubleshoot_handler = TroubleshootHandler(verbose=verbose)
         self._import_handler = ImportDepHandler(verbose=verbose)
+        # New handlers
+        self._demo_handler = DemoHandler(verbose=verbose)
+        self._dashboard_handler = DashboardHandler(verbose=verbose)
+        self._wizard_handler = WizardHandler(verbose=verbose)
+        self._status_handler = StatusHandler(verbose=verbose)
+        self._benchmark_handler = BenchmarkHandler(verbose=verbose)
+        self._system_handler = SystemHandler(verbose=verbose)
+        self._voice_handler = VoiceHandler(verbose=verbose)
+        self._docker_handler = DockerHandler(verbose=verbose)
+        self._notify_handler = NotifyHandler(verbose=verbose)
+        self._role_handler = RoleHandler(verbose=verbose)
+        self._cache_handler = CacheHandler(verbose=verbose)
+        self._doctor_handler = DoctorHandler(verbose=verbose)
+        self._misc_handler = MiscHandler(verbose=verbose)
 
     @property
     def risk_labels(self) -> dict[RiskLevel, str]:
@@ -120,58 +147,107 @@ class CortexCLI:
         """Handle import command."""
         return self._import_handler.import_deps(args)
 
-    def docker_permissions(self, args: argparse.Namespace) -> int:
-        """Handle Docker permissions command."""
-        from cortex.permission_manager import PermissionManager
-        import os
-        from cortex.branding import cx_print
+    # New command methods
 
-        try:
-            manager = PermissionManager(os.getcwd())
-            cx_print("Scanning for Docker-related permission issues...", "info")
-            manager.check_compose_config()
+    def demo(self, args: argparse.Namespace) -> int:
+        """Handle demo command."""
+        return self._demo_handler.demo()
 
-            execute_flag = getattr(args, "execute", False)
-            yes_flag = getattr(args, "yes", False)
+    def dashboard(self, args: argparse.Namespace) -> int:
+        """Handle dashboard command."""
+        return self._dashboard_handler.dashboard()
 
-            if execute_flag and not yes_flag:
-                mismatches = manager.diagnose()
-                if mismatches:
-                    cx_print(
-                        f"Found {len(mismatches)} paths requiring ownership reclamation.",
-                        "warning",
-                    )
-                    from cortex.stdin_handler import StdinHandler
-                    from rich.console import Console
-                    console = Console()
-                    try:
-                        console.print(
-                            "[bold cyan]Reclaim ownership using sudo? (y/n): [/bold cyan]", end=""
-                        )
-                        response = StdinHandler.get_input()
-                        if response.lower() not in ("y", "yes"):
-                            cx_print("Operation cancelled", "info")
-                            return 0
-                    except (EOFError, KeyboardInterrupt):
-                        console.print()
-                        cx_print("Operation cancelled", "info")
-                        return 0
+    def wizard(self, args: argparse.Namespace) -> int:
+        """Handle wizard command."""
+        return self._wizard_handler.wizard()
 
-            if manager.fix_permissions(execute=execute_flag):
-                if execute_flag:
-                    cx_print("Permissions fixed successfully!", "success")
-                return 0
-            return 1
+    def status(self, args: argparse.Namespace) -> int:
+        """Handle status command."""
+        return self._status_handler.status()
 
-        except (PermissionError, FileNotFoundError, OSError) as e:
-            cx_print(f"Permission check failed: {e}", "error")
-            return 1
-        except NotImplementedError as e:
-            cx_print(f"{e}", "error")
-            return 1
-        except Exception as e:
-            cx_print(f"Unexpected error: {e}", "error")
-            return 1
+    def benchmark(self, args: argparse.Namespace) -> int:
+        """Handle benchmark command."""
+        return self._benchmark_handler.benchmark(verbose=getattr(args, "verbose", False))
+
+    def systemd(self, args: argparse.Namespace) -> int:
+        """Handle systemd command."""
+        return self._system_handler.systemd(
+            service=args.service,
+            action=getattr(args, "action", "status"),
+            verbose=getattr(args, "verbose", False),
+        )
+
+    def gpu(self, args: argparse.Namespace) -> int:
+        """Handle gpu command."""
+        return self._system_handler.gpu(
+            action=getattr(args, "action", "status"),
+            mode=getattr(args, "mode", None),
+            verbose=getattr(args, "verbose", False),
+        )
+
+    def printer(self, args: argparse.Namespace) -> int:
+        """Handle printer command."""
+        return self._system_handler.printer(
+            action=getattr(args, "action", "status"),
+            verbose=getattr(args, "verbose", False),
+        )
+
+    def wifi(self, args: argparse.Namespace) -> int:
+        """Handle wifi command."""
+        return self._system_handler.wifi(verbose=getattr(args, "verbose", False))
+
+    def voice(self, args: argparse.Namespace) -> int:
+        """Handle voice command."""
+        return self._voice_handler.voice(
+            continuous=not getattr(args, "single", False),
+            model=getattr(args, "model", None),
+        )
+
+    def docker(self, args: argparse.Namespace) -> int:
+        """Handle docker command."""
+        if hasattr(args, "docker_action") and args.docker_action == "permissions":
+            return self._docker_handler.docker_permissions(args)
+        return 1
+
+    def notify(self, args: argparse.Namespace) -> int:
+        """Handle notify command."""
+        return self._notify_handler.notify(args)
+
+    def role(self, args: argparse.Namespace) -> int:
+        """Handle role command."""
+        return self._role_handler.role(args)
+
+    def cache(self, args: argparse.Namespace) -> int:
+        """Handle cache command."""
+        return self._cache_handler.cache(args)
+
+    def doctor(self, args: argparse.Namespace) -> int:
+        """Handle doctor command."""
+        return self._doctor_handler.doctor(args)
+
+    def activate(self, args: argparse.Namespace) -> int:
+        """Handle activate command."""
+        return self._misc_handler.activate(args)
+
+    def upgrade(self, args: argparse.Namespace) -> int:
+        """Handle upgrade command."""
+        return self._misc_handler.upgrade(args)
+
+    def stdin(self, args: argparse.Namespace) -> int:
+        """Handle stdin command."""
+        return self._misc_handler.stdin(args)
+
+    def deps(self, args: argparse.Namespace) -> int:
+        """Handle deps command."""
+        return self._misc_handler.deps(args)
+
+    def health(self, args: argparse.Namespace) -> int:
+        """Handle health command."""
+        return self._misc_handler.health(args)
+
+    def license(self, args: argparse.Namespace) -> int:
+        """Handle license command."""
+        return self._misc_handler.license(args)
 
     def _get_api_key(self) -> str | None:
         """Get API key from environment or prompt user."""
@@ -193,18 +269,39 @@ class CortexCLI:
     def create_parser(self) -> argparse.ArgumentParser:
         """Create the argument parser with all subcommands."""
         from cortex.cli.handlers import (
+            add_activate_parser,
             add_ask_parser,
+            add_benchmark_parser,
+            add_cache_parser,
             add_config_parser,
             add_daemon_parser,
+            add_dashboard_parser,
+            add_demo_parser,
+            add_deps_parser,
+            add_docker_parser,
+            add_doctor_parser,
             add_env_parser,
+            add_gpu_parser,
+            add_health_parser,
             add_history_parser,
             add_import_deps_parser,
             add_install_parser,
+            add_license_parser,
+            add_notify_parser,
+            add_printer_parser,
             add_remove_parser,
+            add_role_parser,
             add_sandbox_parser,
             add_stack_parser,
+            add_stdin_parser,
+            add_status_parser,
+            add_systemd_parser,
             add_troubleshoot_parser,
             add_update_parser,
+            add_upgrade_parser,
+            add_voice_parser,
+            add_wizard_parser,
+            add_wifi_parser,
         )
 
         parser = argparse.ArgumentParser(
@@ -228,6 +325,28 @@ class CortexCLI:
         add_history_parser(subparsers)
         add_troubleshoot_parser(subparsers)
         add_import_deps_parser(subparsers)
+        # New parsers
+        add_demo_parser(subparsers)
+        add_dashboard_parser(subparsers)
+        add_wizard_parser(subparsers)
+        add_status_parser(subparsers)
+        add_benchmark_parser(subparsers)
+        add_systemd_parser(subparsers)
+        add_gpu_parser(subparsers)
+        add_printer_parser(subparsers)
+        add_voice_parser(subparsers)
+        add_docker_parser(subparsers)
+        add_notify_parser(subparsers)
+        add_role_parser(subparsers)
+        add_cache_parser(subparsers)
+        add_doctor_parser(subparsers)
+        add_activate_parser(subparsers)
+        add_upgrade_parser(subparsers)
+        add_stdin_parser(subparsers)
+        add_deps_parser(subparsers)
+        add_health_parser(subparsers)
+        add_license_parser(subparsers)
+        add_wifi_parser(subparsers)
 
         return parser
 
@@ -238,8 +357,8 @@ class CortexCLI:
         """
         command = getattr(args, "command", None)
 
-        # Commands with handlers
-        command_handlers = {
+        # Dispatch to handler methods
+        handler_map = {
             "install": self.install,
             "remove": self.remove,
             "ask": self.ask,
@@ -253,15 +372,32 @@ class CortexCLI:
             "rollback": self.rollback,
             "troubleshoot": self.troubleshoot,
             "import": self.import_deps,
+            "demo": self.demo,
+            "dashboard": self.dashboard,
+            "wizard": self.wizard,
+            "status": self.status,
+            "benchmark": self.benchmark,
+            "systemd": self.systemd,
+            "gpu": self.gpu,
+            "printer": self.printer,
+            "wifi": self.wifi,
+            "voice": self.voice,
+            "docker": self.docker,
+            "notify": self.notify,
+            "role": self.role,
+            "cache": self.cache,
+            "doctor": self.doctor,
+            "activate": self.activate,
+            "upgrade": self.upgrade,
+            "stdin": self.stdin,
+            "deps": self.deps,
+            "health": self.health,
+            "license": self.license,
         }
 
-        if command in command_handlers:
-            return command_handlers[command](args)
+        if command in handler_map:
+            return handler_map[command](args)
 
-        # Commands without handlers - delegate to cli_main inline handlers
-        # These need to be migrated later
-        from cortex.branding import cx_print
-        cx_print(f"Command '{command}' uses inline handler", "warning")
         return 1
 
 

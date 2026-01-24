@@ -38,15 +38,8 @@ class HistoryHandler:
                 console.print(f"Installation not found: {show_id}", style="yellow")
                 return 1
 
-        filters = {}
-        if status:
-            try:
-                filters["status"] = InstallationStatus(status)
-            except ValueError:
-                console.print(f"Invalid status: {status}", style="yellow")
-                return 1
-
-        entries = history.list_installations(limit=limit, **filters)
+        status_filter = InstallationStatus(status) if status else None
+        entries = history.get_history(limit, status_filter)
 
         if not entries:
             console.print("No installation history found")
@@ -71,12 +64,15 @@ class HistoryHandler:
             if len(entry.packages) > 3:
                 packages += f" (+{len(entry.packages) - 3} more)"
 
+            # Format timestamp (it's a string like "2025-01-24T12:34:56.123456")
+            ts = entry.timestamp[:19].replace("T", " ")
+
             table.add_row(
                 entry.id[:8],
-                entry.type.value,
+                entry.operation_type.value,
                 packages,
                 f"[{status_style}]{entry.status.value}[/]",
-                entry.timestamp.strftime("%Y-%m-%d %H:%M"),
+                ts,
             )
 
         console.print(table)
@@ -137,13 +133,15 @@ class HistoryHandler:
 
         text = Text()
         text.append(f"ID: {entry.id}\n")
-        text.append(f"Type: {entry.type.value}\n")
+        text.append(f"Type: {entry.operation_type.value}\n")
         text.append(f"Packages: {', '.join(entry.packages)}\n")
         text.append(f"Status: {entry.status.value}\n")
-        text.append(f"Date: {entry.timestamp}\n")
+        # Format timestamp
+        ts = entry.timestamp[:19].replace("T", " ")
+        text.append(f"Date: {ts}\n")
 
-        if entry.error:
-            text.append(f"Error: {entry.error}")
+        if entry.error_message:
+            text.append(f"Error: {entry.error_message}")
 
         console.print(Panel(text, title=f"Installation {entry.id[:8]}", expand=False))
 
