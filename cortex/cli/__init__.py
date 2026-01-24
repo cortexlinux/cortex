@@ -231,6 +231,39 @@ class CortexCLI:
 
         return parser
 
+    def dispatch(self, args: argparse.Namespace) -> int:
+        """Dispatch command to appropriate handler.
+
+        Returns exit code (0 for success, 1 for failure).
+        """
+        command = getattr(args, "command", None)
+
+        # Commands with handlers
+        command_handlers = {
+            "install": self.install,
+            "remove": self.remove,
+            "ask": self.ask,
+            "update": self.update,
+            "config": self.config,
+            "daemon": self.daemon,
+            "sandbox": self.sandbox,
+            "env": self.env,
+            "stack": self.stack,
+            "history": self.history,
+            "rollback": self.rollback,
+            "troubleshoot": self.troubleshoot,
+            "import": self.import_deps,
+        }
+
+        if command in command_handlers:
+            return command_handlers[command](args)
+
+        # Commands without handlers - delegate to cli_main inline handlers
+        # These need to be migrated later
+        from cortex.branding import cx_print
+        cx_print(f"Command '{command}' uses inline handler", "warning")
+        return 1
+
 
 # Re-export main from cli_main for backward compatibility
 from cortex.cli_main import main as main
