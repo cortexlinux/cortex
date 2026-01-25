@@ -43,6 +43,7 @@ clap.workspace = true
 codec.workspace = true
 colorgrad.workspace = true
 config.workspace = true
+cpal.workspace = true
 dhat = {workspace=true, optional=true}
 dirs-next.workspace = true
 downcast-rs.workspace = true

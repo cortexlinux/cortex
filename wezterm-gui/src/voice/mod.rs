@@ -10,7 +10,7 @@ mod capture;
 mod commands;
 mod transcribe;
 
-pub use capture::{AudioCapture, AudioConfig, CaptureState, VoiceActivityDetector};
+pub use capture::{AudioCapture, AudioConfig, CaptureError, CaptureState, VoiceActivityDetector};
 pub use commands::{VoiceCommand, VoiceCommandHandler, VoiceCommandResult};
 pub use transcribe::{TranscribeError, Transcriber, WhisperCloud, WhisperLocal};
 
