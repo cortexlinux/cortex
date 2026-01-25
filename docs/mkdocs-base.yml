@@ -1,10 +1,10 @@
-copyright: Copyright &copy; 2018-Present Wez Furlong
+copyright: Copyright &copy; 2024-Present CX Linux | Based on WezTerm by Wez Furlong
 use_directory_urls: false
-site_name: Wez's Terminal Emulator
-site_url: https://wezterm.org/
-site_description: Wez's Terminal Emulator
-repo_url: https://github.com/wezterm/wezterm
-repo_name: wezterm/wezterm
+site_name: CX Terminal
+site_url: https://cxlinux.ai/docs/
+site_description: AI-Native Terminal for CX Linux
+repo_url: https://github.com/cxlinux-ai/cx
+repo_name: cxlinux-ai/cx
 edit_uri: edit/main/docs/
 docs_dir: docs
 site_dir: gh_pages

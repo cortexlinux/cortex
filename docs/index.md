@@ -3,7 +3,7 @@ hide:
   - toc
 ---
 
-*WezTerm is a powerful cross-platform terminal emulator and multiplexer written by <a href="https://github.com/wez/">@wez</a> and implemented in <a href="https://www.rust-lang.org/">Rust</a>*
+*CX Terminal is the AI-native terminal emulator for <a href="https://cxlinux.ai">CX Linux</a>, built on the powerful <a href="https://wezfurlong.org/wezterm/">WezTerm</a> foundation and implemented in <a href="https://www.rust-lang.org/">Rust</a>*
 
 ![Screenshot](screenshots/wezterm-vday-screenshot.png)
 
@@ -11,6 +11,8 @@ hide:
 
 ## Features
 
+* **AI-Native Terminal** - Built-in AI panel, command blocks, and intelligent suggestions
+* **CX Linux Integration** - Seamless daemon communication, voice input, and agent system
 * Runs on Linux, macOS, Windows 10, FreeBSD and NetBSD
 * [Multiplex terminal panes, tabs and windows on local and remote hosts, with native mouse and scrollback](multiplexing.md)
 * <a href="https://github.com/tonsky/FiraCode#fira-code-monospaced-font-with-programming-ligatures">Ligatures</a>, Color Emoji and font fallback, with true color and [dynamic color schemes](config/appearance.md).
@@ -26,5 +28,8 @@ to activate the search function!**
 
 ![Screenshot](screenshots/two.png)
 
-<figcaption>Screenshot of wezterm on macOS, running vim</figcaption>
+<figcaption>Screenshot of CX Terminal on macOS</figcaption>
 </figure>
+
+---
+*CX Terminal is based on [WezTerm](https://wezfurlong.org/wezterm/) by Wez Furlong*

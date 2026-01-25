@@ -115,6 +115,7 @@ harfbuzz = { path = "deps/harfbuzz" }
 heapless = "0.8"
 hdrhistogram = "7.1"
 hex = {version="0.4", default-features=false}
+hmac = "0.12"
 hostname = "0.4"
 http_req = "0.11"
 human-sort = "0.2"

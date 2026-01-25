@@ -43,15 +43,16 @@ pub struct PrivacyConfig {
 
 impl Default for PrivacyConfig {
     fn default() -> Self {
+        // Privacy-first: all filters ON by default for maximum protection
         Self {
             filter_passwords: true,
             filter_tokens: true,
             filter_ssh_keys: true,
             filter_sensitive_paths: true,
-            filter_ip_addresses: false, // Off by default
-            filter_emails: false,       // Off by default
-            anonymize_usernames: false,
-            anonymize_hostnames: false,
+            filter_ip_addresses: true,  // ON by default for privacy
+            filter_emails: true,        // ON by default for privacy
+            anonymize_usernames: true,  // ON by default for privacy
+            anonymize_hostnames: true,  // ON by default for privacy
             custom_patterns: Vec::new(),
             sensitive_dirs: vec![
                 ".ssh".to_string(),

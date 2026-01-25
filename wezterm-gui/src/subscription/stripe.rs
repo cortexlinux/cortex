@@ -513,10 +513,71 @@ impl StripeClient {
         }
     }
 
-    fn verify_webhook_signature(&self, _payload: &str, _signature: &str, _secret: &str) -> bool {
-        // In production, implement proper HMAC-SHA256 signature verification
-        // For now, we'll trust all webhooks if a secret is configured
-        true
+    fn verify_webhook_signature(&self, payload: &str, signature: &str, secret: &str) -> bool {
+        // Parse the Stripe signature header
+        // Format: t=timestamp,v1=signature,v0=signature (v0 is deprecated)
+        let mut timestamp = None;
+        let mut signatures = Vec::new();
+
+        for part in signature.split(',') {
+            let mut kv = part.splitn(2, '=');
+            match (kv.next(), kv.next()) {
+                (Some("t"), Some(ts)) => timestamp = ts.parse::<i64>().ok(),
+                (Some("v1"), Some(sig)) => signatures.push(sig.to_string()),
+                _ => {}
+            }
+        }
+
+        let timestamp = match timestamp {
+            Some(ts) => ts,
+            None => {
+                log::warn!("Webhook signature missing timestamp");
+                return false;
+            }
+        };
+
+        if signatures.is_empty() {
+            log::warn!("Webhook signature missing v1 signature");
+            return false;
+        }
+
+        // Check timestamp is within tolerance (5 minutes)
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+
+        if (now - timestamp).abs() > 300 {
+            log::warn!("Webhook signature timestamp outside tolerance");
+            return false;
+        }
+
+        // Compute expected signature: HMAC-SHA256(secret, timestamp + "." + payload)
+        use hmac::{Hmac, Mac};
+        use sha2::Sha256;
+
+        type HmacSha256 = Hmac<Sha256>;
+
+        let signed_payload = format!("{}.{}", timestamp, payload);
+        let mut mac = match HmacSha256::new_from_slice(secret.as_bytes()) {
+            Ok(m) => m,
+            Err(_) => {
+                log::error!("Failed to create HMAC from webhook secret");
+                return false;
+            }
+        };
+        mac.update(signed_payload.as_bytes());
+        let expected = hex::encode(mac.finalize().into_bytes());
+
+        // Check if any provided signature matches
+        for sig in &signatures {
+            if sig == &expected {
+                return true;
+            }
+        }
+
+        log::warn!("Webhook signature verification failed");
+        false
     }
 
     /// Open checkout in browser

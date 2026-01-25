@@ -57,6 +57,8 @@ frecency.workspace = true
 futures.workspace = true
 gethostname = "0.4"
 hdrhistogram.workspace = true
+hex.workspace = true
+hmac.workspace = true
 http_req.workspace = true
 image.workspace = true
 lazy_static.workspace = true
@@ -81,6 +83,7 @@ regex.workspace = true
 reqwest = { workspace = true, features = ["json", "stream"] }
 serde = {workspace=true, features = ["rc", "derive"]}
 serde_json.workspace = true
+sha2.workspace = true
 shlex.workspace = true
 smol.workspace = true
 tabout.workspace = true

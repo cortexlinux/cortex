@@ -89,9 +89,21 @@ pub struct LearningSystem {
 impl LearningSystem {
     /// Create a new learning system
     pub fn new(config: LearningSystemConfig) -> Self {
-        // Ensure data directory exists
+        // Ensure data directory exists with secure permissions
         if let Err(e) = std::fs::create_dir_all(&config.data_dir) {
             log::warn!("Failed to create learning data directory: {}", e);
+        } else {
+            // Set restrictive permissions (owner only) for privacy
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                if let Err(e) = std::fs::set_permissions(
+                    &config.data_dir,
+                    std::fs::Permissions::from_mode(0o700),
+                ) {
+                    log::warn!("Failed to set learning data directory permissions: {}", e);
+                }
+            }
         }
 
         let collector = LearningCollector::new(config.collection.clone(), config.data_dir.clone());
