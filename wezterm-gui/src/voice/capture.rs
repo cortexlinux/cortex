@@ -1,10 +1,12 @@
 //! Audio Capture for Voice Input
 //!
-//! Provides audio capture functionality for voice commands:
+//! Provides audio capture functionality for voice commands using cpal:
 //! - Push-to-talk recording
 //! - Voice Activity Detection (VAD)
 //! - Audio format: 16kHz mono PCM
 
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::{Device, Host, Stream, StreamConfig};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -69,6 +71,12 @@ pub enum CaptureError {
 
     #[error("Buffer overflow")]
     BufferOverflow,
+
+    #[error("Stream error: {0}")]
+    StreamError(String),
+
+    #[error("Config error: {0}")]
+    ConfigError(String),
 }
 
 /// Voice Activity Detector
@@ -101,7 +109,7 @@ pub struct VoiceActivityDetector {
 }
 
 impl VoiceActivityDetector {
-    /// Create a new VAD with the given threshold
+    /// Create a new VAD with the given energy threshold
     pub fn new(threshold: f32) -> Self {
         Self {
             threshold,
@@ -110,29 +118,31 @@ impl VoiceActivityDetector {
             active_frame_count: 0,
             silent_frame_count: 0,
             is_active: false,
-            energy_history: Vec::new(),
-            history_size: 50,
+            energy_history: Vec::with_capacity(100),
+            history_size: 100,
         }
     }
 
-    /// Process a frame of audio samples
+    /// Process a frame of audio and update VAD state
     ///
     /// Returns true if voice activity is detected.
     pub fn process(&mut self, samples: &[i16]) -> bool {
         let energy = self.compute_energy(samples);
 
-        // Update energy history for adaptive thresholding
+        // Update energy history
         self.energy_history.push(energy);
         if self.energy_history.len() > self.history_size {
             self.energy_history.remove(0);
         }
 
-        // Compute adaptive threshold based on recent energy levels
-        let adaptive_threshold = self.compute_adaptive_threshold();
+        // Use adaptive threshold if we have enough history
+        let threshold = if self.energy_history.len() >= 20 {
+            self.compute_adaptive_threshold()
+        } else {
+            self.threshold
+        };
 
-        let is_active_frame = energy > adaptive_threshold;
-
-        if is_active_frame {
+        if energy > threshold {
             self.active_frame_count += 1;
             self.silent_frame_count = 0;
 
@@ -195,10 +205,9 @@ impl VoiceActivityDetector {
     }
 }
 
-/// Audio capture device
+/// Audio capture device using cpal
 ///
-/// Note: This is a stub implementation. In production, this would use
-/// the cpal crate for cross-platform audio capture.
+/// Cross-platform audio capture for voice input.
 pub struct AudioCapture {
     /// Configuration
     config: AudioConfig,
@@ -214,27 +223,71 @@ pub struct AudioCapture {
 
     /// Voice activity detector
     vad: Option<VoiceActivityDetector>,
+
+    /// cpal host
+    #[allow(dead_code)]
+    host: Host,
+
+    /// Input device
+    device: Device,
+
+    /// Stream configuration
+    stream_config: StreamConfig,
+
+    /// Active stream (only present while recording)
+    stream: Option<Stream>,
 }
 
 impl AudioCapture {
     /// Create a new audio capture device
     pub fn new(config: AudioConfig) -> Result<Self, CaptureError> {
-        // In production, this would initialize the audio device using cpal:
-        //
-        // let host = cpal::default_host();
-        // let device = host.default_input_device()
-        //     .ok_or(CaptureError::NoDevice)?;
-        //
-        // let config = cpal::StreamConfig {
-        //     channels: config.channels,
-        //     sample_rate: cpal::SampleRate(config.sample_rate),
-        //     buffer_size: cpal::BufferSize::Fixed(config.buffer_size as u32),
-        // };
+        let host = cpal::default_host();
+
+        let device = host
+            .default_input_device()
+            .ok_or(CaptureError::NoDevice)?;
+
+        let device_name = device.name().unwrap_or_else(|_| "Unknown".to_string());
+        log::info!("Using audio input device: {}", device_name);
+
+        // Get supported config and try to match our requirements
+        let supported_configs = device
+            .supported_input_configs()
+            .map_err(|e| CaptureError::ConfigError(e.to_string()))?;
+
+        // Find a config that supports our sample rate
+        let mut best_config = None;
+        for cfg in supported_configs {
+            if cfg.channels() == config.channels
+                && cfg.min_sample_rate().0 <= config.sample_rate
+                && cfg.max_sample_rate().0 >= config.sample_rate
+            {
+                best_config = Some(cfg.with_sample_rate(cpal::SampleRate(config.sample_rate)));
+                break;
+            }
+        }
+
+        // Fall back to default config if no exact match
+        let supported_config = match best_config {
+            Some(cfg) => cfg,
+            None => {
+                let default_config = device
+                    .default_input_config()
+                    .map_err(|e| CaptureError::ConfigError(e.to_string()))?;
+                log::warn!(
+                    "Requested config not supported, using device default: {:?}",
+                    default_config
+                );
+                default_config
+            }
+        };
+
+        let stream_config: StreamConfig = supported_config.into();
 
         log::info!(
-            "Initializing audio capture: {}Hz, {} channels",
-            config.sample_rate,
-            config.channels
+            "Audio capture configured: {}Hz, {} channels",
+            stream_config.sample_rate.0,
+            stream_config.channels
         );
 
         Ok(Self {
@@ -243,7 +296,23 @@ impl AudioCapture {
             is_recording: Arc::new(AtomicBool::new(false)),
             buffer: Arc::new(Mutex::new(Vec::new())),
             vad: None,
+            host,
+            device,
+            stream_config,
+            stream: None,
         })
+    }
+
+    /// List available input devices
+    pub fn list_devices() -> Result<Vec<String>, CaptureError> {
+        let host = cpal::default_host();
+        let devices = host
+            .input_devices()
+            .map_err(|e| CaptureError::DeviceInit(e.to_string()))?;
+
+        Ok(devices
+            .filter_map(|d| d.name().ok())
+            .collect())
     }
 
     /// Enable voice activity detection
@@ -276,30 +345,42 @@ impl AudioCapture {
             vad.reset();
         }
 
+        // Create the stream
+        let is_recording = self.is_recording.clone();
+        let buffer = self.buffer.clone();
+        let stream_config = self.stream_config.clone();
+
+        let stream = self
+            .device
+            .build_input_stream(
+                &stream_config,
+                move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                    if is_recording.load(Ordering::SeqCst) {
+                        // Convert f32 samples to i16
+                        let samples: Vec<i16> = data
+                            .iter()
+                            .map(|&s| (s * 32767.0).clamp(-32768.0, 32767.0) as i16)
+                            .collect();
+
+                        if let Ok(mut buf) = buffer.lock() {
+                            buf.extend_from_slice(&samples);
+                        }
+                    }
+                },
+                |err| log::error!("Audio capture error: {}", err),
+                None,
+            )
+            .map_err(|e| CaptureError::StartRecording(e.to_string()))?;
+
+        stream
+            .play()
+            .map_err(|e| CaptureError::StartRecording(e.to_string()))?;
+
+        self.stream = Some(stream);
         self.is_recording.store(true, Ordering::SeqCst);
         self.state = CaptureState::Recording;
 
         log::info!("Audio capture started");
-
-        // In production, this would start the audio stream:
-        //
-        // let is_recording = self.is_recording.clone();
-        // let buffer = self.buffer.clone();
-        //
-        // self.stream = Some(device.build_input_stream(
-        //     &config,
-        //     move |data: &[i16], _: &cpal::InputCallbackInfo| {
-        //         if is_recording.load(Ordering::SeqCst) {
-        //             if let Ok(mut buf) = buffer.lock() {
-        //                 buf.extend_from_slice(data);
-        //             }
-        //         }
-        //     },
-        //     |err| log::error!("Audio capture error: {}", err),
-        //     None,
-        // )?);
-        //
-        // self.stream.as_ref().unwrap().play()?;
 
         Ok(())
     }
@@ -313,8 +394,11 @@ impl AudioCapture {
         self.is_recording.store(false, Ordering::SeqCst);
         self.state = CaptureState::Stopped;
 
-        // In production, this would stop the audio stream:
-        // drop(self.stream.take());
+        // Stop and drop the stream
+        if let Some(stream) = self.stream.take() {
+            let _ = stream.pause();
+            drop(stream);
+        }
 
         let buffer = self
             .buffer
@@ -342,139 +426,108 @@ impl AudioCapture {
         &self.config
     }
 
-    /// Get current buffer size
-    pub fn buffer_size(&self) -> usize {
-        self.buffer
-            .lock()
-            .map(|b| b.len())
-            .unwrap_or(0)
+    /// Get actual stream sample rate
+    pub fn actual_sample_rate(&self) -> u32 {
+        self.stream_config.sample_rate.0
     }
 
-    /// Get audio duration in seconds
-    pub fn duration(&self) -> f32 {
-        let samples = self.buffer_size();
-        samples as f32 / self.config.sample_rate as f32
+    /// Get actual channel count
+    pub fn actual_channels(&self) -> u16 {
+        self.stream_config.channels
     }
 
-    /// Process audio samples (for VAD)
-    ///
-    /// Returns true if voice activity is detected.
-    pub fn process_samples(&mut self, samples: &[i16]) -> bool {
-        if let Some(vad) = &mut self.vad {
-            vad.process(samples)
-        } else {
-            true // If VAD is disabled, always return true
+    /// Process buffer with VAD and return voice segments
+    pub fn get_voice_segments(&mut self) -> Vec<Vec<i16>> {
+        let vad = match &mut self.vad {
+            Some(v) => v,
+            None => return Vec::new(),
+        };
+
+        let buffer = match self.buffer.lock() {
+            Ok(b) => b.clone(),
+            Err(_) => return Vec::new(),
+        };
+
+        if buffer.is_empty() {
+            return Vec::new();
         }
+
+        let frame_size = self.config.buffer_size;
+        let mut segments = Vec::new();
+        let mut current_segment = Vec::new();
+        let mut was_active = false;
+
+        for chunk in buffer.chunks(frame_size) {
+            let is_active = vad.process(chunk);
+
+            if is_active {
+                current_segment.extend_from_slice(chunk);
+                was_active = true;
+            } else if was_active && !current_segment.is_empty() {
+                // End of voice segment
+                segments.push(std::mem::take(&mut current_segment));
+                was_active = false;
+            }
+        }
+
+        // Include any remaining active segment
+        if !current_segment.is_empty() {
+            segments.push(current_segment);
+        }
+
+        segments
     }
 }
 
-/// Audio format utilities
-pub mod format {
-    /// Convert f32 samples to i16 PCM
-    pub fn f32_to_i16(samples: &[f32]) -> Vec<i16> {
-        samples
-            .iter()
-            .map(|&s| (s * 32767.0).clamp(-32768.0, 32767.0) as i16)
-            .collect()
-    }
-
-    /// Convert i16 PCM to f32 samples
-    pub fn i16_to_f32(samples: &[i16]) -> Vec<f32> {
-        samples.iter().map(|&s| s as f32 / 32768.0).collect()
-    }
-
-    /// Resample audio to target sample rate
-    ///
-    /// Simple linear interpolation resampling.
-    pub fn resample(samples: &[i16], source_rate: u32, target_rate: u32) -> Vec<i16> {
-        if source_rate == target_rate {
-            return samples.to_vec();
-        }
-
-        let ratio = source_rate as f64 / target_rate as f64;
-        let output_len = (samples.len() as f64 / ratio) as usize;
-        let mut output = Vec::with_capacity(output_len);
-
-        for i in 0..output_len {
-            let src_pos = i as f64 * ratio;
-            let src_idx = src_pos as usize;
-            let frac = src_pos - src_idx as f64;
-
-            let sample = if src_idx + 1 < samples.len() {
-                let s0 = samples[src_idx] as f64;
-                let s1 = samples[src_idx + 1] as f64;
-                (s0 + (s1 - s0) * frac) as i16
-            } else if src_idx < samples.len() {
-                samples[src_idx]
-            } else {
-                0
-            };
-
-            output.push(sample);
-        }
-
-        output
-    }
-
-    /// Convert stereo to mono
-    pub fn stereo_to_mono(samples: &[i16]) -> Vec<i16> {
-        samples
-            .chunks(2)
-            .map(|chunk| {
-                let left = chunk.first().copied().unwrap_or(0) as i32;
-                let right = chunk.get(1).copied().unwrap_or(0) as i32;
-                ((left + right) / 2) as i16
-            })
-            .collect()
-    }
-}
+// Stream is not Send/Sync safe, so we need this for the struct
+// The stream is only accessed on the main thread
+unsafe impl Send for AudioCapture {}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
+    fn test_vad_energy() {
+        let vad = VoiceActivityDetector::new(0.05);
+
+        // Silent samples
+        let silent = vec![0i16; 100];
+        let energy = vad.compute_energy(&silent);
+        assert!(energy < 0.001);
+
+        // Loud samples
+        let loud: Vec<i16> = (0..100).map(|i| ((i as f32 / 100.0 * 32767.0) as i16)).collect();
+        let energy = vad.compute_energy(&loud);
+        assert!(energy > 0.3);
+    }
+
+    #[test]
+    fn test_vad_detection() {
+        let mut vad = VoiceActivityDetector::new(0.05);
+
+        // Silent frames
+        let silent = vec![0i16; 1024];
+        for _ in 0..20 {
+            vad.process(&silent);
+        }
+        assert!(!vad.is_active());
+
+        // Loud frames should trigger activity
+        let loud: Vec<i16> = (0..1024)
+            .map(|i| ((i as f32 / 1024.0 * 32767.0 * 0.5) as i16))
+            .collect();
+        for _ in 0..5 {
+            vad.process(&loud);
+        }
+        assert!(vad.is_active());
+    }
+
+    #[test]
     fn test_audio_config_default() {
         let config = AudioConfig::default();
         assert_eq!(config.sample_rate, 16000);
         assert_eq!(config.channels, 1);
-    }
-
-    #[test]
-    fn test_vad_energy() {
-        let vad = VoiceActivityDetector::new(0.01);
-
-        // Silence should have low energy
-        let silence: Vec<i16> = vec![0; 1024];
-        let energy = vad.compute_energy(&silence);
-        assert!(energy < 0.001);
-
-        // Loud signal should have high energy
-        let loud: Vec<i16> = vec![16384; 1024];
-        let energy = vad.compute_energy(&loud);
-        assert!(energy > 0.4);
-    }
-
-    #[test]
-    fn test_format_conversion() {
-        let i16_samples: Vec<i16> = vec![-16384, 0, 16383];
-        let f32_samples = format::i16_to_f32(&i16_samples);
-
-        assert!(f32_samples[0] < -0.4);
-        assert!(f32_samples[1].abs() < 0.001);
-        assert!(f32_samples[2] > 0.4);
-
-        let back_to_i16 = format::f32_to_i16(&f32_samples);
-        assert_eq!(back_to_i16.len(), i16_samples.len());
-    }
-
-    #[test]
-    fn test_stereo_to_mono() {
-        let stereo: Vec<i16> = vec![100, 200, -100, -200];
-        let mono = format::stereo_to_mono(&stereo);
-
-        assert_eq!(mono.len(), 2);
-        assert_eq!(mono[0], 150); // (100 + 200) / 2
-        assert_eq!(mono[1], -150); // (-100 + -200) / 2
+        assert_eq!(config.buffer_size, 1024);
     }
 }
