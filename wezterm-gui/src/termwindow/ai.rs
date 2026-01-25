@@ -10,7 +10,11 @@ use crate::ai::{
     AIAction, AIConfig, AIError, AIManager, AIPanel, AIPanelState, AIPanelWidget,
     AIProvider, ChatMessage, create_provider,
 };
-use crate::cx_daemon::{CXDaemonClient, is_daemon_available};
+use crate::cx_daemon::{
+    CXDaemonClient, TerminalContext as DaemonTerminalContext,
+    EnvironmentInfo as DaemonEnvironmentInfo, GitInfo as DaemonGitInfo,
+    is_daemon_available,
+};
 use crate::termwindow::TermWindowNotif;
 use mux::pane::PaneId;
 use mux::Mux;
@@ -646,64 +650,223 @@ impl crate::TermWindow {
         duration_ms: u64,
         cwd: &str,
     ) {
-        let client = self.cx_daemon_client.borrow();
-        if let Some(ref daemon_client) = *client {
-            let command = command.to_string();
-            let output = output.to_string();
-            let cwd = cwd.to_string();
-
-            // Clone the client for async use
-            // Since we can't easily clone, we'll use a fire-and-forget pattern
-            drop(client);
-
-            let client_ref = self.cx_daemon_client.borrow();
-            if client_ref.is_none() {
-                return;
-            }
-
-            // Fire and forget - send learning data to daemon
-            // The daemon client handles this asynchronously
-            log::debug!(
-                "Sending command to daemon for learning: {} (exit: {})",
-                command,
-                exit_code
-            );
-
-            // We need to spawn this properly
-            let window = match self.window.as_ref() {
-                Some(w) => w.clone(),
-                None => return,
-            };
-
-            promise::spawn::spawn(async move {
-                // Reconstruct context for learning
-                // The actual learning happens on the daemon side
-                log::trace!(
-                    "Learning from command: {} (output len: {}, exit: {}, duration: {}ms)",
-                    command,
-                    output.len(),
-                    exit_code,
-                    duration_ms
-                );
-                // Note: actual daemon call would happen here if we had async access to client
-                let _ = (window, command, output, exit_code, duration_ms, cwd);
-            }).detach();
+        // Check if daemon is connected
+        if !self.is_cx_daemon_connected() {
+            return;
         }
+
+        let command = command.to_string();
+        let output = output.to_string();
+        let cwd = cwd.to_string();
+
+        log::debug!(
+            "Sending command to daemon for learning: {} (exit: {})",
+            command,
+            exit_code
+        );
+
+        // Create a new client instance to send learning data
+        // The client uses fire-and-forget internally
+        let client = CXDaemonClient::new();
+
+        promise::spawn::spawn(async move {
+            match client.learn_from_command(&command, &output, exit_code, duration_ms, &cwd).await {
+                Ok(()) => {
+                    log::trace!(
+                        "Learning data sent: {} (output len: {}, exit: {}, duration: {}ms)",
+                        command,
+                        output.len(),
+                        exit_code,
+                        duration_ms
+                    );
+                }
+                Err(e) => {
+                    log::debug!("Failed to send learning data to daemon: {}", e);
+                }
+            }
+        }).detach();
     }
 
     /// Query AI preferring daemon if available
     pub fn execute_ai_action_with_daemon(&mut self, action: AIAction) {
         // Check if daemon is connected and prefer it
-        let use_daemon = self.is_cx_daemon_connected();
-
-        if use_daemon {
-            log::debug!("Using CX daemon for AI query");
-            // TODO: Implement daemon AI query
-            // For now, fall through to standard AI action
+        if !self.is_cx_daemon_connected() {
+            // Fall back to standard AI action
+            self.execute_ai_action(action);
+            return;
         }
 
-        // Fall back to standard AI action
-        self.execute_ai_action(action);
+        log::info!("Using CX daemon for AI query");
+
+        // Get window for async callback
+        let window = match self.window.as_ref() {
+            Some(w) => w.clone(),
+            None => {
+                log::error!("No window available for AI action");
+                return;
+            }
+        };
+
+        // Build terminal context for daemon
+        let panel = self.ai_panel.borrow();
+        let terminal_context = panel.context.clone();
+        drop(panel);
+
+        // Convert to daemon context format
+        // Note: panel::EnvironmentInfo doesn't have git_info, so we set it to None
+        let daemon_context = DaemonTerminalContext {
+            recent_commands: terminal_context.recent_commands.clone(),
+            cwd: terminal_context.cwd.clone(),
+            last_error: terminal_context.last_error.clone(),
+            environment: DaemonEnvironmentInfo {
+                os: terminal_context.environment.os.clone(),
+                shell: terminal_context.environment.shell.clone(),
+                user: terminal_context.environment.user.clone(),
+                hostname: terminal_context.environment.hostname.clone(),
+                git_info: None, // TODO: Add git detection to panel context
+            },
+            terminal_id: None,
+            selection: None,
+        };
+
+        let query = action.user_prompt();
+        let system_prompt = action.system_prompt().to_string();
+
+        // Spawn async task to query daemon
+        promise::spawn::spawn(async move {
+            // Create fresh client for this request
+            let client = CXDaemonClient::new();
+
+            // Try to query through daemon
+            let result = client.query_ai_with_system(&query, &daemon_context, &system_prompt).await;
+
+            match result {
+                Ok(response) => {
+                    let content = response.content.clone();
+                    let model = response.model.clone();
+                    let cached = response.cached;
+
+                    log::info!(
+                        "Daemon AI response received (model: {}, cached: {})",
+                        model,
+                        cached
+                    );
+
+                    window.notify(TermWindowNotif::Apply(Box::new(move |term_window| {
+                        term_window.ai_panel.borrow_mut().append_response(&content);
+                        term_window.ai_panel.borrow_mut().complete_response();
+                        if let Some(w) = term_window.window.as_ref() {
+                            w.invalidate();
+                        }
+                    })));
+                }
+                Err(e) => {
+                    log::warn!("Daemon AI query failed: {}, falling back to local provider", e);
+
+                    // Notify to fall back to local provider
+                    let error_msg = format!("Daemon error: {}. Falling back to local AI.", e);
+                    window.notify(TermWindowNotif::Apply(Box::new(move |term_window| {
+                        // Set a note that we're falling back
+                        term_window.ai_panel.borrow_mut().append_response(&format!("[{}]\n\n", error_msg));
+                        if let Some(w) = term_window.window.as_ref() {
+                            w.invalidate();
+                        }
+                    })));
+                }
+            }
+        }).detach();
+
+        // Immediately invalidate to show loading state
+        if let Some(w) = self.window.as_ref() {
+            w.invalidate();
+        }
+    }
+
+    /// Run an agent task through the daemon
+    pub fn run_daemon_agent_task(&mut self, agent: &str, command: &str) {
+        if !self.is_cx_daemon_connected() {
+            log::debug!("Daemon not connected, cannot run agent task");
+            return;
+        }
+
+        let window = match self.window.as_ref() {
+            Some(w) => w.clone(),
+            None => return,
+        };
+
+        let agent = agent.to_string();
+        let command = command.to_string();
+
+        promise::spawn::spawn(async move {
+            let client = CXDaemonClient::new();
+
+            match client.run_agent_task(&agent, &command).await {
+                Ok(response) => {
+                    let formatted = if response.success {
+                        let mut output = response.result.clone();
+                        if !response.commands_executed.is_empty() {
+                            output.push_str("\n\n---\nCommands executed:\n");
+                            for cmd in &response.commands_executed {
+                                output.push_str(&format!("  $ {}\n", cmd));
+                            }
+                        }
+                        output
+                    } else {
+                        format!("Error: {}", response.error.unwrap_or_else(|| "Unknown error".to_string()))
+                    };
+
+                    window.notify(TermWindowNotif::Apply(Box::new(move |term_window| {
+                        term_window.ai_panel.borrow_mut().append_response(&formatted);
+                        term_window.ai_panel.borrow_mut().complete_response();
+                        if let Some(w) = term_window.window.as_ref() {
+                            w.invalidate();
+                        }
+                    })));
+                }
+                Err(e) => {
+                    let error_msg = format!("Agent task failed: {}", e);
+                    window.notify(TermWindowNotif::Apply(Box::new(move |term_window| {
+                        term_window.ai_panel.borrow_mut().set_error(error_msg);
+                        if let Some(w) = term_window.window.as_ref() {
+                            w.invalidate();
+                        }
+                    })));
+                }
+            }
+        }).detach();
+    }
+
+    /// Get system status from daemon
+    pub fn get_daemon_system_status(&self) {
+        if !self.is_cx_daemon_connected() {
+            return;
+        }
+
+        let window = match self.window.as_ref() {
+            Some(w) => w.clone(),
+            None => return,
+        };
+
+        promise::spawn::spawn(async move {
+            let client = CXDaemonClient::new();
+
+            match client.get_system_status().await {
+                Ok(info) => {
+                    log::info!(
+                        "System status: {} ({}) - up {}s, load {:?}",
+                        info.hostname,
+                        info.os,
+                        info.uptime_secs,
+                        info.load_average
+                    );
+                    // Could update UI with system info if needed
+                    let _ = window;
+                }
+                Err(e) => {
+                    log::debug!("Failed to get system status: {}", e);
+                }
+            }
+        }).detach();
     }
 
     /// Disconnect from CX daemon

@@ -10,11 +10,18 @@
 
 mod agent_router;
 mod client;
-mod protocol;
+pub mod protocol;
 
 pub use agent_router::DaemonAgentRouter;
-pub use client::CXDaemonClient;
-pub use protocol::{AgentTask, DaemonError, DaemonRequest, DaemonResponse};
+pub use client::{
+    CXDaemonClient, ConnectionState, ConnectionStateEvent, ReconnectConfig,
+    AIResponse as DaemonAIResponse, AgentResponse as DaemonAgentResponse,
+    AgentResult, DaemonStatus, SystemInfo,
+};
+pub use protocol::{
+    AgentTask, ContextType, DaemonError, DaemonRequest, DaemonResponse,
+    TerminalContext, EnvironmentInfo, GitInfo,
+};
 
 /// Default socket path for the CX daemon
 pub const DEFAULT_SOCKET_PATH: &str = "/var/run/cx/daemon.sock";

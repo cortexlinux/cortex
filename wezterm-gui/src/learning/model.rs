@@ -34,6 +34,71 @@ pub struct UserModel {
 
     /// Command aliases/abbreviations learned
     aliases: HashMap<String, String>,
+
+    /// N-gram model for command chains (prefix -> next commands with probabilities)
+    #[serde(default)]
+    ngram_model: HashMap<String, Vec<(String, f32)>>,
+
+    /// Directory-specific command frequencies
+    #[serde(default)]
+    directory_commands: HashMap<String, HashMap<String, f32>>,
+
+    /// Intent vocabulary for TF-IDF (word -> document frequency)
+    #[serde(default)]
+    intent_vocabulary: HashMap<String, f32>,
+
+    /// Total documents (intents) for IDF calculation
+    #[serde(default)]
+    intent_doc_count: usize,
+
+    /// Intent->command mappings with TF-IDF vectors
+    #[serde(default)]
+    intent_mappings: Vec<IntentMapping>,
+
+    /// Error->fix mappings learned from successful corrections
+    #[serde(default)]
+    error_fixes: Vec<ErrorFix>,
+}
+
+/// Intent to command mapping with TF-IDF representation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntentMapping {
+    /// Natural language intent description
+    pub intent: String,
+
+    /// Tokenized intent terms
+    pub tokens: Vec<String>,
+
+    /// TF-IDF vector (term -> tf-idf score)
+    pub tfidf_vector: HashMap<String, f32>,
+
+    /// Target command
+    pub command: String,
+
+    /// How often this mapping was used successfully
+    pub success_count: usize,
+
+    /// Confidence score
+    pub confidence: f32,
+}
+
+/// Error to fix mapping
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ErrorFix {
+    /// Error pattern (generalized)
+    pub error_pattern: String,
+
+    /// Original failed command pattern
+    pub failed_command: String,
+
+    /// Successful fix command
+    pub fix_command: String,
+
+    /// How often this fix worked
+    pub success_count: usize,
+
+    /// Explanation of the fix
+    pub explanation: Option<String>,
 }
 
 /// A command sequence pattern
@@ -177,6 +242,12 @@ impl UserModel {
             project_contexts: HashMap::new(),
             time_patterns: HashMap::new(),
             aliases: HashMap::new(),
+            ngram_model: HashMap::new(),
+            directory_commands: HashMap::new(),
+            intent_vocabulary: HashMap::new(),
+            intent_doc_count: 0,
+            intent_mappings: Vec::new(),
+            error_fixes: Vec::new(),
         }
     }
 
@@ -627,6 +698,338 @@ impl UserModel {
         predictions.truncate(10);
 
         predictions
+    }
+
+    // =========================================================================
+    // N-gram Model Methods
+    // =========================================================================
+
+    /// Update n-gram model with a command sequence
+    pub fn update_ngram(&mut self, prev_command: &str, next_command: &str, learning_rate: f32) {
+        let prev_normalized = self.normalize_command(prev_command);
+        let next_normalized = self.normalize_command(next_command);
+
+        let entry = self.ngram_model.entry(prev_normalized).or_default();
+
+        // Find or add the next command
+        if let Some(existing) = entry.iter_mut().find(|(cmd, _)| *cmd == next_normalized) {
+            existing.1 = existing.1 * (1.0 - learning_rate) + learning_rate;
+        } else {
+            entry.push((next_normalized, learning_rate));
+        }
+
+        // Sort by probability and keep top 10
+        entry.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        entry.truncate(10);
+    }
+
+    /// Get predicted next commands based on n-gram model
+    pub fn predict_next_ngram(&self, current_command: &str) -> Vec<(String, f32)> {
+        let normalized = self.normalize_command(current_command);
+
+        self.ngram_model
+            .get(&normalized)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Update directory-specific command frequency
+    pub fn update_directory_command(&mut self, directory: &str, command: &str, learning_rate: f32) {
+        let normalized_cmd = self.normalize_command(command);
+        let dir_key = self.extract_directory_key(directory);
+
+        let dir_cmds = self.directory_commands.entry(dir_key).or_default();
+        let freq = dir_cmds.entry(normalized_cmd).or_insert(0.0);
+        *freq = *freq * (1.0 - learning_rate) + learning_rate;
+    }
+
+    /// Extract a normalized directory key (last 2 path components)
+    fn extract_directory_key(&self, path: &str) -> String {
+        let path = std::path::Path::new(path);
+        let components: Vec<_> = path
+            .components()
+            .rev()
+            .take(2)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+
+        components
+            .iter()
+            .map(|c| c.as_os_str().to_string_lossy().to_string())
+            .collect::<Vec<_>>()
+            .join("/")
+    }
+
+    /// Get commands common in a directory context
+    pub fn get_directory_commands(&self, directory: &str) -> Vec<(String, f32)> {
+        let dir_key = self.extract_directory_key(directory);
+
+        self.directory_commands
+            .get(&dir_key)
+            .map(|cmds| {
+                let mut sorted: Vec<_> = cmds.iter().map(|(k, v)| (k.clone(), *v)).collect();
+                sorted.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                sorted
+            })
+            .unwrap_or_default()
+    }
+
+    // =========================================================================
+    // TF-IDF Intent Prediction Methods
+    // =========================================================================
+
+    /// Tokenize text for TF-IDF (lowercase, split on whitespace/punctuation)
+    fn tokenize(&self, text: &str) -> Vec<String> {
+        text.to_lowercase()
+            .split(|c: char| c.is_whitespace() || c.is_ascii_punctuation())
+            .filter(|s| !s.is_empty() && s.len() > 1)
+            .map(|s| s.to_string())
+            .collect()
+    }
+
+    /// Calculate term frequency for tokens
+    fn calculate_tf(&self, tokens: &[String]) -> HashMap<String, f32> {
+        let mut tf: HashMap<String, f32> = HashMap::new();
+        let total = tokens.len() as f32;
+
+        for token in tokens {
+            *tf.entry(token.clone()).or_insert(0.0) += 1.0;
+        }
+
+        // Normalize by total tokens
+        for freq in tf.values_mut() {
+            *freq /= total;
+        }
+
+        tf
+    }
+
+    /// Calculate IDF for a term
+    fn calculate_idf(&self, term: &str) -> f32 {
+        let doc_freq = self.intent_vocabulary.get(term).copied().unwrap_or(0.0);
+        if doc_freq == 0.0 || self.intent_doc_count == 0 {
+            return 0.0;
+        }
+
+        ((self.intent_doc_count as f32) / doc_freq).ln() + 1.0
+    }
+
+    /// Calculate TF-IDF vector for tokens
+    fn calculate_tfidf(&self, tokens: &[String]) -> HashMap<String, f32> {
+        let tf = self.calculate_tf(tokens);
+        let mut tfidf = HashMap::new();
+
+        for (term, tf_score) in tf {
+            let idf = self.calculate_idf(&term);
+            if idf > 0.0 {
+                tfidf.insert(term, tf_score * idf);
+            }
+        }
+
+        tfidf
+    }
+
+    /// Calculate cosine similarity between two TF-IDF vectors
+    fn cosine_similarity(
+        &self,
+        vec1: &HashMap<String, f32>,
+        vec2: &HashMap<String, f32>,
+    ) -> f32 {
+        let mut dot_product = 0.0;
+        let mut norm1 = 0.0;
+        let mut norm2 = 0.0;
+
+        for (term, score1) in vec1 {
+            norm1 += score1 * score1;
+            if let Some(score2) = vec2.get(term) {
+                dot_product += score1 * score2;
+            }
+        }
+
+        for score2 in vec2.values() {
+            norm2 += score2 * score2;
+        }
+
+        if norm1 == 0.0 || norm2 == 0.0 {
+            return 0.0;
+        }
+
+        dot_product / (norm1.sqrt() * norm2.sqrt())
+    }
+
+    /// Add an intent->command mapping
+    pub fn add_intent_mapping(&mut self, intent: &str, command: &str) {
+        let tokens = self.tokenize(intent);
+
+        // Update vocabulary (document frequency)
+        let unique_tokens: std::collections::HashSet<_> = tokens.iter().cloned().collect();
+        for token in &unique_tokens {
+            *self.intent_vocabulary.entry(token.clone()).or_insert(0.0) += 1.0;
+        }
+        self.intent_doc_count += 1;
+
+        // Calculate TF-IDF for this intent
+        let tfidf_vector = self.calculate_tfidf(&tokens);
+
+        // Check if mapping exists
+        for existing in &mut self.intent_mappings {
+            if existing.intent == intent && existing.command == command {
+                existing.success_count += 1;
+                existing.confidence = (existing.confidence * 0.9 + 0.1).min(1.0);
+                existing.tfidf_vector = tfidf_vector;
+                return;
+            }
+        }
+
+        // Add new mapping
+        self.intent_mappings.push(IntentMapping {
+            intent: intent.to_string(),
+            tokens,
+            tfidf_vector,
+            command: command.to_string(),
+            success_count: 1,
+            confidence: 0.5,
+        });
+    }
+
+    /// Find commands matching a natural language query using TF-IDF similarity
+    pub fn find_intent_matches(&self, query: &str, threshold: f32) -> Vec<(String, f32)> {
+        let query_tokens = self.tokenize(query);
+        let query_tfidf = self.calculate_tfidf(&query_tokens);
+
+        if query_tfidf.is_empty() {
+            return Vec::new();
+        }
+
+        let mut matches: Vec<(String, f32)> = self
+            .intent_mappings
+            .iter()
+            .filter_map(|mapping| {
+                let similarity = self.cosine_similarity(&query_tfidf, &mapping.tfidf_vector);
+                if similarity >= threshold {
+                    // Boost by confidence and success count
+                    let score = similarity * mapping.confidence
+                        * (1.0 + (mapping.success_count as f32).ln().max(0.0) * 0.1);
+                    Some((mapping.command.clone(), score))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Sort by score descending
+        matches.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        // Deduplicate commands, keeping highest score
+        let mut seen = std::collections::HashSet::new();
+        matches.retain(|(cmd, _)| seen.insert(cmd.clone()));
+
+        matches.truncate(10);
+        matches
+    }
+
+    // =========================================================================
+    // Error->Fix Learning Methods
+    // =========================================================================
+
+    /// Learn an error->fix mapping from a successful correction
+    pub fn learn_error_fix(
+        &mut self,
+        failed_command: &str,
+        error_message: &str,
+        fix_command: &str,
+    ) {
+        let error_pattern = self.generalize_error_pattern(error_message);
+        let failed_pattern = self.generalize_command_pattern(failed_command);
+
+        // Check if mapping exists
+        for existing in &mut self.error_fixes {
+            if existing.error_pattern == error_pattern && existing.failed_command == failed_pattern
+            {
+                if existing.fix_command == fix_command {
+                    existing.success_count += 1;
+                }
+                return;
+            }
+        }
+
+        // Generate explanation
+        let explanation = self.generate_fix_explanation(failed_command, error_message, fix_command);
+
+        // Add new mapping
+        self.error_fixes.push(ErrorFix {
+            error_pattern,
+            failed_command: failed_pattern,
+            fix_command: fix_command.to_string(),
+            success_count: 1,
+            explanation,
+        });
+    }
+
+    /// Generate an explanation for a fix
+    fn generate_fix_explanation(
+        &self,
+        failed_command: &str,
+        error: &str,
+        fix_command: &str,
+    ) -> Option<String> {
+        let error_lower = error.to_lowercase();
+        let failed_parts: Vec<&str> = failed_command.split_whitespace().collect();
+        let fix_parts: Vec<&str> = fix_command.split_whitespace().collect();
+
+        // Check for sudo fix
+        if fix_parts.first() == Some(&"sudo") && failed_parts.first() != Some(&"sudo") {
+            return Some("Added sudo for elevated permissions".to_string());
+        }
+
+        // Check for typo correction
+        if failed_parts.len() == fix_parts.len() {
+            let diffs: Vec<_> = failed_parts
+                .iter()
+                .zip(fix_parts.iter())
+                .filter(|(a, b)| a != b)
+                .collect();
+            if diffs.len() == 1 {
+                return Some(format!(
+                    "Corrected '{}' to '{}'",
+                    diffs[0].0, diffs[0].1
+                ));
+            }
+        }
+
+        // Check for missing argument
+        if fix_parts.len() > failed_parts.len() {
+            return Some("Added missing argument(s)".to_string());
+        }
+
+        // Check for path fix
+        if error_lower.contains("no such file") || error_lower.contains("not found") {
+            return Some("Fixed file path or created missing resource".to_string());
+        }
+
+        None
+    }
+
+    /// Get fix suggestions for an error
+    pub fn get_error_fixes(&self, error: &str, failed_command: Option<&str>) -> Vec<&ErrorFix> {
+        let error_pattern = self.generalize_error_pattern(error);
+        let failed_pattern = failed_command.map(|c| self.generalize_command_pattern(c));
+
+        let mut fixes: Vec<_> = self
+            .error_fixes
+            .iter()
+            .filter(|fix| {
+                fix.error_pattern == error_pattern
+                    && (failed_pattern.is_none()
+                        || failed_pattern.as_ref() == Some(&fix.failed_command))
+            })
+            .collect();
+
+        // Sort by success count
+        fixes.sort_by(|a, b| b.success_count.cmp(&a.success_count));
+        fixes
     }
 
     /// Apply decay to all frequencies

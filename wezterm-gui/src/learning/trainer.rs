@@ -33,6 +33,15 @@ pub struct TrainingConfig {
 
     /// Enable error pattern learning
     pub learn_error_patterns: bool,
+
+    /// Enable n-gram model learning
+    pub learn_ngram_model: bool,
+
+    /// Enable directory context learning
+    pub learn_directory_patterns: bool,
+
+    /// Enable error->fix learning
+    pub learn_error_fixes: bool,
 }
 
 impl Default for TrainingConfig {
@@ -46,6 +55,9 @@ impl Default for TrainingConfig {
             learn_time_patterns: true,
             learn_project_patterns: true,
             learn_error_patterns: true,
+            learn_ngram_model: true,
+            learn_directory_patterns: true,
+            learn_error_fixes: true,
         }
     }
 }
@@ -145,6 +157,21 @@ impl LocalTrainer {
         // Learn error patterns
         if self.config.learn_error_patterns {
             self.learn_error_patterns(model, events, &mut stats);
+        }
+
+        // Learn n-gram model (command chains)
+        if self.config.learn_ngram_model {
+            self.learn_ngram_patterns(model, &commands, &mut stats);
+        }
+
+        // Learn directory-specific patterns
+        if self.config.learn_directory_patterns {
+            self.learn_directory_patterns(model, &commands, &mut stats);
+        }
+
+        // Learn error->fix mappings
+        if self.config.learn_error_fixes {
+            self.learn_error_fix_patterns(model, events, &mut stats);
         }
 
         // Prune infrequent patterns
@@ -326,6 +353,93 @@ impl LocalTrainer {
         }
     }
 
+    /// Learn n-gram patterns (command chains)
+    fn learn_ngram_patterns(
+        &self,
+        model: &mut UserModel,
+        commands: &[&CommandEvent],
+        stats: &mut TrainingStats,
+    ) {
+        if commands.len() < 2 {
+            return;
+        }
+
+        // Build bigram model: previous command -> next command
+        for window in commands.windows(2) {
+            let prev = &window[0].command;
+            let next = &window[1].command;
+
+            // Only learn if commands are within reasonable time (5 minutes)
+            let time_diff = window[1]
+                .timestamp
+                .signed_duration_since(window[0].timestamp);
+            if time_diff.num_minutes() <= 5 {
+                model.update_ngram(prev, next, self.config.learning_rate);
+                stats.patterns_updated += 1;
+            }
+        }
+    }
+
+    /// Learn directory-specific command patterns
+    fn learn_directory_patterns(
+        &self,
+        model: &mut UserModel,
+        commands: &[&CommandEvent],
+        stats: &mut TrainingStats,
+    ) {
+        for cmd in commands {
+            if let Some(ref dir) = cmd.working_dir {
+                let dir_str = dir.to_string_lossy().to_string();
+                model.update_directory_command(&dir_str, &cmd.command, self.config.learning_rate);
+                stats.patterns_updated += 1;
+            }
+        }
+    }
+
+    /// Learn error->fix patterns from command sequences
+    fn learn_error_fix_patterns(
+        &self,
+        model: &mut UserModel,
+        events: &[LearningEvent],
+        stats: &mut TrainingStats,
+    ) {
+        // Look for patterns: failed command -> successful command
+        let commands: Vec<&CommandEvent> = events
+            .iter()
+            .filter_map(|e| match e {
+                LearningEvent::Command(c) => Some(c),
+                _ => None,
+            })
+            .collect();
+
+        for window in commands.windows(2) {
+            let prev = window[0];
+            let curr = window[1];
+
+            // If previous failed and current succeeded
+            if prev.exit_code != 0 && curr.exit_code == 0 {
+                // Check if they're related (same base command or similar)
+                let prev_base = prev.command.split_whitespace().next().unwrap_or("");
+                let curr_base = curr.command.split_whitespace().next().unwrap_or("");
+
+                // Only learn if commands seem related
+                if prev_base == curr_base
+                    || curr.command.contains(prev_base)
+                    || prev.command.len() < 50 && curr.command.contains(&prev.command[..prev.command.len().min(20)])
+                {
+                    let error_msg = prev
+                        .output
+                        .as_ref()
+                        .map(|o| self.extract_error_message(o))
+                        .unwrap_or_else(|| format!("exit code {}", prev.exit_code));
+
+                    model.learn_error_fix(&prev.command, &error_msg, &curr.command);
+                    stats.new_patterns += 1;
+                }
+            }
+        }
+    }
+
     /// Extract error message from output
     fn extract_error_message(&self, output: &str) -> String {
         // Look for common error patterns
@@ -495,5 +609,68 @@ mod tests {
         let analysis = analyze_patterns(&events);
         assert!(!analysis.top_commands.is_empty());
         assert!(analysis.error_rate > 0.0);
+    }
+
+    #[test]
+    fn test_ngram_learning() {
+        let mut model = UserModel::new();
+
+        // Simulate git workflow: add -> commit -> push
+        model.update_ngram("git add", "git commit", 0.1);
+        model.update_ngram("git commit", "git push", 0.1);
+        model.update_ngram("git add", "git commit", 0.1); // Reinforce
+
+        let predictions = model.predict_next_ngram("git add");
+        assert!(!predictions.is_empty());
+        assert_eq!(predictions[0].0, "git commit <arg>");
+    }
+
+    #[test]
+    fn test_directory_patterns() {
+        let mut model = UserModel::new();
+
+        model.update_directory_command("/home/user/rust-project", "cargo build", 0.1);
+        model.update_directory_command("/home/user/rust-project", "cargo test", 0.1);
+        model.update_directory_command("/home/user/node-project", "npm install", 0.1);
+
+        let rust_cmds = model.get_directory_commands("/home/user/rust-project");
+        assert!(!rust_cmds.is_empty());
+        assert!(rust_cmds.iter().any(|(cmd, _)| cmd.contains("cargo")));
+    }
+
+    #[test]
+    fn test_tfidf_intent_mapping() {
+        let mut model = UserModel::new();
+
+        // Add intent mappings
+        model.add_intent_mapping("list all files including hidden", "ls -la");
+        model.add_intent_mapping("show hidden files", "ls -la");
+        model.add_intent_mapping("check git status", "git status");
+        model.add_intent_mapping("see changes in git", "git diff");
+
+        // Query for similar intent
+        let matches = model.find_intent_matches("list hidden files", 0.1);
+        assert!(!matches.is_empty());
+        assert!(matches.iter().any(|(cmd, _)| cmd.contains("ls")));
+    }
+
+    #[test]
+    fn test_error_fix_learning() {
+        let mut model = UserModel::new();
+
+        // Learn a permission fix
+        model.learn_error_fix("rm /etc/hosts", "Permission denied", "sudo rm /etc/hosts");
+
+        let fixes = model.get_error_fixes("Permission denied", Some("rm"));
+        assert!(!fixes.is_empty());
+        assert!(fixes[0].fix_command.contains("sudo"));
+    }
+
+    #[test]
+    fn test_training_config_new_fields() {
+        let config = TrainingConfig::default();
+        assert!(config.learn_ngram_model);
+        assert!(config.learn_directory_patterns);
+        assert!(config.learn_error_fixes);
     }
 }
