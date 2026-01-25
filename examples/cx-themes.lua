@@ -7,122 +7,124 @@ local config = cx.config_builder()
 
 -------------------------------------------------------------------------------
 -- THEME 1: CX Dark (Default)
--- A modern dark theme with cyan accents
+-- Modern dark theme with pure black background and cyan accents
+-- Colors: #0A0A0A (bg), #FFFFFF (fg), #00FFFF (accent)
 -------------------------------------------------------------------------------
 local cx_dark = {
-    foreground = "#e0e0e0",
-    background = "#1a1a2e",
-    cursor_bg = "#00d4ff",
-    cursor_fg = "#1a1a2e",
-    cursor_border = "#00d4ff",
-    selection_fg = "#1a1a2e",
-    selection_bg = "#00d4ff",
-    scrollbar_thumb = "#3d3d5c",
-    split = "#3d3d5c",
+    foreground = "#ffffff",
+    background = "#0a0a0a",
+    cursor_bg = "#00ffff",
+    cursor_fg = "#0a0a0a",
+    cursor_border = "#00ffff",
+    selection_fg = "#0a0a0a",
+    selection_bg = "#00ffff",
+    scrollbar_thumb = "#3d3d3d",
+    split = "#3d3d3d",
 
     ansi = {
-        "#2d2d44",  -- black
+        "#1a1a1a",  -- black
         "#ff6b6b",  -- red
         "#69ff94",  -- green
-        "#fff68f",  -- yellow
-        "#6b9fff",  -- blue
-        "#ff6bff",  -- magenta
-        "#6bffff",  -- cyan
+        "#ffd93d",  -- yellow
+        "#6baaff",  -- blue
+        "#c678dd",  -- magenta
+        "#00ffff",  -- cyan
         "#e0e0e0",  -- white
     },
     brights = {
-        "#4a4a6a",  -- bright black
+        "#3d3d3d",  -- bright black
         "#ff8888",  -- bright red
         "#88ffaa",  -- bright green
-        "#ffffaa",  -- bright yellow
-        "#88aaff",  -- bright blue
-        "#ff88ff",  -- bright magenta
-        "#88ffff",  -- bright cyan
+        "#ffeb6b",  -- bright yellow
+        "#88bbff",  -- bright blue
+        "#d78cee",  -- bright magenta
+        "#66ffff",  -- bright cyan
         "#ffffff",  -- bright white
     },
 
     tab_bar = {
-        background = "#16162b",
+        background = "#0a0a0a",
         active_tab = {
-            bg_color = "#00d4ff",
-            fg_color = "#1a1a2e",
+            bg_color = "#00ffff",
+            fg_color = "#0a0a0a",
         },
         inactive_tab = {
-            bg_color = "#2d2d44",
+            bg_color = "#1a1a1a",
             fg_color = "#808080",
         },
         inactive_tab_hover = {
-            bg_color = "#3d3d5c",
-            fg_color = "#e0e0e0",
+            bg_color = "#2a2a2a",
+            fg_color = "#ffffff",
         },
         new_tab = {
-            bg_color = "#16162b",
+            bg_color = "#0a0a0a",
             fg_color = "#808080",
         },
         new_tab_hover = {
-            bg_color = "#3d3d5c",
-            fg_color = "#e0e0e0",
+            bg_color = "#2a2a2a",
+            fg_color = "#00ffff",
         },
     },
 }
 
 -------------------------------------------------------------------------------
 -- THEME 2: CX Light
--- A clean light theme for daytime use
+-- Clean light theme for daytime use
+-- Colors: #FFFFFF (bg), #0A0A0A (fg), #0099AA (accent)
 -------------------------------------------------------------------------------
 local cx_light = {
-    foreground = "#2d2d44",
-    background = "#f8f8f8",
-    cursor_bg = "#0088cc",
-    cursor_fg = "#f8f8f8",
-    cursor_border = "#0088cc",
-    selection_fg = "#f8f8f8",
-    selection_bg = "#0088cc",
+    foreground = "#0a0a0a",
+    background = "#ffffff",
+    cursor_bg = "#0099aa",
+    cursor_fg = "#ffffff",
+    cursor_border = "#0099aa",
+    selection_fg = "#ffffff",
+    selection_bg = "#0099aa",
     scrollbar_thumb = "#c0c0c0",
     split = "#d0d0d0",
 
     ansi = {
-        "#2d2d44",  -- black
+        "#2d2d2d",  -- black
         "#cc0000",  -- red
         "#00aa00",  -- green
         "#aa8800",  -- yellow
-        "#0055cc",  -- blue
-        "#cc00cc",  -- magenta
-        "#0088aa",  -- cyan
+        "#0066cc",  -- blue
+        "#aa00aa",  -- magenta
+        "#0099aa",  -- cyan
         "#f0f0f0",  -- white
     },
     brights = {
         "#555555",  -- bright black
-        "#ff0000",  -- bright red
-        "#00cc00",  -- bright green
+        "#ff3333",  -- bright red
+        "#33cc33",  -- bright green
         "#ccaa00",  -- bright yellow
-        "#0077ff",  -- bright blue
-        "#ff00ff",  -- bright magenta
-        "#00aacc",  -- bright cyan
+        "#3399ff",  -- bright blue
+        "#cc33cc",  -- bright magenta
+        "#00cccc",  -- bright cyan
         "#ffffff",  -- bright white
     },
 
     tab_bar = {
-        background = "#e8e8e8",
+        background = "#f0f0f0",
         active_tab = {
-            bg_color = "#0088cc",
+            bg_color = "#0099aa",
             fg_color = "#ffffff",
         },
         inactive_tab = {
-            bg_color = "#d0d0d0",
+            bg_color = "#e0e0e0",
             fg_color = "#555555",
         },
         inactive_tab_hover = {
-            bg_color = "#c0c0c0",
-            fg_color = "#2d2d44",
+            bg_color = "#d0d0d0",
+            fg_color = "#0a0a0a",
         },
         new_tab = {
-            bg_color = "#e8e8e8",
+            bg_color = "#f0f0f0",
             fg_color = "#555555",
         },
         new_tab_hover = {
-            bg_color = "#c0c0c0",
-            fg_color = "#2d2d44",
+            bg_color = "#d0d0d0",
+            fg_color = "#0099aa",
         },
     },
 }
@@ -301,14 +303,34 @@ config.window_background_opacity = 0.95
 
 -------------------------------------------------------------------------------
 -- FONT STYLING
+-- CX Terminal default: Fira Code for terminal, Inter for UI
 -------------------------------------------------------------------------------
-config.font = cx.font("JetBrains Mono")
+config.font = cx.font_with_fallback({
+    "Fira Code",      -- Primary: excellent ligatures and readability
+    "JetBrains Mono", -- Fallback: widely available
+    "Cascadia Code",  -- Fallback: Windows default
+    "Menlo",          -- Fallback: macOS default
+})
 config.font_size = 14.0
 
--- Enable ligatures (for supported fonts)
-config.harfbuzz_features = { "calt=1", "clig=1", "liga=1" }
+-- Enable Fira Code stylistic sets for better symbols
+-- ss01: r with serifs, ss02: <= and >= with horizontal bar
+-- ss03: & ampersand, ss04: $ with broken bar
+-- ss05: @ with larger inner circle, ss06: thin backslash
+-- ss07: ~= and != with large tilde/equals
+-- ss08: == and === with large ligature
+config.harfbuzz_features = {
+    "calt=1",  -- Contextual alternates (ligatures)
+    "clig=1",  -- Ligatures
+    "liga=1",  -- Standard ligatures
+    "ss01=1",  -- Fira Code stylistic set 1
+    "ss02=1",  -- Fira Code stylistic set 2
+    "ss03=1",  -- Fira Code stylistic set 3
+    "ss07=1",  -- Fira Code stylistic set 7
+    "zero=1",  -- Slashed zero
+}
 
--- Disable ligatures
+-- Disable ligatures if you prefer
 -- config.harfbuzz_features = { "calt=0", "clig=0", "liga=0" }
 
 return config

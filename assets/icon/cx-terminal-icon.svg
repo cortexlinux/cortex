@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="bg-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0a0a"/>
+      <stop offset="100%" style="stop-color:#1a1a1a"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00ffff;stop-opacity:0.8"/>
+      <stop offset="100%" style="stop-color:#00cccc;stop-opacity:0.6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded rectangle -->
+  <rect x="4" y="4" width="120" height="120" rx="20" ry="20"
+        fill="url(#bg-gradient)"
+        stroke="#00ffff" stroke-width="2" stroke-opacity="0.3"/>
+
+  <!-- Terminal prompt symbol > -->
+  <path d="M 28 48 L 52 64 L 28 80"
+        fill="none"
+        stroke="#00ffff"
+        stroke-width="8"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+
+  <!-- Cursor block -->
+  <rect x="62" y="56" width="12" height="16" rx="2" ry="2"
+        fill="#00ffff" opacity="0.9"/>
+
+  <!-- CX text -->
+  <text x="82" y="74"
+        font-family="Fira Code, JetBrains Mono, monospace"
+        font-size="24"
+        font-weight="bold"
+        fill="#ffffff">CX</text>
+
+  <!-- AI indicator dots -->
+  <circle cx="36" cy="100" r="4" fill="#00ffff" opacity="0.6"/>
+  <circle cx="52" cy="100" r="4" fill="#00ffff" opacity="0.4"/>
+  <circle cx="68" cy="100" r="4" fill="#00ffff" opacity="0.2"/>
+</svg>
