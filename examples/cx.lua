@@ -1,8 +1,8 @@
 -- CX Terminal Configuration
 -- Place this file at ~/.config/cx/cx.lua or ~/.cx.lua
 --
--- CX Terminal - AI-native terminal for Cortex Linux
--- https://cortexlinux.com
+-- CX Terminal - AI-native terminal for CX Linux
+-- https://cxlinux.ai
 
 local cx = require 'cx'
 

@@ -1,7 +1,7 @@
 //! Subscription tier definitions and limits
 //!
 //! CX Terminal is bundled with Cortex Linux subscriptions.
-//! Pricing aligns with cortexlinux.com/pricing:
+//! Pricing aligns with cxlinux.ai/pricing:
 //! - Core (Free): 1 system, basic features
 //! - Pro ($19/system): Unlimited systems, commercial use
 //! - Team ($49/mo): Cloud AI, team dashboard, 25 systems
@@ -86,7 +86,7 @@ impl SubscriptionTier {
         }
     }
 
-    /// Get the Stripe price ID for this tier (matches cortexlinux.com)
+    /// Get the Stripe price ID for this tier (matches cxlinux.ai)
     pub fn stripe_price_id_monthly(&self) -> Option<&'static str> {
         match self {
             Self::Core => None,

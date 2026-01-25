@@ -89,8 +89,8 @@ source ~/.cargo/env
 
 ### Clone the Repository
 ```bash
-git clone https://github.com/cortexlinux/cortex-terminal.git
-cd cortex-terminal
+git clone https://github.com/cxlinux-ai/cx.git
+cd cx
 ```
 
 ### Quick Build
@@ -236,4 +236,4 @@ Pre-built binaries are available from GitHub Actions for:
 - macOS (Intel and ARM)
 - Windows
 
-Download from: [GitHub Releases](https://github.com/cortexlinux/cortex-terminal/releases)
+Download from: [GitHub Releases](https://github.com/cxlinux-ai/cx/releases)

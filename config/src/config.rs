@@ -1063,7 +1063,7 @@ impl Config {
             }
         }
 
-        // We didn't find (or were asked to skip) a cortex.lua/wezterm.lua file, so
+        // We didn't find (or were asked to skip) a cx.lua/wezterm.lua file, so
         // update the environment to make it simpler to understand this
         // state.
         std::env::remove_var("WEZTERM_CONFIG_FILE");

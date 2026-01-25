@@ -64,7 +64,7 @@ jobs:
             ```
 
             ### Changes
-            See [CHANGELOG.md](https://github.com/cortexlinux/cortex-terminal/blob/main/docs/changelog.md) for details.
+            See [CHANGELOG.md](https://github.com/cxlinux-ai/cx/blob/main/docs/changelog.md) for details.
 
   build-linux:
     name: Build Linux

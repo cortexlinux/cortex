@@ -77,7 +77,7 @@ pub use termwindow::{set_window_class, set_window_position, TermWindow, ICON_DAT
 #[derive(Debug, Parser)]
 #[command(
     name = "cx-terminal",
-    about = "CX Terminal - AI-Native Terminal for CX Linux\nhttps://github.com/cxlinux/cx-terminal",
+    about = "CX Terminal - AI-Native Terminal for CX Linux\nhttps://github.com/cxlinux-ai/cx",
     version = config::wezterm_version()
 )]
 struct Opt {

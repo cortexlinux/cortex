@@ -365,7 +365,7 @@ impl LicenseValidator {
 
         Self {
             license_path: config_dir.join("license.json"),
-            server_url: "https://license.cxlinux.com/api/v1".to_string(),
+            server_url: "https://license.cxlinux.ai/api/v1".to_string(),
             grace_period_days: 7,
             hardware_fingerprint: HardwareFingerprint::generate(),
         }
