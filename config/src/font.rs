@@ -431,8 +431,8 @@ impl FontAttributes {
 impl Default for FontAttributes {
     fn default() -> Self {
         Self {
-            // CX Terminal: Default to Fira Code for code/terminal text
-            family: "Fira Code".into(),
+            // CX Terminal: Default to JetBrains Mono (bundled)
+            family: "JetBrains Mono".into(),
             weight: FontWeight::default(),
             stretch: FontStretch::default(),
             style: FontStyle::Normal,
@@ -588,7 +588,7 @@ impl TextStyle {
 
         let mut default_font = FontAttributes::default();
 
-        // Insert our bundled default Fira Code as a fallback
+        // Insert our bundled default JetBrains Mono as a fallback
         // in case their preference doesn't match anything.
         // But don't add it if it is already their preference.
         if !font.iter().any(|f| *f == default_font) {

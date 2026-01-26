@@ -198,7 +198,7 @@ mod test {
 
         let mut config: config::Config = (*config).clone();
         config.font = TextStyle {
-            font: vec![FontAttributes::new("Fira Code")],
+            font: vec![FontAttributes::new("JetBrains Mono")],
             foreground: None,
         };
         config.font_rules.clear();
