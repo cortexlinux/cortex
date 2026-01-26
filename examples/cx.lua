@@ -18,12 +18,11 @@ local config = cx.config_builder()
 config.color_scheme = "CX Dark"
 
 -- Font settings - System fonts FIRST to avoid "Unable to load font" errors
--- macOS: SF Mono and Menlo are always available
+-- macOS: Menlo and Monaco are always available
 -- Linux: DejaVu Sans Mono is typically available
 -- Then fall back to optional fonts if installed
 config.font = cx.font_with_fallback({
-    "SF Mono",           -- macOS system font (always present)
-    "Menlo",             -- macOS fallback (always present)
+    "Menlo",             -- macOS system font (always present)
     "Monaco",            -- macOS classic (always present)
     "DejaVu Sans Mono",  -- Linux fallback
     "Consolas",          -- Windows fallback
