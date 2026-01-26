@@ -1305,6 +1305,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 
 [[package]]
+name = "cx-daemon"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "config",
+ "dirs-next",
+ "env-bootstrap",
+ "env_logger 0.11.8",
+ "filedescriptor",
+ "libc",
+ "log",
+ "nix",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "umask",
+ "uuid",
+]
+
+[[package]]
 name = "cx-terminal"
 version = "0.1.0"
 dependencies = [
