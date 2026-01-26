@@ -203,13 +203,16 @@ impl TelemetryPanel {
 
         // Separator
         children.push(
-            Element::new(&font, ElementContent::Text("  ─────────────────────────────".into()))
-                .colors(ElementColors {
-                    border: BorderColor::default(),
-                    bg: LinearRgba::TRANSPARENT.into(),
-                    text: dim_color.clone(),
-                })
-                .display(DisplayType::Block),
+            Element::new(
+                &font,
+                ElementContent::Text("  ─────────────────────────────".into()),
+            )
+            .colors(ElementColors {
+                border: BorderColor::default(),
+                bg: LinearRgba::TRANSPARENT.into(),
+                text: dim_color.clone(),
+            })
+            .display(DisplayType::Block),
         );
 
         // Actions header
@@ -254,23 +257,29 @@ impl TelemetryPanel {
 
         // Help text
         children.push(
-            Element::new(&font, ElementContent::Text("  ─────────────────────────────".into()))
-                .colors(ElementColors {
-                    border: BorderColor::default(),
-                    bg: LinearRgba::TRANSPARENT.into(),
-                    text: dim_color.clone(),
-                })
-                .display(DisplayType::Block),
+            Element::new(
+                &font,
+                ElementContent::Text("  ─────────────────────────────".into()),
+            )
+            .colors(ElementColors {
+                border: BorderColor::default(),
+                bg: LinearRgba::TRANSPARENT.into(),
+                text: dim_color.clone(),
+            })
+            .display(DisplayType::Block),
         );
 
         children.push(
-            Element::new(&font, ElementContent::Text("  ↑↓ navigate • Enter select • Esc close".into()))
-                .colors(ElementColors {
-                    border: BorderColor::default(),
-                    bg: LinearRgba::TRANSPARENT.into(),
-                    text: dim_color.clone(),
-                })
-                .display(DisplayType::Block),
+            Element::new(
+                &font,
+                ElementContent::Text("  ↑↓ navigate • Enter select • Esc close".into()),
+            )
+            .colors(ElementColors {
+                border: BorderColor::default(),
+                bg: LinearRgba::TRANSPARENT.into(),
+                text: dim_color.clone(),
+            })
+            .display(DisplayType::Block),
         );
 
         // Wrap in container
