@@ -10,9 +10,10 @@ local config = cx.config_builder()
 -- System fonts FIRST to avoid "Unable to load font" errors on fresh installs
 -------------------------------------------------------------------------------
 config.font = cx.font_with_fallback({
-    "SF Mono",           -- macOS system font (always present)
-    "Menlo",             -- macOS fallback (always present)
+    "Menlo",             -- macOS system font (always present)
+    "Monaco",            -- macOS classic (always present)
     "DejaVu Sans Mono",  -- Linux fallback
+    "Consolas",          -- Windows fallback
     "JetBrains Mono",    -- If installed (recommended)
     "Noto Color Emoji",
     "Symbols Nerd Font",

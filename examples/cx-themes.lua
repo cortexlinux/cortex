@@ -307,8 +307,7 @@ config.window_background_opacity = 0.95
 -- Optional fonts (Fira Code, JetBrains Mono) at end for ligature support
 -------------------------------------------------------------------------------
 config.font = cx.font_with_fallback({
-    "SF Mono",        -- macOS system font (always present)
-    "Menlo",          -- macOS fallback (always present)
+    "Menlo",          -- macOS system font (always present)
     "Monaco",         -- macOS classic (always present)
     "DejaVu Sans Mono", -- Linux fallback
     "Consolas",       -- Windows fallback
