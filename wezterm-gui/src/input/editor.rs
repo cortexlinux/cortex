@@ -160,7 +160,11 @@ impl Editor {
     pub fn insert_char(&mut self, c: char) {
         self.save_undo_state();
         self.delete_selection();
+        self.insert_char_internal(c);
+    }
 
+    /// Internal character insertion without undo state save
+    fn insert_char_internal(&mut self, c: char) {
         if c == '\n' {
             // Split line at cursor
             let current_line = &self.lines[self.cursor.line];
@@ -195,8 +199,13 @@ impl Editor {
 
     /// Insert a string at cursor position
     pub fn insert_str(&mut self, s: &str) {
+        if s.is_empty() {
+            return;
+        }
+        self.save_undo_state();
+        self.delete_selection();
         for c in s.chars() {
-            self.insert_char(c);
+            self.insert_char_internal(c);
         }
     }
 
