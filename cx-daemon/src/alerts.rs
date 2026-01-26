@@ -185,11 +185,11 @@ impl AlertDatabase {
                             .unwrap_or(AlertStatus::Active),
                         created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(6)?)
                             .ok()
-                            .and_then(|dt| Some(dt.with_timezone(&Utc)))
+                            .map(|dt| dt.with_timezone(&Utc))
                             .unwrap_or_else(Utc::now),
                         updated_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(7)?)
                             .ok()
-                            .and_then(|dt| Some(dt.with_timezone(&Utc)))
+                            .map(|dt| dt.with_timezone(&Utc))
                             .unwrap_or_else(Utc::now),
                     })
                 },
@@ -207,19 +207,26 @@ impl AlertDatabase {
         let mut query = "SELECT id, severity, source, title, description, status, created_at, updated_at FROM alerts WHERE 1=1".to_string();
         let mut params: Vec<String> = Vec::new();
 
-        if let Some(s) = status {
+        // Build query with placeholders to prevent SQL injection
+        if status.is_some() {
             query.push_str(" AND status = ?");
-            params.push(s.as_str().to_string());
         }
-
-        if let Some(sev) = severity {
+        if severity.is_some() {
             query.push_str(" AND severity = ?");
-            params.push(sev.as_str().to_string());
         }
 
         query.push_str(" ORDER BY created_at DESC");
 
         let mut stmt = self.conn.prepare(&query)?;
+
+        // Build parameters in the same order as placeholders
+        if let Some(s) = status {
+            params.push(s.as_str().to_string());
+        }
+        if let Some(sev) = severity {
+            params.push(sev.as_str().to_string());
+        }
+
         let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
         
         let alerts = stmt
@@ -235,11 +242,11 @@ impl AlertDatabase {
                         .unwrap_or(AlertStatus::Active),
                     created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(6)?)
                         .ok()
-                        .and_then(|dt| Some(dt.with_timezone(&Utc)))
+                        .map(|dt| dt.with_timezone(&Utc))
                         .unwrap_or_else(Utc::now),
                     updated_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(7)?)
                         .ok()
-                        .and_then(|dt| Some(dt.with_timezone(&Utc)))
+                        .map(|dt| dt.with_timezone(&Utc))
                         .unwrap_or_else(Utc::now),
                 })
             })?

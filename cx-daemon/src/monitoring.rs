@@ -198,9 +198,10 @@ impl MonitoringService {
 
             let result = unsafe { libc::statvfs(path_c.as_ptr(), &mut stat) };
             if result == 0 {
-                let total = stat.f_blocks * stat.f_frsize;
-                let available = stat.f_bavail * stat.f_frsize;
-                let used = total - available;
+                // Use u64 for calculations to prevent overflow
+                let total = stat.f_blocks as u64 * stat.f_frsize as u64;
+                let available = stat.f_bavail as u64 * stat.f_frsize as u64;
+                let used = total.saturating_sub(available);
 
                 if total > 0 {
                     Ok((used as f64 / total as f64) * 100.0)

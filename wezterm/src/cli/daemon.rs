@@ -236,7 +236,7 @@ impl DaemonCommand {
         }
 
         if let Some(id) = acknowledge {
-            let response = self.send_request(Request::AcknowledgeAlert { id: id.clone() })?;
+            let response = self.send_request(Request::AcknowledgeAlert { id })?;
             match response {
                 Response::Success { message } => {
                     println!("{}", message);
@@ -252,7 +252,7 @@ impl DaemonCommand {
         }
 
         if let Some(id) = dismiss {
-            let response = self.send_request(Request::DismissAlert { id: id.clone() })?;
+            let response = self.send_request(Request::DismissAlert { id })?;
             match response {
                 Response::Success { message } => {
                     println!("{}", message);
