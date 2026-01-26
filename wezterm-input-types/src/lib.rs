@@ -2139,15 +2139,14 @@ pub enum IntegratedTitleButtonStyle {
     Windows,
     Gnome,
     MacOsNative,
+    /// CX Terminal style - filled circles with purple/white theme
+    CX,
 }
 
 impl Default for IntegratedTitleButtonStyle {
     fn default() -> Self {
-        if cfg!(target_os = "macos") {
-            Self::MacOsNative
-        } else {
-            Self::Windows
-        }
+        // CX Terminal defaults to CX style on all platforms
+        Self::CX
     }
 }
 
@@ -2166,11 +2165,12 @@ impl FromDynamic for IntegratedTitleButtonStyle {
                 "Windows" => Self::Windows,
                 "Gnome" => Self::Gnome,
                 "MacOsNative" if cfg!(target_os = "macos") => Self::MacOsNative,
+                "CX" => Self::CX,
                 _ => {
                     return Err(wezterm_dynamic::Error::InvalidVariantForType {
                         variant_name: string.to_string(),
                         type_name,
-                        possible: &["Windows", "Gnome", "MacOsNative"],
+                        possible: &["Windows", "Gnome", "MacOsNative", "CX"],
                     });
                 }
             };
