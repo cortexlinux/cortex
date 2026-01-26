@@ -142,6 +142,31 @@ enum SubCommand {
         #[arg(long, value_parser)]
         shell: Shell,
     },
+
+    // CX Terminal: AI-powered commands
+    /// Ask AI a question or request an action
+    #[command(name = "ask", about = "Ask AI a question or request an action")]
+    Ask(cli::ask::AskCommand),
+
+    /// Install packages using natural language
+    #[command(name = "install", about = "Install packages using natural language (e.g., cx install cuda drivers)")]
+    Install(cli::shortcuts::InstallCommand),
+
+    /// Setup or configure systems using natural language
+    #[command(name = "setup", about = "Setup systems using natural language (e.g., cx setup lamp stack)")]
+    Setup(cli::shortcuts::SetupCommand),
+
+    /// Ask questions about the system
+    #[command(name = "what", about = "Ask about your system (e.g., cx what packages use the most disk space)")]
+    What(cli::shortcuts::WhatCommand),
+
+    /// Fix errors using AI
+    #[command(name = "fix", about = "Fix errors using AI assistance")]
+    Fix(cli::shortcuts::FixCommand),
+
+    /// Explain a command, file, or concept
+    #[command(name = "explain", about = "Explain a command or concept")]
+    Explain(cli::shortcuts::ExplainCommand),
 }
 
 use termwiz::escape::osc::{
@@ -762,6 +787,13 @@ fn run() -> anyhow::Result<()> {
             generate_completion(shell, &mut cmd, name, &mut std::io::stdout());
             Ok(())
         }
+        // CX Terminal: AI-powered commands
+        SubCommand::Ask(cmd) => cmd.run(),
+        SubCommand::Install(cmd) => cmd.run(),
+        SubCommand::Setup(cmd) => cmd.run(),
+        SubCommand::What(cmd) => cmd.run(),
+        SubCommand::Fix(cmd) => cmd.run(),
+        SubCommand::Explain(cmd) => cmd.run(),
     }
 }
 
