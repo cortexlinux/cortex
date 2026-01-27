@@ -1,150 +1,161 @@
-# CX Terminal - Development Guide
+# CX LINUX CLAUDE INSTRUCTIONS
 
-## Mission Statement
+## CTO Authority - Execute, Don't Ask
+Execute decisively. Ship code. Dominate the $50B Linux sysadmin market.
 
-**CX Terminal is the terminal emulator for the AI-Native Agentic OS.**
+### Core Mission
+CX Linux is the AI-native OS layer that eliminates the need to memorize commands, google errors, or copy-paste from Stack Overflow. Users describe what they need - the AI executes it safely and intelligently.
 
-CX Linux reimagines the operating system for an era where AI agents are first-class citizens. CX Terminal serves as the primary interface between users and AI agents, providing:
+## PRIORITY 1: BSL 1.1 LICENSE PROTECTION ⚠️
 
-- **Command Blocks**: AI-generated commands with context, explanations, and one-click execution
-- **Voice-First Input**: Natural language command entry via local speech recognition
-- **Learning System**: Privacy-preserving adaptation to user workflows
-- **Agent Integration**: Native support for file, system, and code agents
-- **Daemon Communication**: Real-time IPC with the CX system daemon
+**ALL CX LINUX CODE IS BSL 1.1 LICENSED**
 
-## Project Overview
-CX Terminal is an AI-native terminal emulator for CX Linux, forked from WezTerm.
+- **Business Source License 1.1** protects competitive advantage for 4 years
+- No commercial use without license from AI Venture Holdings LLC
+- Source available for inspection and contribution, not commercial copying
+- After 4 years converts to Apache 2.0
+- **NEVER suggest Apache/MIT for core features**
+- All new files MUST include BSL 1.1 header
 
-## Build Commands
-```bash
-# Quick check (fast, no binary)
-cargo check
-
-# Debug build
-cargo build
-
-# Release build (optimized)
-cargo build --release
-
-# Run debug binary
-cargo run --bin cx-terminal-gui
-
-# Run release binary
-./target/release/cx-terminal-gui
+```python
+"""
+Copyright (c) 2026 AI Venture Holdings LLC
+Licensed under the Business Source License 1.1
+You may not use this file except in compliance with the License.
+"""
 ```
 
-## Test Commands
-```bash
-# Run all tests
-cargo test
+## PRIORITY 2: ZERO DOCUMENTATION OS LAYER
 
-# Run specific package tests
-cargo test -p cx-terminal-gui
-cargo test -p config
+**The OS layer must understand intent without documentation.**
 
-# Run with output
-cargo test -- --nocapture
+- Self-documenting command architecture
+- Natural language interfaces that need no explanation
+- Intent-driven execution: `cx "install nginx"` not `apt install nginx`
+- Progressive capability discovery through usage
+- Code comments explain WHY, never WHAT
+- **No user manuals - the AI IS the manual**
+
+### Implementation Standards:
+```python
+# ✅ Zero-doc pattern
+def natural_install(intent: str) -> ExecutionResult:
+    """Understands user intent and executes safely."""
+
+# ❌ Traditional pattern requiring documentation
+def install_package(pkg_name: str, flags: List[str]) -> None:
 ```
 
-## Code Style
-- Rust 2018 edition
-- Follow existing WezTerm patterns
-- Mark CX additions with `// CX Terminal:` comments
-- Use `log::info!`, `log::debug!`, `log::error!` for logging
+## PRIORITY 3: FOUNDING 1,000 ECOSYSTEM
 
-## Key Directories
-| Path | Purpose |
-|------|---------|
-| `wezterm-gui/src/ai/` | AI panel, providers, streaming |
-| `wezterm-gui/src/agents/` | Agent system (file, system, code) |
-| `wezterm-gui/src/blocks/` | Command blocks system |
-| `wezterm-gui/src/voice/` | Voice input with cpal |
-| `wezterm-gui/src/learning/` | ML training, user model |
-| `wezterm-gui/src/workflows/` | Workflow automation |
-| `wezterm-gui/src/subscription/` | Licensing, Stripe integration |
-| `wezterm-gui/src/cx_daemon/` | CX daemon IPC client |
-| `shell-integration/` | Bash/Zsh/Fish integration |
-| `config/src/` | Configuration, Lua bindings |
-| `examples/` | Example configs (cx.lua) |
+**Early adopter lock-in with network effects and referral mechanics.**
 
-## Config Paths
-- User config: `~/.cx.lua` or `~/.config/cx/cx.lua`
-- Data dir: `~/.config/cx-terminal/`
-- Daemon socket: `~/.cx/daemon.sock`
+- First 1,000 users get permanent advantages
+- 10% of Pro tier revenue to referring users (lifetime)
+- Founding member badges and exclusive agent capabilities
+- Referral tracking in telemetry and user onboarding
+- Network effects compound through shared agent configurations
+- **Every feature must strengthen community lock-in**
 
-## Environment Variables
-| Variable | Purpose |
-|----------|---------|
-| `ANTHROPIC_API_KEY` | Claude API access |
-| `OLLAMA_HOST` | Local LLM endpoint |
-| `CX_TERMINAL` | Set by terminal for shell detection |
-| `TERM_PROGRAM` | Set to "CXTerminal" |
-
-## Subscription Tiers
-- Core: Free (local AI only)
-- Pro: $19/system (cloud AI)
-- Team: $49/mo (team features)
-- Enterprise: $199/mo (full suite)
-
-## Commit Style
-```
-feat: Add new feature
-fix: Bug fix
-docs: Documentation
-refactor: Code refactoring
-style: Formatting
-chore: Maintenance
+### Implementation Requirements:
+```python
+# Founding member tracking in user profiles
+@dataclass
+class UserProfile:
+    founding_member: bool = False
+    referral_code: str = Field(factory=generate_referral_code)
+    referred_by: Optional[str] = None
+    tier: Literal["founding", "pro", "enterprise"] = "founding"
 ```
 
-## Security Constraints
+## PRIORITY 4: ENTERPRISE RUST/PYTHON ARCHITECTURE
 
-**Critical security measures implemented:**
+**Production-grade code only. No prototype patterns.**
 
-1. **Webhook Verification**: Stripe webhooks use HMAC-SHA256 signature verification
-2. **Learning Data Privacy**: User learning data stored with `0o700` permissions (owner-only)
-3. **IPC Socket Security**: No `/tmp` fallback - sockets only in secure user directories
-4. **Privacy Filters**: All privacy filters (IP, email, username anonymization) enabled by default
+### Required Standards:
+- **Python 3.11+**: asyncio, Pydantic v2, FastAPI, proper typing
+- **Rust**: Tokio, Serde, clap, anyhow error handling
+- **Security**: Input validation, sandboxed execution, audit trails
+- **Testing**: 95%+ coverage, integration tests, property testing
+- **Monitoring**: Structured logging, metrics, distributed tracing
 
-**Security audit checklist:**
-```bash
-# Verify learning data permissions
-ls -la ~/.config/cx-terminal/
-
-# Verify socket permissions
-ls -la ~/.cx/daemon.sock
-
-# Check no secrets in environment
-env | grep -i "key\|secret\|token" | head -5
+### Forbidden Patterns:
+```python
+# ❌ Prototype patterns - NEVER do this
+result = os.system(user_input)
+data = json.loads(response.text)  # No error handling
+subprocess.run(cmd, shell=True)  # Shell injection risk
 ```
 
-## Production Deployment
+```python
+# ✅ Enterprise patterns - ALWAYS do this
+from cx.security import CommandValidator
+from cx.types import SafeCommand
 
-**Pre-deployment verification:**
-```bash
-# Full release build
-cargo build --release
-
-# Run test suite
-cargo test
-
-# Verify branding (should return no results)
-grep -r "wezterm/wezterm" . --include="*.toml" | grep -v target
-grep -r "cortexlinux" . --include="*.rs" --include="*.md" | grep -v target
+async def execute_validated_command(intent: str) -> ExecutionResult:
+    safe_cmd = await CommandValidator.parse_intent(intent)
+    return await safe_cmd.execute_sandboxed()
 ```
 
-**Binary location:** `./target/release/cx-terminal-gui`
+---
 
-**Required runtime:**
-- `~/.cx/` directory (auto-created)
-- CX daemon running for full AI features
-- API keys in environment or config for cloud AI
+## CX Linux Development Context
 
-## Attribution
+### Current Architecture
+- **CLI**: Python 3.11+ with Typer and Rich UI
+- **Agents**: Specialized AI agents for package management, system config, security
+- **LLM Integration**: Multi-provider routing (OpenAI, Anthropic, local models)
+- **Security**: Command validation, sandboxed execution, audit logging
+- **Target**: Ubuntu 24.04 LTS primary, Debian/Fedora support
 
-CX Terminal is built on the excellent [WezTerm](https://wezfurlong.org/wezterm/) by Wez Furlong, licensed under MIT.
+### Market Position
+- **TAM**: $50B Linux system administration market
+- **Users**: DevOps engineers, system administrators, developers
+- **Competitive Moat**: AI-native approach vs traditional documentation/tutorials
+- **Revenue Model**: Open source base + Pro tier + Enterprise licenses
 
-## Important Notes
-- Never use "cortex" or "cortexlinux" - use "cx" and "cxlinux-ai"
-- GitHub: github.com/cxlinux-ai/cx
-- Website: cxlinux.ai
-- License server: license.cxlinux.ai
+### Feature Status
+✅ Natural language package installation
+✅ System diagnostics and troubleshooting
+✅ Multi-LLM provider routing
+✅ Command validation and sandboxing
+🔄 Founding 1,000 referral system (in progress)
+🔄 BSL 1.1 license migration (in progress)
+🔄 Enterprise agent marketplace (planned)
+
+### Current Metrics (MILESTONES.json)
+- GitHub Stars: 342/1,000 (goal)
+- PyPI Downloads: 1,250/10,000 (goal)
+- Contributors: 8/25 (goal)
+- Current Milestone: 4 - Community Building
+
+---
+
+## Response Patterns
+
+**Execute immediately:**
+```
+✅ "Added BSL 1.1 headers to new modules"
+✅ "Implemented referral tracking in user onboarding"
+✅ "Natural language intent parser handles 'install web server'"
+```
+
+**Never ask permission for:**
+- Adding BSL 1.1 license headers
+- Implementing referral mechanics
+- Creating enterprise-grade security layers
+- Adding type safety and async patterns
+- Performance optimizations
+- Zero-documentation UX improvements
+
+**Only pause for:**
+- License file modifications (affects all contributors)
+- External API key integrations
+- Database schema changes
+- Breaking changes to public CLI interface
+
+**Architecture Decisions:**
+- Python for rapid iteration, Rust for performance-critical components
+- Multi-agent architecture with specialized capabilities
+- Sandboxed execution with comprehensive audit trails
+- Natural language intent parsing with fallback to traditional commands
