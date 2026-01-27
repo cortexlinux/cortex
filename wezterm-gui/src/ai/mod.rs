@@ -1,3 +1,9 @@
+/*
+Copyright (c) 2026 AI Venture Holdings LLC
+Licensed under the Business Source License 1.1
+You may not use this file except in compliance with the License.
+*/
+
 //! AI Panel for CX Terminal
 //!
 //! Provides AI-powered assistance including:
@@ -67,6 +73,171 @@ impl Default for AIConfig {
     }
 }
 
+impl AIConfig {
+    /// Create configuration with auto-detected best available provider
+    pub fn auto_detect() -> Self {
+        let provider = detect_best_provider();
+        let mut config = Self::default();
+
+        config.enabled = provider != AIProviderType::None;
+        config.provider = provider;
+
+        if let Some(endpoint) = provider.default_endpoint() {
+            config.api_endpoint = Some(endpoint.to_string());
+        }
+
+        config.model = provider.default_model().to_string();
+
+        // Set API key from environment if available
+        match provider {
+            AIProviderType::Claude => {
+                config.api_key = std::env::var("ANTHROPIC_API_KEY").ok();
+            }
+            AIProviderType::OpenAI => {
+                config.api_key = std::env::var("OPENAI_API_KEY").ok();
+            }
+            AIProviderType::CXLinux => {
+                config.api_key = std::env::var("CX_AI_API_KEY").ok();
+            }
+            _ => {}
+        }
+
+        // Set appropriate system prompt
+        config.system_prompt = Some(match provider {
+            AIProviderType::CXLinux => {
+                "You are CX AI, the intelligent assistant for CX Linux. \
+                 Help users with command-line tasks, system administration, and CX-specific features. \
+                 Provide practical, actionable solutions with proper Linux commands."
+            }
+            _ => {
+                "You are a helpful Linux terminal assistant. \
+                 Provide concise, practical help with command-line tasks and system administration."
+            }
+        }.to_string());
+
+        config
+    }
+
+    /// Check if the configuration is ready to use
+    pub fn is_ready(&self) -> bool {
+        if !self.enabled || self.provider == AIProviderType::None {
+            return false;
+        }
+
+        match self.provider {
+            AIProviderType::None => false,
+            AIProviderType::Claude | AIProviderType::OpenAI | AIProviderType::CXLinux => {
+                self.api_key.is_some() && !self.api_key.as_ref().unwrap().is_empty()
+            }
+            AIProviderType::Local => {
+                self.api_endpoint.is_some()
+            }
+            AIProviderType::Custom => {
+                self.api_endpoint.is_some() && !self.api_endpoint.as_ref().unwrap().is_empty()
+            }
+        }
+    }
+
+    /// Get current status for UI display
+    pub fn get_status(&self) -> AIProviderStatus {
+        AIProviderStatus {
+            provider: self.provider,
+            is_available: self.provider.is_available(),
+            is_ready: self.is_ready(),
+            model: if self.model.is_empty() {
+                None
+            } else {
+                Some(self.model.clone())
+            },
+            error: if self.is_ready() {
+                None
+            } else {
+                Some(match self.provider {
+                    AIProviderType::None => "No AI provider configured".to_string(),
+                    AIProviderType::Claude => "ANTHROPIC_API_KEY not set".to_string(),
+                    AIProviderType::OpenAI => "OPENAI_API_KEY not set".to_string(),
+                    AIProviderType::CXLinux => "CX_AI_API_KEY not set".to_string(),
+                    AIProviderType::Local => "Ollama not running on localhost:11434".to_string(),
+                    AIProviderType::Custom => "Custom endpoint not configured".to_string(),
+                })
+            },
+        }
+    }
+}
+
+/// AI provider status for UI display
+#[derive(Debug, Clone)]
+pub struct AIProviderStatus {
+    pub provider: AIProviderType,
+    pub is_available: bool,
+    pub is_ready: bool,
+    pub model: Option<String>,
+    pub error: Option<String>,
+}
+
+impl AIProviderStatus {
+    /// Get display text for status bar
+    pub fn display_text(&self) -> String {
+        if self.is_ready {
+            format!("{} {}", self.provider.icon(), self.provider.display_name())
+        } else {
+            format!("{} No AI", AIProviderType::None.icon())
+        }
+    }
+
+    /// Get color for status bar
+    pub fn status_color(&self) -> &'static str {
+        if self.is_ready {
+            self.provider.status_color()
+        } else {
+            AIProviderType::None.status_color()
+        }
+    }
+}
+
+/// Detect the best available AI provider
+pub fn detect_best_provider() -> AIProviderType {
+    // Priority order: CX Linux > Claude > OpenAI > Local > None
+    let providers = [
+        AIProviderType::CXLinux,
+        AIProviderType::Claude,
+        AIProviderType::OpenAI,
+        AIProviderType::Local,
+    ];
+
+    for &provider in &providers {
+        if provider.is_available() {
+            return provider;
+        }
+    }
+
+    AIProviderType::None
+}
+
+/// Check all providers and their status
+pub fn get_all_provider_status() -> Vec<AIProviderStatus> {
+    let providers = [
+        AIProviderType::Claude,
+        AIProviderType::OpenAI,
+        AIProviderType::Local,
+        AIProviderType::CXLinux,
+    ];
+
+    providers
+        .iter()
+        .map(|&provider| {
+            let config = AIConfig {
+                enabled: true,
+                provider,
+                model: provider.default_model().to_string(),
+                api_endpoint: provider.default_endpoint().map(|s| s.to_string()),
+                ..Default::default()
+            };
+            config.get_status()
+        })
+        .collect()
+}
+
 /// Supported AI providers
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AIProviderType {
@@ -107,13 +278,49 @@ impl AIProviderType {
         }
     }
 
+    /// Get display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Self::None => "No AI",
+            Self::Claude => "Claude",
+            Self::OpenAI => "OpenAI",
+            Self::Local => "Ollama",
+            Self::CXLinux => "CX AI",
+            Self::Custom => "Custom",
+        }
+    }
+
+    /// Get icon/emoji for status bar
+    pub fn icon(&self) -> &'static str {
+        match self {
+            Self::None => "💤",
+            Self::Claude => "🤖",
+            Self::OpenAI => "🧠",
+            Self::Local => "🏠",
+            Self::CXLinux => "⚡",
+            Self::Custom => "🔧",
+        }
+    }
+
+    /// Get status color for UI
+    pub fn status_color(&self) -> &'static str {
+        match self {
+            Self::None => "#6272A4",      // Muted gray
+            Self::Claude => "#00D9FF",    // CX cyan
+            Self::OpenAI => "#00D9FF",    // CX cyan
+            Self::Local => "#FFB86C",     // Orange
+            Self::CXLinux => "#00FFFF",   // Bright cyan
+            Self::Custom => "#F1FA8C",    // Yellow
+        }
+    }
+
     pub fn default_model(&self) -> &'static str {
         match self {
             Self::None => "",
             Self::Claude => "claude-3-5-sonnet-20241022",
             Self::OpenAI => "gpt-4-turbo-preview",
             Self::Local => "llama3",
-            Self::CXLinux => "cx-assistant",
+            Self::CXLinux => "cx-assistant-v2",
             Self::Custom => "",
         }
     }
@@ -125,6 +332,25 @@ impl AIProviderType {
             Self::Local => Some("http://localhost:11434/api/generate"),
             Self::CXLinux => Some("unix:///var/run/cx/ai.sock"),
             _ => None,
+        }
+    }
+
+    /// Check if this provider is available in current environment
+    pub fn is_available(&self) -> bool {
+        match self {
+            Self::None => false,
+            Self::Claude => std::env::var("ANTHROPIC_API_KEY").is_ok(),
+            Self::OpenAI => std::env::var("OPENAI_API_KEY").is_ok(),
+            Self::Local => {
+                // Check if Ollama is running
+                std::process::Command::new("curl")
+                    .args(["-s", "-m", "2", "http://localhost:11434/api/tags"])
+                    .output()
+                    .map(|output| output.status.success())
+                    .unwrap_or(false)
+            }
+            Self::CXLinux => std::env::var("CX_AI_API_KEY").is_ok(),
+            Self::Custom => true, // Assume custom endpoint is configurable
         }
     }
 }

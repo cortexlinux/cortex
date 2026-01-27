@@ -1,19 +1,29 @@
-# CX Terminal - Development Guide
+# CX LINUX CLAUDE INSTRUCTIONS
 
-## Mission Statement
+## CTO Authority - Execute, Don't Ask
+Execute decisively. Ship code. Dominate the $50B Linux sysadmin market.
 
-**CX Terminal is the terminal emulator for the AI-Native Agentic OS.**
+### Core Mission
+CX Linux is the AI-native OS layer that eliminates the need to memorize commands, google errors, or copy-paste from Stack Overflow. Users describe what they need - the AI executes it safely and intelligently.
 
-CX Linux reimagines the operating system for an era where AI agents are first-class citizens. CX Terminal serves as the primary interface between users and AI agents, providing:
+## PRIORITY 1: BSL 1.1 LICENSE PROTECTION
 
-- **Command Blocks**: AI-generated commands with context, explanations, and one-click execution
-- **Voice-First Input**: Natural language command entry via local speech recognition
-- **Learning System**: Privacy-preserving adaptation to user workflows
-- **Agent Integration**: Native support for file, system, and code agents
-- **Daemon Communication**: Real-time IPC with the CX system daemon
+**ALL CX LINUX CODE IS BSL 1.1 LICENSED**
 
-## Project Overview
-CX Terminal is an AI-native terminal emulator for CX Linux, forked from WezTerm.
+- **Business Source License 1.1** protects competitive advantage for 4 years
+- No commercial use without license from AI Venture Holdings LLC
+- Source available for inspection and contribution, not commercial copying
+- After 4 years converts to Apache 2.0
+- **NEVER suggest Apache/MIT for core features**
+- All new files MUST include BSL 1.1 header
+
+```python
+"""
+Copyright (c) 2026 AI Venture Holdings LLC
+Licensed under the Business Source License 1.1
+You may not use this file except in compliance with the License.
+"""
+```
 
 ---
 
@@ -61,6 +71,51 @@ STRIPE_PRICE_CORE=price_free
 STRIPE_PRICE_PRO=price_1ABC...      # $19 one-time
 STRIPE_PRICE_TEAM=price_1DEF...     # $99/month recurring
 STRIPE_PRICE_ENTERPRISE=price_1GHI... # $199/month recurring
+```
+
+---
+
+## PRIORITY 2: ZERO DOCUMENTATION OS LAYER
+
+**The OS layer must understand intent without documentation.**
+
+- Self-documenting command architecture
+- Natural language interfaces that need no explanation
+- Intent-driven execution: `cx "install nginx"` not `apt install nginx`
+- Progressive capability discovery through usage
+- Code comments explain WHY, never WHAT
+- **No user manuals - the AI IS the manual**
+
+### Implementation Standards:
+```python
+# ✅ Zero-doc pattern
+def natural_install(intent: str) -> ExecutionResult:
+    """Understands user intent and executes safely."""
+
+# ❌ Traditional pattern requiring documentation
+def install_package(pkg_name: str, flags: List[str]) -> None:
+```
+
+## PRIORITY 3: FOUNDING 1,000 ECOSYSTEM
+
+**Early adopter lock-in with network effects and referral mechanics.**
+
+- First 1,000 users get permanent advantages
+- 10% of Pro tier revenue to referring users (lifetime)
+- Founding member badges and exclusive agent capabilities
+- Referral tracking in telemetry and user onboarding
+- Network effects compound through shared agent configurations
+- **Every feature must strengthen community lock-in**
+
+### Implementation Requirements:
+```python
+# Founding member tracking in user profiles
+@dataclass
+class UserProfile:
+    founding_member: bool = False
+    referral_code: str = Field(factory=generate_referral_code)
+    referred_by: Optional[str] = None
+    tier: Literal["founding", "pro", "enterprise"] = "founding"
 ```
 
 ---
@@ -127,21 +182,35 @@ All PRs must pass these checks before merge:
 | Test Suite | `cargo test --workspace` | Unit/integration tests |
 | Documentation Tests | `cargo test --doc --workspace` | Doc example verification |
 
-### Applying Rulesets
+---
 
-```bash
-# Apply ruleset to a repository
-gh api repos/cxlinux-ai/REPO_NAME/rulesets \
-  --method POST \
-  --input ruleset.json
+## PRIORITY 4: ENTERPRISE RUST/PYTHON ARCHITECTURE
 
-# Update existing ruleset
-gh api repos/cxlinux-ai/cx/rulesets/9679118 \
-  --method PUT \
-  --input ruleset.json
+**Production-grade code only. No prototype patterns.**
 
-# List all rulesets
-gh api repos/cxlinux-ai/cx/rulesets
+### Required Standards:
+- **Python 3.11+**: asyncio, Pydantic v2, FastAPI, proper typing
+- **Rust**: Tokio, Serde, clap, anyhow error handling
+- **Security**: Input validation, sandboxed execution, audit trails
+- **Testing**: 95%+ coverage, integration tests, property testing
+- **Monitoring**: Structured logging, metrics, distributed tracing
+
+### Forbidden Patterns:
+```python
+# ❌ Prototype patterns - NEVER do this
+result = os.system(user_input)
+data = json.loads(response.text)  # No error handling
+subprocess.run(cmd, shell=True)  # Shell injection risk
+```
+
+```python
+# ✅ Enterprise patterns - ALWAYS do this
+from cx.security import CommandValidator
+from cx.types import SafeCommand
+
+async def execute_validated_command(intent: str) -> ExecutionResult:
+    safe_cmd = await CommandValidator.parse_intent(intent)
+    return await safe_cmd.execute_sandboxed()
 ```
 
 ---
@@ -323,26 +392,29 @@ cargo clippy --workspace -- -D warnings
 
 ---
 
-## Security Constraints
+## CX Linux Development Context
 
-**Critical security measures implemented:**
+### Current Architecture
+- **CLI**: Python 3.11+ with Typer and Rich UI
+- **Agents**: Specialized AI agents for package management, system config, security
+- **LLM Integration**: Multi-provider routing (OpenAI, Anthropic, local models)
+- **Security**: Command validation, sandboxed execution, audit logging
+- **Target**: Ubuntu 24.04 LTS primary, Debian/Fedora support
 
-1. **Webhook Verification**: Stripe webhooks use HMAC-SHA256 signature verification
-2. **Learning Data Privacy**: User learning data stored with `0o700` permissions (owner-only)
-3. **IPC Socket Security**: No `/tmp` fallback - sockets only in secure user directories
-4. **Privacy Filters**: All privacy filters (IP, email, username anonymization) enabled by default
+### Market Position
+- **TAM**: $50B Linux system administration market
+- **Users**: DevOps engineers, system administrators, developers
+- **Competitive Moat**: AI-native approach vs traditional documentation/tutorials
+- **Revenue Model**: Open source base + Pro tier + Enterprise licenses
 
-**Security audit checklist:**
-```bash
-# Verify learning data permissions
-ls -la ~/.config/cx-terminal/
-
-# Verify socket permissions
-ls -la ~/.cx/daemon.sock
-
-# Check no secrets in environment
-env | grep -i "key\|secret\|token" | head -5
-```
+### Feature Status
+✅ Natural language package installation
+✅ System diagnostics and troubleshooting
+✅ Multi-LLM provider routing
+✅ Command validation and sandboxing
+🔄 Founding 1,000 referral system (in progress)
+🔄 BSL 1.1 license migration (in progress)
+🔄 Enterprise agent marketplace (planned)
 
 ---
 
@@ -372,10 +444,6 @@ grep -r "cortexlinux" . --include="*.rs" --include="*.md" | grep -v target
 - API keys in environment or config for cloud AI
 
 ---
-
-## Attribution
-
-CX Terminal is built on the excellent [WezTerm](https://wezfurlong.org/wezterm/) by Wez Furlong, licensed under MIT.
 
 ## Important Notes
 
@@ -412,3 +480,34 @@ All 20 repositories in `@cxlinux-ai` follow these standards:
 | cx-api | REST API |
 | cx-sdk | Developer SDK |
 | cx-examples | Example configurations |
+
+---
+
+## Response Patterns
+
+**Execute immediately:**
+```
+✅ "Added BSL 1.1 headers to new modules"
+✅ "Implemented referral tracking in user onboarding"
+✅ "Natural language intent parser handles 'install web server'"
+```
+
+**Never ask permission for:**
+- Adding BSL 1.1 license headers
+- Implementing referral mechanics
+- Creating enterprise-grade security layers
+- Adding type safety and async patterns
+- Performance optimizations
+- Zero-documentation UX improvements
+
+**Only pause for:**
+- License file modifications (affects all contributors)
+- External API key integrations
+- Database schema changes
+- Breaking changes to public CLI interface
+
+**Architecture Decisions:**
+- Python for rapid iteration, Rust for performance-critical components
+- Multi-agent architecture with specialized capabilities
+- Sandboxed execution with comprehensive audit trails
+- Natural language intent parsing with fallback to traditional commands
