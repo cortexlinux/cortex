@@ -1,0 +1,19 @@
+# Requirements for CX Linux SystemAlertManager Enterprise Features
+# These dependencies are required for the enterprise-grade alert management system
+
+# Core dependencies
+rich>=13.0.0                    # Terminal UI and console formatting
+psutil>=5.8.0                   # System and process monitoring
+
+# Enterprise security dependencies
+cryptography>=41.0.0            # Data encryption for sensitive fields (email addresses)
+
+# Database and performance
+sqlite3                         # Built-in with Python, but included for clarity
+
+# Testing dependencies (optional, for running enterprise tests)
+# unittest                      # Built-in with Python
+# tempfile                      # Built-in with Python
+
+# Optional: For enhanced JSON handling in large datasets
+# orjson>=3.8.0                # Faster JSON parsing for large metadata
