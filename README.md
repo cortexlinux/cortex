@@ -2,7 +2,7 @@
   <img src="assets/icon/cx-terminal-icon.svg" alt="CX Terminal Logo" width="200" />
 </p>
 
-<h1 align="center">CX Terminal</h1>
+<h1 align="center">CX AI Terminal</h1>
 
 <p align="center">
   <strong>The AI-Native Terminal for CX Linux</strong><br>
@@ -34,9 +34,9 @@
 
 ---
 
-## What is CX Terminal?
+## What is CX AI Terminal?
 
-CX Terminal is not just a terminal emulator; it is the primary interface for **CX Linux**. It integrates a specialized AI side-panel that shares a "nervous system" with your OS via a dedicated IPC daemon. It understands your intent, captures your voice, and learns from your unique workflow.
+CX AI Terminal is not just a terminal emulator; it is the primary interface for **CX Linux**. It integrates a specialized AI side-panel that shares a "nervous system" with your OS via a dedicated IPC daemon. It understands your intent, captures your voice, and learns from your unique workflow.
 
 ```bash
 # Real-time AI intervention (Ctrl+Space)

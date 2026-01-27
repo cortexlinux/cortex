@@ -35,8 +35,22 @@
         font-weight="bold"
         fill="#ffffff">CX</text>
 
-  <!-- AI indicator dots -->
-  <circle cx="36" cy="100" r="4" fill="#00ffff" opacity="0.6"/>
-  <circle cx="52" cy="100" r="4" fill="#00ffff" opacity="0.4"/>
-  <circle cx="68" cy="100" r="4" fill="#00ffff" opacity="0.2"/>
+  <!-- AI indicator dots with improved animation -->
+  <circle cx="36" cy="100" r="4" fill="#00ffff" opacity="0.8">
+    <animate attributeName="opacity" values="0.3;0.8;0.3" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="52" cy="100" r="4" fill="#00ffff" opacity="0.6">
+    <animate attributeName="opacity" values="0.3;0.6;0.3" dur="2s" begin="0.3s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="68" cy="100" r="4" fill="#00ffff" opacity="0.4">
+    <animate attributeName="opacity" values="0.3;0.4;0.3" dur="2s" begin="0.6s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- AI Ready text -->
+  <text x="84" y="104"
+        font-family="Fira Code, JetBrains Mono, monospace"
+        font-size="10"
+        font-weight="500"
+        fill="#00ffff"
+        opacity="0.8">AI Ready</text>
 </svg>

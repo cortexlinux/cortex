@@ -1,29 +1,34 @@
-# Sponsoring
+# Support CX Linux
 
-If you use and find wezterm valuable, please consider sponsoring its
-development.
+Join the CX Linux Founding 1,000 and help shape the future of AI-native Linux system administration.
 
-Your support helps to validate the time spent so far and encourages me to spend
-more time working on it in the future, keeping the project alive and current.
+## Why Support CX Linux?
 
-It may not be readily apparent, but maintaining software that runs across
-multiple different operating systems and graphical environments is particularly
-labor intensive.
+CX Linux is building the AI-native OS layer that eliminates the need to memorize commands, google errors, or copy-paste from Stack Overflow. Your support helps us:
 
-Add to that the time it takes to triage and respond to questions and issues on
-GitHub and Element, and that's a significant amount of time and energy just to
-keep things ticking over, even without adding new features or making
-significant improvements.
+- Develop natural language interfaces for Linux administration
+- Maintain multi-LLM provider support (Claude, OpenAI, local models)
+- Build enterprise-grade security and compliance features
+- Create the next generation of terminal experiences
 
-It feels like a full time job, but with your support, maybe it could
-actually be a full time job?
+## Join the Founding 1,000
 
-If you are in a position to provide recurring or even a one-time sponsorship,
-I would appreciate it.
+Be among the first 1,000 supporters and receive:
 
-You can find me on the following platforms:
+- Permanent Founding Member status
+- 10% lifetime revenue share from referrals
+- Early access to new features
+- Direct input on product roadmap
+- Exclusive Discord channel access
 
-[:simple-githubsponsors: GitHub](https://github.com/sponsors/wez){ .md-button }
-[:simple-patreon: Patreon](https://patreon.com/WezFurlong){ .md-button }
-[:simple-kofi: Ko-Fi ](https://ko-fi.com/wezfurlong){ .md-button }
-[:simple-liberapay: Liberapay](https://liberapay.com/wez){ .md-button }
+[:rocket: Join the Founding 1,000](https://cxlinux.ai/founders){ .md-button .md-button--primary }
+
+## Enterprise Support
+
+For enterprise deployment, custom integrations, and dedicated support:
+
+[:office_building: Contact Sales](mailto:sales@cxlinux.ai?subject=CX%20Linux%20Enterprise%20Inquiry){ .md-button }
+
+---
+
+*CX Linux is developed by AI Venture Holdings LLC and licensed under BSL 1.1*

@@ -135,7 +135,8 @@ impl TelemetryPanel {
         let title_color: InheritableColor = LinearRgba::with_components(0.0, 1.0, 1.0, 1.0).into();
         let text_color: InheritableColor = LinearRgba::with_components(0.9, 0.9, 0.9, 1.0).into();
         let dim_color: InheritableColor = LinearRgba::with_components(0.5, 0.5, 0.5, 1.0).into();
-        let selected_color: InheritableColor = LinearRgba::with_components(0.0, 1.0, 1.0, 1.0).into();
+        let selected_color: InheritableColor =
+            LinearRgba::with_components(0.0, 1.0, 1.0, 1.0).into();
 
         let git_color: InheritableColor = match data.git_status {
             GitStatus::Clean => LinearRgba::with_components(0.0, 1.0, 0.5, 1.0).into(),
@@ -152,64 +153,79 @@ impl TelemetryPanel {
 
         // Title
         children.push(
-            Element::new(&font, ElementContent::Text(" CX Telemetry Dashboard".into()))
-                .colors(ElementColors {
-                    border: BorderColor::default(),
-                    bg: border_color.clone(),
-                    text: LinearRgba::with_components(0.0, 0.0, 0.0, 1.0).into(),
-                })
-                .padding(BoxDimension {
-                    left: Dimension::Cells(0.5),
-                    right: Dimension::Cells(0.5),
-                    top: Dimension::Cells(0.25),
-                    bottom: Dimension::Cells(0.25),
-                })
-                .display(DisplayType::Block),
+            Element::new(
+                &font,
+                ElementContent::Text(" CX Telemetry Dashboard".into()),
+            )
+            .colors(ElementColors {
+                border: BorderColor::default(),
+                bg: border_color.clone(),
+                text: LinearRgba::with_components(0.0, 0.0, 0.0, 1.0).into(),
+            })
+            .padding(BoxDimension {
+                left: Dimension::Cells(0.5),
+                right: Dimension::Cells(0.5),
+                top: Dimension::Cells(0.25),
+                bottom: Dimension::Cells(0.25),
+            })
+            .display(DisplayType::Block),
         );
 
         // System stats
         children.push(
-            Element::new(&font, ElementContent::Text(format!("  CPU: {:.1}%", data.cpu_percent)))
-                .colors(ElementColors {
-                    border: BorderColor::default(),
-                    bg: LinearRgba::TRANSPARENT.into(),
-                    text: text_color.clone(),
-                })
-                .display(DisplayType::Block),
+            Element::new(
+                &font,
+                ElementContent::Text(format!("  CPU: {:.1}%", data.cpu_percent)),
+            )
+            .colors(ElementColors {
+                border: BorderColor::default(),
+                bg: LinearRgba::TRANSPARENT.into(),
+                text: text_color.clone(),
+            })
+            .display(DisplayType::Block),
         );
 
         children.push(
-            Element::new(&font, ElementContent::Text(format!(
-                "  RAM: {:.1}/{:.1} GB ({:.0}%)",
-                data.mem_used_gb, data.mem_total_gb, data.mem_percent
-            )))
-                .colors(ElementColors {
-                    border: BorderColor::default(),
-                    bg: LinearRgba::TRANSPARENT.into(),
-                    text: text_color.clone(),
-                })
-                .display(DisplayType::Block),
+            Element::new(
+                &font,
+                ElementContent::Text(format!(
+                    "  RAM: {:.1}/{:.1} GB ({:.0}%)",
+                    data.mem_used_gb, data.mem_total_gb, data.mem_percent
+                )),
+            )
+            .colors(ElementColors {
+                border: BorderColor::default(),
+                bg: LinearRgba::TRANSPARENT.into(),
+                text: text_color.clone(),
+            })
+            .display(DisplayType::Block),
         );
 
         children.push(
-            Element::new(&font, ElementContent::Text(format!("  Git: {}", data.git_string())))
-                .colors(ElementColors {
-                    border: BorderColor::default(),
-                    bg: LinearRgba::TRANSPARENT.into(),
-                    text: git_color,
-                })
-                .display(DisplayType::Block),
+            Element::new(
+                &font,
+                ElementContent::Text(format!("  Git: {}", data.git_string())),
+            )
+            .colors(ElementColors {
+                border: BorderColor::default(),
+                bg: LinearRgba::TRANSPARENT.into(),
+                text: git_color,
+            })
+            .display(DisplayType::Block),
         );
 
         // Separator
         children.push(
-            Element::new(&font, ElementContent::Text("  ─────────────────────────────".into()))
-                .colors(ElementColors {
-                    border: BorderColor::default(),
-                    bg: LinearRgba::TRANSPARENT.into(),
-                    text: dim_color.clone(),
-                })
-                .display(DisplayType::Block),
+            Element::new(
+                &font,
+                ElementContent::Text("  ─────────────────────────────".into()),
+            )
+            .colors(ElementColors {
+                border: BorderColor::default(),
+                bg: LinearRgba::TRANSPARENT.into(),
+                text: dim_color.clone(),
+            })
+            .display(DisplayType::Block),
         );
 
         // Actions header
@@ -226,51 +242,60 @@ impl TelemetryPanel {
         // Action items
         for (i, action) in self.actions.iter().enumerate() {
             let (bg, text) = if i == selected {
-                (selected_color.clone(), LinearRgba::with_components(0.0, 0.0, 0.0, 1.0).into())
+                (
+                    selected_color.clone(),
+                    LinearRgba::with_components(0.0, 0.0, 0.0, 1.0).into(),
+                )
             } else {
                 (LinearRgba::TRANSPARENT.into(), text_color.clone())
             };
 
             let prefix = if i == selected { "▶" } else { " " };
             children.push(
-                Element::new(&font, ElementContent::Text(format!(
-                    "  {} [{}] {}",
-                    prefix, action.key, action.label
-                )))
-                    .colors(ElementColors {
-                        border: BorderColor::default(),
-                        bg,
-                        text,
-                    })
-                    .padding(BoxDimension {
-                        left: Dimension::Cells(0.25),
-                        right: Dimension::Cells(0.25),
-                        top: Dimension::Cells(0.),
-                        bottom: Dimension::Cells(0.),
-                    })
-                    .display(DisplayType::Block),
+                Element::new(
+                    &font,
+                    ElementContent::Text(format!("  {} [{}] {}", prefix, action.key, action.label)),
+                )
+                .colors(ElementColors {
+                    border: BorderColor::default(),
+                    bg,
+                    text,
+                })
+                .padding(BoxDimension {
+                    left: Dimension::Cells(0.25),
+                    right: Dimension::Cells(0.25),
+                    top: Dimension::Cells(0.),
+                    bottom: Dimension::Cells(0.),
+                })
+                .display(DisplayType::Block),
             );
         }
 
         // Help text
         children.push(
-            Element::new(&font, ElementContent::Text("  ─────────────────────────────".into()))
-                .colors(ElementColors {
-                    border: BorderColor::default(),
-                    bg: LinearRgba::TRANSPARENT.into(),
-                    text: dim_color.clone(),
-                })
-                .display(DisplayType::Block),
+            Element::new(
+                &font,
+                ElementContent::Text("  ─────────────────────────────".into()),
+            )
+            .colors(ElementColors {
+                border: BorderColor::default(),
+                bg: LinearRgba::TRANSPARENT.into(),
+                text: dim_color.clone(),
+            })
+            .display(DisplayType::Block),
         );
 
         children.push(
-            Element::new(&font, ElementContent::Text("  ↑↓ navigate • Enter select • Esc close".into()))
-                .colors(ElementColors {
-                    border: BorderColor::default(),
-                    bg: LinearRgba::TRANSPARENT.into(),
-                    text: dim_color.clone(),
-                })
-                .display(DisplayType::Block),
+            Element::new(
+                &font,
+                ElementContent::Text("  ↑↓ navigate • Enter select • Esc close".into()),
+            )
+            .colors(ElementColors {
+                border: BorderColor::default(),
+                bg: LinearRgba::TRANSPARENT.into(),
+                text: dim_color.clone(),
+            })
+            .display(DisplayType::Block),
         );
 
         // Wrap in container

@@ -86,7 +86,10 @@ impl AgentProxy {
 
         // CX Terminal: Ensure runtime directory exists before creating symlink
         if let Err(err) = std::fs::create_dir_all(&*config::RUNTIME_DIR) {
-            log::error!("failed to create runtime directory {:?}: {err:#}", &*config::RUNTIME_DIR);
+            log::error!(
+                "failed to create runtime directory {:?}: {err:#}",
+                &*config::RUNTIME_DIR
+            );
         }
 
         if let Some(inherited) = Self::default_ssh_auth_sock() {

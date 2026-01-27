@@ -2,16 +2,16 @@
 
 ## CX Additions - BSL 1.1
 
-Copyright (c) 2025 CX Linux
+Copyright (c) 2025-2026 AI Venture Holdings LLC
 
 CX Terminal modifications and additions are licensed under the Business Source License 1.1.
 
 **Parameters:**
 
-- Licensor: CX Linux
+- Licensor: AI Venture Holdings LLC
 - Licensed Work: CX Terminal (modifications and additions to WezTerm)
-- Change Date: Four years from the date of each version release
-- Change License: MIT License
+- Change Date: Six (6) years from the date of each version release
+- Change License: Apache License 2.0
 
 **Terms:**
 

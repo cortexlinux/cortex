@@ -57,15 +57,68 @@ config.default_cursor_style = "SteadyBlock"
 config.cursor_blink_rate = 500
 
 -------------------------------------------------------------------------------
--- STATUS BAR - Git Branch + AI Ready Indicator
+-- STATUS BAR - Enhanced AI Ready + Git Integration
 -------------------------------------------------------------------------------
 
-config.status_update_interval = 1000
+config.status_update_interval = 2000
+
+-- AI Provider Status Detection
+local function get_ai_status()
+    -- Check for API keys and determine AI provider status
+    local claude_key = os.getenv("ANTHROPIC_API_KEY")
+    local openai_key = os.getenv("OPENAI_API_KEY")
+    local ollama_host = os.getenv("OLLAMA_HOST")
+
+    if claude_key and claude_key ~= "" then
+        return { icon = "🤖", text = "Claude", color = "#00D9FF" }
+    elseif openai_key and openai_key ~= "" then
+        return { icon = "🧠", text = "OpenAI", color = "#00D9FF" }
+    elseif ollama_host and ollama_host ~= "" then
+        return { icon = "🏠", text = "Local AI", color = "#FFB86C" }
+    else
+        -- Check if ollama is running locally
+        local ollama_check = os.execute("curl -s http://localhost:11434/api/tags >/dev/null 2>&1")
+        if ollama_check == 0 then
+            return { icon = "🏠", text = "Ollama", color = "#FFB86C" }
+        end
+    end
+
+    return { icon = "💤", text = "No AI", color = "#6272A4" }
+end
+
+-- System stats for enhanced status bar
+local function get_system_stats()
+    local stats = {}
+
+    -- Get current time
+    stats.time = os.date("%H:%M")
+
+    -- Try to get CPU usage (macOS/Linux)
+    local cpu_success, cpu_result = pcall(function()
+        if os.execute("command -v top >/dev/null 2>&1") == 0 then
+            local handle = io.popen("top -l 1 -n 0 2>/dev/null | grep 'CPU usage' | awk '{print $3}' | sed 's/%//'")
+            if handle then
+                local result = handle:read("*l")
+                handle:close()
+                if result and result ~= "" then
+                    return tonumber(result)
+                end
+            end
+        end
+        return nil
+    end)
+
+    if cpu_success and cpu_result then
+        stats.cpu = math.floor(cpu_result)
+    end
+
+    return stats
+end
 
 cx.on('update-status', function(window, pane)
     local cells = {}
 
-    -- Left status: Current working directory
+    -- Left status: Enhanced working directory with CX branding
     local cwd_uri = pane:get_current_working_dir()
     if cwd_uri then
         local cwd = cwd_uri.file_path or ""
@@ -74,16 +127,44 @@ cx.on('update-status', function(window, pane)
         if home ~= "" and cwd:sub(1, #home) == home then
             cwd = "~" .. cwd:sub(#home + 1)
         end
+
+        -- CX Terminal brand indicator
+        table.insert(cells, { Foreground = { Color = "#00FFFF" } })
+        table.insert(cells, { Text = " CX " })
+        table.insert(cells, { Foreground = { Color = "#44475A" } })
+        table.insert(cells, { Text = "│" })
         table.insert(cells, { Foreground = { Color = "#6272A4" } })
-        table.insert(cells, { Text = " " .. cwd .. " " })
+        table.insert(cells, { Text = " 📁 " .. cwd .. " " })
     end
 
     window:set_left_status(cx.format(cells))
 
-    -- Right status
+    -- Right status: Enhanced with system stats + AI status
     local right_cells = {}
+    local stats = get_system_stats()
 
-    -- Git branch indicator
+    -- System time
+    table.insert(right_cells, { Foreground = { Color = "#8BE9FD" } })
+    table.insert(right_cells, { Text = " 🕐 " .. stats.time })
+
+    -- CPU usage if available
+    if stats.cpu then
+        table.insert(right_cells, { Text = " " })
+        table.insert(right_cells, { Foreground = { Color = "#44475A" } })
+        table.insert(right_cells, { Text = "│" })
+
+        local cpu_color = "#50FA7B" -- Green
+        if stats.cpu > 80 then
+            cpu_color = "#FF5555" -- Red
+        elseif stats.cpu > 60 then
+            cpu_color = "#F1FA8C" -- Yellow
+        end
+
+        table.insert(right_cells, { Foreground = { Color = cpu_color } })
+        table.insert(right_cells, { Text = " 💻 " .. stats.cpu .. "%" })
+    end
+
+    -- Git branch indicator (enhanced)
     if cwd_uri then
         local success, stdout = pcall(function()
             local handle = io.popen('git -C "' .. (cwd_uri.file_path or ".") .. '" branch --show-current 2>/dev/null')
@@ -105,29 +186,32 @@ cx.on('update-status', function(window, pane)
                 is_dirty = dirty_result and dirty_result ~= ""
             end
 
-            table.insert(right_cells, { Foreground = { Color = "#00FF88" } })
+            table.insert(right_cells, { Text = " " })
+            table.insert(right_cells, { Foreground = { Color = "#44475A" } })
+            table.insert(right_cells, { Text = "│" })
+            table.insert(right_cells, { Foreground = { Color = "#50FA7B" } })
             table.insert(right_cells, { Text = " ⎇ " .. stdout })
             if is_dirty then
-                table.insert(right_cells, { Foreground = { Color = "#FFCC00" } })
+                table.insert(right_cells, { Foreground = { Color = "#F1FA8C" } })
                 table.insert(right_cells, { Text = " ●" })
             end
-            table.insert(right_cells, { Text = " " })
         end
     end
 
-    -- Separator
+    -- Enhanced AI Status indicator with dynamic detection
+    local ai_status = get_ai_status()
+    table.insert(right_cells, { Text = " " })
     table.insert(right_cells, { Foreground = { Color = "#44475A" } })
     table.insert(right_cells, { Text = "│" })
+    table.insert(right_cells, { Foreground = { Color = ai_status.color } })
+    table.insert(right_cells, { Text = " " .. ai_status.icon .. " " .. ai_status.text })
 
-    -- AI Status indicator
-    table.insert(right_cells, { Foreground = { Color = "#00D9FF" } })
-    table.insert(right_cells, { Text = " ⚡ AI Ready " })
-
-    -- Hint for AI shortcut
+    -- Keyboard shortcut hint
+    table.insert(right_cells, { Text = " " })
     table.insert(right_cells, { Foreground = { Color = "#44475A" } })
     table.insert(right_cells, { Text = "│" })
     table.insert(right_cells, { Foreground = { Color = "#6272A4" } })
-    table.insert(right_cells, { Text = " ^Space " })
+    table.insert(right_cells, { Text = " ⌨️ ^Space " })
 
     window:set_right_status(cx.format(right_cells))
 end)

@@ -254,12 +254,18 @@ impl AskCommand {
 
         let output = Command::new("curl")
             .args([
-                "-s", "-X", "POST",
+                "-s",
+                "-X",
+                "POST",
                 "https://api.anthropic.com/v1/messages",
-                "-H", &format!("x-api-key: {}", api_key),
-                "-H", "anthropic-version: 2023-06-01",
-                "-H", "content-type: application/json",
-                "-d", &payload.to_string(),
+                "-H",
+                &format!("x-api-key: {}", api_key),
+                "-H",
+                "anthropic-version: 2023-06-01",
+                "-H",
+                "content-type: application/json",
+                "-d",
+                &payload.to_string(),
             ])
             .output()?;
 
@@ -293,10 +299,14 @@ impl AskCommand {
 
         let output = Command::new("curl")
             .args([
-                "-s", "-X", "POST",
+                "-s",
+                "-X",
+                "POST",
                 &format!("{}/api/generate", host),
-                "-H", "content-type: application/json",
-                "-d", &payload.to_string(),
+                "-H",
+                "content-type: application/json",
+                "-d",
+                &payload.to_string(),
             ])
             .output()?;
 

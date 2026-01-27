@@ -2,7 +2,6 @@
 //!
 //! Detects user intent and maps to CX commands.
 
-
 /// Result of pattern matching
 #[derive(Debug, Clone)]
 pub struct PatternMatch {
@@ -313,7 +312,12 @@ impl PatternMatcher {
         // Look for patterns like "called X", "named X", or quoted strings
         for (i, word) in words.iter().enumerate() {
             if (*word == "called" || *word == "named") && i + 1 < words.len() {
-                return Some(words[i + 1].trim_matches('"').trim_matches('\'').to_string());
+                return Some(
+                    words[i + 1]
+                        .trim_matches('"')
+                        .trim_matches('\'')
+                        .to_string(),
+                );
             }
         }
 
@@ -326,16 +330,40 @@ impl PatternMatcher {
 
         // Look for last word that looks like a name (not a common word)
         let common_words = [
-            "a", "an", "the", "create", "make", "new", "project", "app", "with",
-            "for", "my", "please", "can", "you", "i", "want", "need", "setup",
-            "set", "up", "build", "start", "init", "initialize",
+            "a",
+            "an",
+            "the",
+            "create",
+            "make",
+            "new",
+            "project",
+            "app",
+            "with",
+            "for",
+            "my",
+            "please",
+            "can",
+            "you",
+            "i",
+            "want",
+            "need",
+            "setup",
+            "set",
+            "up",
+            "build",
+            "start",
+            "init",
+            "initialize",
         ];
 
         for word in words.iter().rev() {
             let clean = word.trim_matches(|c: char| !c.is_alphanumeric() && c != '-' && c != '_');
             if !clean.is_empty() && !common_words.contains(&clean.to_lowercase().as_str()) {
                 // Check if it looks like a project name
-                if clean.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+                if clean
+                    .chars()
+                    .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+                {
                     return Some(clean.to_string());
                 }
             }

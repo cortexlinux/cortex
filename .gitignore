@@ -1,3 +1,6 @@
+# Private AI instructions (kept locally, not in repo)
+CLAUDE.md
+
 /.tag
 .DS_Store
 dhat-heap.json

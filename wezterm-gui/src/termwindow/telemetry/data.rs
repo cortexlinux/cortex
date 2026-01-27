@@ -1,8 +1,8 @@
 // CX Terminal: Telemetry Data Collection
 // Collects CPU, RAM, Git status, and command history
 
-use std::process::Command;
 use std::path::PathBuf;
+use std::process::Command;
 use std::time::{Duration, Instant};
 
 /// Telemetry data for the dashboard
@@ -135,7 +135,11 @@ impl TelemetryData {
         for line in vm_stat.lines() {
             let parts: Vec<&str> = line.split(':').collect();
             if parts.len() == 2 {
-                let value = parts[1].trim().trim_end_matches('.').parse::<u64>().unwrap_or(0);
+                let value = parts[1]
+                    .trim()
+                    .trim_end_matches('.')
+                    .parse::<u64>()
+                    .unwrap_or(0);
                 match parts[0].trim() {
                     "Pages free" => pages_free = value,
                     "Pages active" => pages_active = value,
@@ -148,7 +152,8 @@ impl TelemetryData {
         }
 
         // Calculate memory usage
-        let total_pages = pages_free + pages_active + pages_inactive + pages_wired + pages_compressed;
+        let total_pages =
+            pages_free + pages_active + pages_inactive + pages_wired + pages_compressed;
         let used_pages = pages_active + pages_wired + pages_compressed;
 
         if total_pages > 0 {
@@ -171,13 +176,17 @@ impl TelemetryData {
                     let part = part.trim();
                     if part.contains("user") {
                         if let Some(val) = part.split('%').next() {
-                            user = val.split_whitespace().last()
+                            user = val
+                                .split_whitespace()
+                                .last()
                                 .and_then(|s| s.parse().ok())
                                 .unwrap_or(0.0);
                         }
                     } else if part.contains("sys") {
                         if let Some(val) = part.split('%').next() {
-                            sys = val.split_whitespace().last()
+                            sys = val
+                                .split_whitespace()
+                                .last()
                                 .and_then(|s| s.parse().ok())
                                 .unwrap_or(0.0);
                         }
@@ -237,10 +246,7 @@ impl TelemetryData {
         }
 
         // Get git status
-        if let Ok(output) = Command::new("git")
-            .args(["status", "--porcelain"])
-            .output()
-        {
+        if let Ok(output) = Command::new("git").args(["status", "--porcelain"]).output() {
             if output.status.success() {
                 let status = String::from_utf8_lossy(&output.stdout);
                 let lines: Vec<&str> = status.lines().collect();
@@ -249,12 +255,12 @@ impl TelemetryData {
                 if lines.is_empty() {
                     self.git_status = GitStatus::Clean;
                 } else {
-                    let has_staged = lines.iter().any(|l| {
-                        l.starts_with("M ") || l.starts_with("A ") || l.starts_with("D ")
-                    });
-                    let has_unstaged = lines.iter().any(|l| {
-                        l.starts_with(" M") || l.starts_with(" D") || l.starts_with("??")
-                    });
+                    let has_staged = lines
+                        .iter()
+                        .any(|l| l.starts_with("M ") || l.starts_with("A ") || l.starts_with("D "));
+                    let has_unstaged = lines
+                        .iter()
+                        .any(|l| l.starts_with(" M") || l.starts_with(" D") || l.starts_with("??"));
 
                     self.git_status = match (has_staged, has_unstaged) {
                         (true, true) => GitStatus::Mixed,
@@ -284,18 +290,21 @@ impl TelemetryData {
     /// Get status color for Git
     pub fn git_status_color(&self) -> (f32, f32, f32) {
         match self.git_status {
-            GitStatus::Clean => (0.0, 1.0, 0.5),      // Green
-            GitStatus::Dirty => (1.0, 0.8, 0.0),      // Yellow
-            GitStatus::Staged => (0.0, 0.8, 1.0),     // Cyan
-            GitStatus::Mixed => (1.0, 0.5, 0.0),      // Orange
-            GitStatus::NotRepo => (0.5, 0.5, 0.5),    // Gray
-            GitStatus::Unknown => (0.5, 0.5, 0.5),    // Gray
+            GitStatus::Clean => (0.0, 1.0, 0.5),   // Green
+            GitStatus::Dirty => (1.0, 0.8, 0.0),   // Yellow
+            GitStatus::Staged => (0.0, 0.8, 1.0),  // Cyan
+            GitStatus::Mixed => (1.0, 0.5, 0.0),   // Orange
+            GitStatus::NotRepo => (0.5, 0.5, 0.5), // Gray
+            GitStatus::Unknown => (0.5, 0.5, 0.5), // Gray
         }
     }
 
     /// Get formatted memory string
     pub fn mem_string(&self) -> String {
-        format!("{:.1}/{:.1} GB ({:.0}%)", self.mem_used_gb, self.mem_total_gb, self.mem_percent)
+        format!(
+            "{:.1}/{:.1} GB ({:.0}%)",
+            self.mem_used_gb, self.mem_total_gb, self.mem_percent
+        )
     }
 
     /// Get formatted CPU string
